@@ -32,36 +32,81 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   position: relative;
   overflow: hidden;
 }
 .header {
-  padding: 24px 20px 16px;
-  text-align: center;
+  padding: 10px 20px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
 }
+.title-wrap { text-align: left; line-height: 1.15; }
 .eyebrow {
   color: var(--gold);
-  font-size: 12px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  margin-bottom: 8px;
-}
-.title {
-  font-size: 28px;
-  font-weight: bold;
-  margin: 0 0 4px;
-}
-.subtitle {
-  color: var(--muted);
-  font-size: 14px;
   margin: 0;
 }
+.title {
+  font-size: 17px;
+  font-weight: bold;
+  margin: 0;
+}
+.subtitle { display: none; }
+.filter-toggle {
+  flex-shrink: 0;
+  background: rgba(242, 230, 201, 0.08);
+  border: 1px solid rgba(242, 230, 201, 0.25);
+  color: var(--paper);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.filter-toggle.active {
+  background: var(--paper);
+  color: var(--ink);
+  border-color: var(--paper);
+  font-weight: 600;
+}
+.filter-toggle .caret { font-size: 9px; transition: transform 0.25s; }
+.filter-toggle.active .caret { transform: rotate(180deg); }
+.filter-count {
+  background: var(--seal);
+  color: #fff;
+  border-radius: 10px;
+  min-width: 16px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  display: none;
+}
 .filters {
-  padding: 0 20px 16px;
+  padding: 0 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
+  flex-shrink: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.25s ease;
+}
+.filters.open {
+  max-height: 220px;
+  opacity: 1;
+  padding: 2px 20px 8px;
 }
 .filter-row {
   display: flex;
@@ -72,11 +117,11 @@ body {
 }
 .filter-row::-webkit-scrollbar { display: none; }
 .chip {
-  padding: 6px 14px;
+  padding: 4px 10px;
   border-radius: 20px;
   border: 1px solid var(--muted);
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   white-space: nowrap;
   background: transparent;
   cursor: pointer;
@@ -91,16 +136,19 @@ body {
 .segments {
   display: flex;
   background: rgba(242, 230, 201, 0.1);
-  border-radius: 12px;
-  padding: 4px;
-  margin: 0 20px 16px;
+  border-radius: 10px;
+  padding: 3px;
+  margin: 0 20px 6px;
+  flex-shrink: 0;
 }
+.filters .segments { margin: 0; }
+#mode-segments { margin: 2px 20px 8px; }
 .segment {
   flex: 1;
   text-align: center;
-  padding: 8px 4px;
-  font-size: 13px;
-  border-radius: 8px;
+  padding: 6px 4px;
+  font-size: 12px;
+  border-radius: 7px;
   color: var(--muted);
   cursor: pointer;
   transition: 0.3s;
@@ -112,28 +160,41 @@ body {
 }
 .main-area {
   flex: 1;
+  min-height: 0;
   padding: 0 20px;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
+}
+#quiz-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .card {
   background: var(--paper);
   color: var(--ink);
   border-radius: 16px;
-  padding: 32px 24px;
+  padding: 14px 18px;
   text-align: center;
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  margin-bottom: 24px;
+  margin-bottom: 10px;
   position: relative;
   transition: transform 0.3s, opacity 0.3s;
-  min-height: 200px;
+  flex: 0 1 auto;
+  min-height: clamp(120px, 26vh, 240px);
+  max-height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
   transform-style: preserve-3d;
 }
+.card > * { flex-shrink: 0; }
+.card::before, .card::after { content: ''; flex: 1 0 0; }
+.card.flash-mode::before, .card.flash-mode::after { content: none; }
 .card.shake {
   animation: shake 0.4s;
 }
@@ -144,47 +205,52 @@ body {
 }
 .word-display {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 32px;
+  font-size: clamp(22px, 7vw, 32px);
   font-weight: bold;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   line-height: 1.2;
+  word-break: break-word;
 }
 .pos-tag {
   background: rgba(0,0,0,0.06);
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 12px;
   font-size: 11px;
   color: var(--ink);
-  margin-bottom: 16px;
-  display: inline-block;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
 .meaning-display {
-  font-size: 20px;
+  font-size: clamp(16px, 5vw, 20px);
   font-weight: 600;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
+  line-height: 1.35;
 }
 .example-display {
-  font-size: 14px;
+  font-size: 13px;
   color: #555;
-  line-height: 1.5;
-  margin-top: 16px;
+  line-height: 1.45;
+  margin-top: 10px;
   border-top: 1px dashed rgba(0,0,0,0.1);
-  padding-top: 16px;
+  padding-top: 10px;
   display: none;
 }
 .choices {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 .choice-btn {
   background: rgba(242, 230, 201, 0.05);
   border: 1px solid rgba(242, 230, 201, 0.2);
   color: var(--paper);
-  padding: 16px;
+  font-family: inherit;
+  padding: 12px 14px;
   border-radius: 12px;
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 1.35;
   text-align: left;
   cursor: pointer;
   transition: 0.2s;
@@ -200,21 +266,28 @@ body {
   border-color: var(--seal);
   color: white;
 }
+.action-bar {
+  flex-shrink: 0;
+  height: 54px;
+  padding: 0 20px 8px;
+  display: flex;
+}
 .next-btn {
   background: var(--gold);
   color: var(--ink);
   border: none;
-  padding: 16px;
+  font-family: inherit;
+  padding: 13px;
   border-radius: 12px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: bold;
   cursor: pointer;
-  margin-top: auto;
+  flex: 1;
   display: none;
 }
 .type-input-container {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 12px;
 }
 .type-input {
   width: 100%;
@@ -230,15 +303,16 @@ body {
 }
 .type-input::placeholder { color: rgba(0,0,0,0.2); }
 .footer {
-  padding: 16px 20px 24px;
+  padding: 8px 20px 12px;
   border-top: 1px solid rgba(242, 230, 201, 0.1);
+  flex-shrink: 0;
 }
 .stats {
   display: flex;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: 6px;
 }
 .stamps {
   display: flex;
@@ -313,19 +387,22 @@ body {
   margin-left: 4px;
 }
 .card.flash-mode {
+  flex: 1;
   cursor: pointer;
   perspective: 1000px;
   padding: 0;
   background: transparent;
   box-shadow: none;
   border: none;
-  min-height: 280px;
+  min-height: 200px;
+  overflow: visible;
 }
+.card.flash-mode > * { margin: 0; }
 .flip-card-inner {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 280px;
+  min-height: 200px;
   text-align: center;
   transition: transform 0.6s;
   transform-style: preserve-3d;
@@ -338,13 +415,14 @@ body {
   top: 0; left: 0;
   width: 100%;
   height: 100%;
-  min-height: 280px;
+  min-height: 200px;
+  overflow-y: auto;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   background: var(--paper);
   color: var(--ink);
   border-radius: 16px;
-  padding: 32px 24px;
+  padding: 20px 20px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -359,12 +437,16 @@ body {
 <body>
 <div id="app">
   <div class="header">
-    <div class="eyebrow">TOEIC Vocabulary</div>
-    <h1 class="title">単語練習</h1>
-    <p class="subtitle">毎日のリーディングから421語</p>
+    <div class="title-wrap">
+      <div class="eyebrow">TOEIC Vocabulary</div>
+      <h1 class="title">単語練習</h1>
+    </div>
+    <button class="filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="filter-drawer">
+      絞り込み<span class="filter-count" id="filter-count">0</span><span class="caret">▼</span>
+    </button>
   </div>
 
-  <div class="filters">
+  <div class="filters" id="filter-drawer">
     <div class="filter-row" id="date-filters"></div>
     <div class="filter-row" id="pos-filters">
       <button class="chip active" data-pos="all">すべて</button>
@@ -379,17 +461,20 @@ body {
       <div class="segment" data-weak="weak_unlearned">苦手+未</div>
       <div class="segment" data-weak="weak_only">苦手のみ<span id="weak-badge" class="weak-badge" style="display:none">0</span></div>
     </div>
-    <div class="segments" id="mode-segments">
-      <div class="segment active" data-mode="e2j">英→日</div>
-      <div class="segment" data-mode="j2e">日→英</div>
-      <div class="segment" data-mode="flash">カード</div>
-      <div class="segment" data-mode="type">タイプ</div>
-    </div>
+  </div>
+
+  <div class="segments" id="mode-segments">
+    <div class="segment active" data-mode="e2j">英→日</div>
+    <div class="segment" data-mode="j2e">日→英</div>
+    <div class="segment" data-mode="flash">カード</div>
+    <div class="segment" data-mode="type">タイプ</div>
   </div>
 
   <div class="main-area">
     <div id="quiz-container"></div>
     <div id="choices-container" class="choices"></div>
+  </div>
+  <div class="action-bar">
     <button id="next-btn" class="next-btn">次へ</button>
   </div>
 
@@ -931,6 +1016,24 @@ function initFilters() {
       renderCurrent();
     });
   });
+
+  const toggle = document.getElementById('filter-toggle');
+  const drawer = document.getElementById('filter-drawer');
+  toggle.addEventListener('click', () => {
+    const open = drawer.classList.toggle('open');
+    toggle.classList.toggle('active', open);
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+}
+
+function updateFilterSummary() {
+  let n = state.dateFilter.length;
+  if (state.posFilter !== 'all') n++;
+  if (state.weakFilter !== 'all') n++;
+  const el = document.getElementById('filter-count');
+  if (!el) return;
+  el.style.display = n > 0 ? 'inline-block' : 'none';
+  el.innerText = n;
 }
 
 function shuffle(array) {
@@ -969,6 +1072,7 @@ function applyFilters() {
   state.pool = shuffle(filtered);
   state.currentIndex = 0;
   state.score = 0;
+  updateFilterSummary();
   renderCurrent();
 }
 
