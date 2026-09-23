@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Hide grammar theme title until after answering to prevent answer leakage"
+MESSAGE = "Fix grammar footer/weak list, badge filter, unlearned filter, duplicate-meaning choices, typing normalization"
 
 
 def gh(args, payload=None):
