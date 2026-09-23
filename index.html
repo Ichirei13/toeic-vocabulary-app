@@ -432,6 +432,93 @@ body {
 .card-back {
   transform: rotateY(180deg);
 }
+
+/* Grammar Part 5 styles */
+.grammar-card {
+  text-align: left !important;
+  align-items: flex-start !important;
+  padding: 16px 18px !important;
+  min-height: 180px;
+  max-height: 100%;
+  overflow-y: auto;
+}
+.grammar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+.grammar-badge {
+  background: var(--seal);
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 10px;
+}
+.grammar-chapter {
+  color: var(--muted);
+  font-weight: 600;
+}
+.grammar-theme {
+  color: var(--ink);
+  opacity: 0.85;
+}
+.grammar-question {
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+.grammar-exp-container {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(0,0,0,0.15);
+  width: 100%;
+}
+.grammar-correct-ans {
+  font-size: 14px;
+  color: var(--jade);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.grammar-exp-text {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #333;
+  white-space: pre-line;
+  margin-bottom: 10px;
+}
+.grammar-vocab-list {
+  background: rgba(0,0,0,0.04);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+}
+.grammar-vocab-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+.grammar-vocab-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.grammar-vocab-item {
+  color: #444;
+}
+.choice-label {
+  display: inline-block;
+  font-weight: 700;
+  margin-right: 6px;
+  color: var(--gold);
+}
+
 </style>
 </head>
 <body>
@@ -446,27 +533,40 @@ body {
     </button>
   </div>
 
+  <div class="segments" id="app-type-segments" style="margin: 0 20px 8px;">
+    <div class="segment active" data-app="vocab">単語ドリル</div>
+    <div class="segment" data-app="grammar">文法ドリル (Part 5)</div>
+  </div>
+
   <div class="filters" id="filter-drawer">
-    <div class="segments" id="source-segments" style="margin-bottom: 4px;">
-      <div class="segment active" data-source="all">すべて</div>
-      <div class="segment" data-source="daily">日々の単語</div>
-      <div class="segment" data-source="teppan">TEPPAN</div>
+    <div id="vocab-filters">
+      <div class="segments" id="source-segments" style="margin-bottom: 4px;">
+        <div class="segment active" data-source="all">すべて</div>
+        <div class="segment" data-source="daily">日々の単語</div>
+        <div class="segment" data-source="teppan">TEPPAN</div>
+      </div>
+      <div class="filter-row" id="date-filters"></div>
+      <div class="filter-row" id="pos-filters">
+        <button class="chip active" data-pos="all">すべて</button>
+        <button class="chip" data-pos="名詞">名詞</button>
+        <button class="chip" data-pos="動詞">動詞</button>
+        <button class="chip" data-pos="形容詞">形容詞</button>
+        <button class="chip" data-pos="副詞">副詞</button>
+        <button class="chip" data-pos="句・表現">句・表現</button>
+      </div>
+      <div class="filter-row" id="range-filters" style="display:none;"></div>
+      <div class="segments" id="weak-segments">
+        <div class="segment active" data-weak="all">すべて</div>
+        <div class="segment" data-weak="weak_unlearned">苦手+未</div>
+        <div class="segment" data-weak="weak_only">苦手のみ<span id="weak-badge" class="weak-badge" style="display:none">0</span></div>
+      </div>
     </div>
-    <div class="filter-row" id="date-filters"></div>
-    <div class="filter-row" id="pos-filters">
-      <!-- pos chips -->
-      <button class="chip active" data-pos="all">すべて</button>
-      <button class="chip" data-pos="名詞">名詞</button>
-      <button class="chip" data-pos="動詞">動詞</button>
-      <button class="chip" data-pos="形容詞">形容詞</button>
-      <button class="chip" data-pos="副詞">副詞</button>
-      <button class="chip" data-pos="句・表現">句・表現</button>
-    </div>
-    <div class="filter-row" id="range-filters" style="display:none;"></div>
-    <div class="segments" id="weak-segments">
-      <div class="segment active" data-weak="all">すべて</div>
-      <div class="segment" data-weak="weak_unlearned">苦手+未</div>
-      <div class="segment" data-weak="weak_only">苦手のみ<span id="weak-badge" class="weak-badge" style="display:none">0</span></div>
+    <div id="grammar-filters" style="display:none;">
+      <div class="filter-row" id="grammar-chapter-filters"></div>
+      <div class="segments" id="grammar-weak-segments" style="margin-top: 4px;">
+        <div class="segment active" data-gweak="all">すべて</div>
+        <div class="segment" data-gweak="weak_only">苦手のみ<span id="grammar-weak-badge" class="weak-badge" style="display:none">0</span></div>
+      </div>
     </div>
   </div>
 
@@ -2562,22 +2662,33 @@ const RAW_WORDS = [
 ["without", "〜なしに", "句・表現", "", "", "teppan", 1636]
 ].map(([w,m,p,e,d,s,no])=>({w,m,p,e,d,s,no}));
 
+const RAW_GRAMMAR = [{"id": 1, "ch": 1, "ch_title": "受動態", "th_title": "受動態の変形パターン", "q": "A prize ------- for the most innovative product improvement idea.", "c": ["awarding", "awarded", "will award", "will be awarded"], "a": 3, "exp": "「賞が与えられる」という受動関係が自然なので、(D) will be awarded を選びます（助動詞 be p.p.）。他はすべて能動関係で意味が通りませんし、他動詞 award の後ろに O がないのもアウトです（自動詞・他動詞については103ページ参照）。\n和訳: 最も革新的な製品改善案に対して、賞が与えられる。", "v": [{"word": "prize", "meaning": "賞"}, {"word": "award", "meaning": "授与する"}, {"word": "innovative", "meaning": "革新的な"}, {"word": "product", "meaning": "製品"}, {"word": "improvement", "meaning": "改善"}]}, {"id": 2, "ch": 1, "ch_title": "受動態", "th_title": "受動態の変形パターン", "q": "Randall Roofing's sales consultants ------- at 555-1989 between the hours of 9 A.M. and 8 P.M.", "c": ["can contact", "can be contacted", "will be contacting", "are contacting"], "a": 1, "exp": "「コンサルタントは午前9時〜午後8時に連絡される（連絡がとれる）」という意味を考え、受動態の (B) can be contacted を選びます。直訳「連絡されることができる」→「連絡がとれる」ということです。contact「連絡をとる」は他動詞なので、能動態で使う場合は直後に O が必要です。\n和訳: Randall Roofing の販売コンサルタントには、午前9時から午後8時の間に 555-1989 にかけることで連絡をとることができる。", "v": [{"word": "consultant", "meaning": "コンサルタント"}, {"word": "contact", "meaning": "連絡をとる"}]}, {"id": 3, "ch": 1, "ch_title": "受動態", "th_title": "受動態の変形パターン", "q": "The new airplane's engines ------- to maximize fuel efficiency.", "c": ["have been modified", "will modify", "is modifying", "had modified"], "a": 0, "exp": "「エンジンは手を加えられる」という受動関係が自然なので、「完了形＋受動態」の (A) have been modified を選びます。空所直後の to 〜 は不定詞の「副詞的用法（〜するために）」で、The new airplane's engines have been modified to 〜「〜するために、新しい飛行機のエンジンは手を加えられた」となります。\n和訳: 新しい飛行機のエンジンは、燃費を最も良くするために手を加えられた。", "v": [{"word": "engine", "meaning": "エンジン"}, {"word": "modify", "meaning": "修正する"}, {"word": "maximize", "meaning": "最大にする"}, {"word": "fuel efficiency", "meaning": "燃料効率・燃費"}]}, {"id": 4, "ch": 1, "ch_title": "受動態", "th_title": "受動態の変形パターン", "q": "Three candidates ------- for the business analyst position.", "c": ["considering", "are considered to", "are being considered", "is considered"], "a": 2, "exp": "Three candidates が S、空所には V が入ると考え、「進行形＋受動態」の (C) are being considered を選びます。Three candidates are being considered for 〜「〜に対して3人の候補者が検討されている（途中）」となります。(A) considering は前置詞「〜を考慮すれば」なので×、(B) are considered to は空所直後の for と合わないので×、(D) is considered は複数形の主語（Three candidates）と動詞 is が合わないので×です。\n和訳: ビジネスアナリストとしての職に対して、3人の候補者が検討されている。", "v": [{"word": "candidate", "meaning": "候補者"}, {"word": "consider", "meaning": "考慮する・検討する"}]}, {"id": 5, "ch": 1, "ch_title": "受動態", "th_title": "by以外の前置詞を使う受動態／受動態の構造", "q": "Customers who are not completely satisfied ------- the Chillz 2000 refrigerator may return it within 14 days for a full refund.", "c": ["in", "with", "for", "on"], "a": 1, "exp": "「関連（〜について）」を表すwith\nbe satisfied with 〜 「〜に満足している」という熟語です(withは「関連」を表します)。satisfyは「満足させる」という意味で、受動態 be satisfiedで「満足させられる」→「満足している」となりました。ちなみに、英文全体はCustomers who are not completely satisfied with the Chillz 2000 refrigerator「Chillz 2000 冷蔵庫に完全には満足できない客」が長いSです(not completely 〜「完全に〜というわけではない」は「部分否定」と呼ばれるものです)。", "v": [{"word": "customer", "meaning": "顧客"}, {"word": "refrigerator", "meaning": "冷蔵庫"}, {"word": "refund", "meaning": "払い戻し"}]}, {"id": 6, "ch": 1, "ch_title": "受動態", "th_title": "by以外の前置詞を使う受動態／受動態の構造", "q": "The Swiss jeweler is known ------- its exquisite gold and diamond timepieces.", "c": ["about", "for", "to", "in"], "a": 1, "exp": "be knownの区別\n「宝石店は〜が理由で有名」という意味になると考えます。「理由」を表す (B) for を選び、be known for 〜「〜で有名」とすればOKです。(C) toは「方向・到達」を表し、be known to 〜「〜に知られている」という意味になります。", "v": [{"word": "jeweler", "meaning": "宝石店"}, {"word": "exquisite", "meaning": "美しい"}, {"word": "timepiece", "meaning": "時計"}]}, {"id": 7, "ch": 1, "ch_title": "受動態", "th_title": "by以外の前置詞を使う受動態／受動態の構造", "q": "The solar panels ------- cheap electricity to remote areas that are not connected to the electrical grid.", "c": ["is brought", "are bringing", "were brought", "will have been brought"], "a": 1, "exp": "「後ろに名詞」→「受動態はアウト」\nThe solar panels がS、空所はVになると考えます。空所直後に cheap electricity というOがきているので、能動態の (B) are bringing を選べばOKです。bring A to B 「AをBにもたらす」の形で、Bは remote areas that are not connected to the electrical grid 「送電線が引かれていない遠隔地」です（thatは関係代名詞）。", "v": [{"word": "remote", "meaning": "遠く離れた"}, {"word": "be connected to 〜", "meaning": "〜につながれている"}, {"word": "electrical grid", "meaning": "送電線"}]}, {"id": 8, "ch": 1, "ch_title": "受動態", "th_title": "by以外の前置詞を使う受動態／受動態の構造", "q": "Test takers ------- their admission tickets two weeks before the examination date.", "c": ["to send", "be sent", "sends", "are sent"], "a": 3, "exp": "\"send 人 物\" の受動態\nTest takers が S、空所には V が入ると考え、(C) sends か (D) are sent に絞ります。S は Test takers（複数形）なので、(D) are sent を選べばOKです。send 人 物「人に物を送る」の受動態で、人はis sent 物「人は物を送られる」となります（SVOOの受動態なので、後ろに「名詞」が残りますね）。ちなみに、この「2週間前に受験票が送られる」は、TOEICテストのことです。", "v": [{"word": "taker", "meaning": "受ける人"}, {"word": "admission ticket", "meaning": "受験票"}, {"word": "examination", "meaning": "試験"}]}, {"id": 9, "ch": 2, "ch_title": "接続詞", "th_title": "「名詞節」を作る従属接続詞 / 「副詞節」を作るthat", "q": "The news report mentioned ------- by winning re-election, Mayor Tate will become the first woman in the city's history to serve three consecutive terms.", "c": ["when", "this", "that", "how"], "a": 2, "exp": "名詞節を作る (C) that を選んで、mention that sv「sv すると述べる」の形にします。今回は that 直後に by winning re-election (副詞句) が挟まり、mentioned that (by winning re-election,) Mayor Tate will become ~ 「（再選によって）Mayor Tate は〜になると述べた」となっています。ちなみに、後半は the first woman in the city's history to serve three consecutive terms「3期連続で務める市で最初の女性」です（to 以下が the first woman を修飾）。\n和訳 報道によれば、Tate 市長が再選を果たせば、市の歴史上初めて3期連続して在職する女性になるということだ。", "v": [{"word": "mention", "meaning": "述べる"}, {"word": "re-election", "meaning": "再選"}, {"word": "serve", "meaning": "務める"}, {"word": "consecutive", "meaning": "連続した"}, {"word": "term", "meaning": "期間"}]}, {"id": 10, "ch": 2, "ch_title": "接続詞", "th_title": "「名詞節」を作る従属接続詞 / 「副詞節」を作るthat", "q": "The rumor ------- Robin Vargas would quit and start working for a competitor appears not to be true.", "c": ["whether", "that", "what", "as"], "a": 1, "exp": "空所直前の The rumor に注目します。「同格」を表す (B) that を選んで、The rumor that sv「sv するという噂」とすれば OK です。英文全体は The rumor that ~ for a competitor が長い S、appears が V になります。\n和訳 Robin Vargas が仕事を辞めて競合会社で働き始めるつもりであるという噂は、真実ではないようだ。", "v": [{"word": "rumor", "meaning": "噂"}, {"word": "quit", "meaning": "辞める"}, {"word": "appear to 原形", "meaning": "〜するようだ"}]}, {"id": 11, "ch": 2, "ch_title": "接続詞", "th_title": "「名詞節」を作る従属接続詞 / 「副詞節」を作るthat", "q": "Servers at the Broadway Diner are instructed to ask diners ------- they are in a hurry or not.", "c": ["since", "whether", "how", "either"], "a": 1, "exp": "名詞節を作る (B) whether 「〜かどうか」を選んで、ask 人 whether sv 「人に sv するかどうか尋ねる」の形にします（ask 人 物 「人に物を尋ねる」の物 に、whether sv という名詞節がきたイメージ）。文末の or not も whether とセットでよく使われるので、ヒントになります。\n和訳 Broadway Diner の店員は、食事をする客に対して急いでいるかどうかを尋ねるよう指導されている。", "v": [{"word": "server", "meaning": "給仕する人"}, {"word": "be instructed to 原形", "meaning": "〜するよう指示される"}, {"word": "diner", "meaning": "食事する人"}, {"word": "in a hurry", "meaning": "急いで"}]}, {"id": 12, "ch": 2, "ch_title": "接続詞", "th_title": "「名詞節」を作る従属接続詞 / 「副詞節」を作るthat", "q": "Francine's Flowers sold ------- many bouquets for Mother's Day that additional delivery staff had to be hired.", "c": ["too", "not", "very", "so"], "a": 3, "exp": "空所後の that sv に注目して、so ~ that ... 「とても〜なので…だ」の形にします。「それほど (so) 多く花束が売れた」→「どれほど？」→「追加で配達スタッフを雇わなければならないほど」と考えれば OK です。\n和訳 Francine's Flowers では母の日の花束がとてもたくさん売れたので、追加で配達スタッフを雇わなければならなかった。", "v": [{"word": "bouquet", "meaning": "ブーケ・花束"}, {"word": "additional", "meaning": "追加の"}, {"word": "hire", "meaning": "雇う"}]}, {"id": 13, "ch": 3, "ch_title": "関係詞", "th_title": "前置詞＋関係代名詞 / 関係副詞", "q": "The strategy of TopDog Gadgets, Inc. is to be the top seller of kitchen appliances in the countries in ------- it does business.", "c": ["where", "which", "whose", "what"], "a": 1, "exp": "(B) whichを選んで、「前置詞＋関係代名詞 (in which)」の形にします。後半は元々 it does business in the countries で、そこから the countries が関係代名詞 which に変わり、in which がセットで文頭に移動してきた英文です。前に the countries があるからといって、(A) where に飛びつかないように注意しましょう（前置詞 in と合いません）。", "v": [{"word": "strategy", "meaning": "戦略"}, {"word": "appliance", "meaning": "家電"}, {"word": "business", "meaning": "事業"}]}, {"id": 14, "ch": 3, "ch_title": "関係詞", "th_title": "前置詞＋関係代名詞 / 関係副詞", "q": "Anita Burton first visited Thailand in 2001, ------- she was a university student studying international relations.", "c": ["where", "when", "which", "that"], "a": 1, "exp": "空所後の she was a university student studying ~ は、SVCの「完全な文」です。よって、空所には「関係副詞」が入ります。先行詞は空所直前の in 2001「2001年に」なので、「時」を表す関係副詞 (B) when が正解です。", "v": [{"word": "international", "meaning": "国際的な"}, {"word": "relation", "meaning": "関係"}]}, {"id": 15, "ch": 3, "ch_title": "関係詞", "th_title": "前置詞＋関係代名詞 / 関係副詞", "q": "Seattle is the city ------- Ron West was born in.", "c": ["where", "wherever", "which", "whichever"], "a": 2, "exp": "空所後の Ron West was born in φ は、前置詞 in の O が欠けた「不完全な文」です。よって、空所には関係代名詞 (C) which が入ります。空所直前に the city があるからといって、関係副詞 (A) where に飛びつかないように注意しましょう（Seattle is the city where Ron West was born. なら、後ろが「完全な文」なのでOKです）。", "v": []}, {"id": 16, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "形容詞・副詞の基本", "q": "While Solveig Electronics has a reputation for designing ------- products, it sometimes has issues with quality.", "c": ["innovate", "innovation", "innovatively", "innovative"], "a": 3, "exp": "空所には直後の名詞 products を修飾する「形容詞」が入ると考え、(D) innovative「革新的な」を選びます。(A) innovateは動詞、(B) innovationは名詞（語尾が -tion）、(C) innovativelyは副詞（形容詞＋ly）です。", "v": [{"word": "reputation", "meaning": "評判"}, {"word": "issue", "meaning": "問題"}]}, {"id": 17, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "形容詞・副詞の基本", "q": "Knoxx Technologies offers solutions for hospitals to help them make sure patient data stays -------.", "c": ["securely", "securing", "secure", "security"], "a": 2, "exp": "後半は make sure {that} sv「確実に sv する」の形で、that 節中は patient data stays ------- となっています。動詞 stay に注目して SVC の形だと考え、形容詞の(C) secure「安全な」を選べばOKです。", "v": [{"word": "solution", "meaning": "解決策"}, {"word": "patient", "meaning": "患者"}]}, {"id": 18, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "形容詞・副詞の基本", "q": "Employees who ------- complete the managerial training program are generally promoted to manager when a position becomes available.", "c": ["success", "succeed", "successful", "successfully"], "a": 3, "exp": "空所部分がなくても文は完成しています。よって、空所には「（文法上）なくてもOKな品詞」＝「副詞」が入ると考え、(D) successfully「うまく」を選べばOKです。関係代名詞 who の直後なので「動詞」が入ると考え、(B) succeedを選ばないように注意しましょう。", "v": [{"word": "managerial", "meaning": "管理の・経営の"}, {"word": "generally", "meaning": "一般に"}, {"word": "be promoted to ~", "meaning": "〜に昇進する"}, {"word": "available", "meaning": "空いている"}]}, {"id": 19, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "形容詞・副詞の基本", "q": "Only applications that are ------- filled out and submitted by the deadline will be considered.", "c": ["correct", "correction", "correctly", "corrected"], "a": 2, "exp": "すでに文構造は完成しているので、副詞の(C) correctly「正しく」を選べばOKです。受動態の間に副詞が割り込んだ“be＋副詞＋p.p.”のパターンです。", "v": [{"word": "application", "meaning": "申込書"}, {"word": "fill out", "meaning": "記入する"}, {"word": "consider", "meaning": "検討する"}]}, {"id": 20, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "接続副詞", "q": "With groups of beginners like this one, we usually go up to the Ouray Pass, but it is currently closed due to a rockslide. -------, today we will use Bear Claw Trail, which is about the same level of difficulty.", "c": ["In conclusion", "In fact", "Indeed", "Instead"], "a": 3, "exp": "「閉鎖している Ouray Pass の代わりに Bear Claw Trail を使う」という流れを考え、(D) Instead「その代わりに」を選びます。TOEIC ではこういった「変更」が非常によく起こり、そのときに「代案」を示す instead が多用されるわけです。", "v": [{"word": "due to ~", "meaning": "〜が原因で"}, {"word": "rockslide", "meaning": "岩滑り"}, {"word": "difficulty", "meaning": "難しさ"}]}, {"id": 21, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "接続副詞", "q": "Thank you for letting me try on these slacks, but I don't like how they fit, so I'm not going to buy them. -------, they're a little bit out of my budget.", "c": ["Since", "As a result", "Besides", "Nevertheless"], "a": 2, "exp": "空所前で「（スラックスが）あまり合わない」と言い、空所後で「予算を超えている」と、買わない理由を付け加えています。よって、「追加」を表す (C) Besides「その上」が正解です。besides には前置詞「〜に加えて」、副詞「その上」という2つの品詞があることにも注意しましょう。", "v": [{"word": "let 人 原形", "meaning": "人が〜するのを許可する"}, {"word": "try on", "meaning": "試着する"}, {"word": "slacks", "meaning": "スラックス"}, {"word": "a little bit ~", "meaning": "少し〜"}, {"word": "out of one's budget", "meaning": "人の予算を超えて"}]}, {"id": 22, "ch": 4, "ch_title": "形容詞・副詞", "th_title": "接続副詞", "q": "Last month viruses were found on two employees' laptops. ------- we are asking all employees to install antivirus software as soon as possible.", "c": ["That is why", "On the contrary", "First of all", "In other words"], "a": 0, "exp": "「パソコンにウイルスが見つかった（原因）」→「アンチウイルスソフトをインストールするよう頼んでいる（結果）」という流れなので、(A) That is why「そういうわけで」を選びます。“原因. That is why 結果.” の関係です。", "v": [{"word": "virus", "meaning": "ウイルス"}, {"word": "laptop", "meaning": "ノートパソコン"}, {"word": "install", "meaning": "インストールする"}, {"word": "antivirus", "meaning": "アンチウイルス"}, {"word": "as soon as possible", "meaning": "できるだけ早く"}]}, {"id": 23, "ch": 6, "ch_title": "時制", "th_title": "完了形", "q": "The local building office ------- all of the necessary building permits for the planned office building.", "c": ["has issued", "issuing", "issue", "issues"], "a": 0, "exp": "現在完了形は「過去から現在までの矢印」。「必要な建築許可書をすべて交付した」という内容を考え、現在完了形の (A) has issued を選びます。「少し前に交付の申請を受けて、今交付した」ということで、「過去から現在までの矢印」のイメージに合いますね。現在形の (D) issues がまぎらわしいと思いますが、こちらは「過去・現在・未来」を表します。一般論として「（いつも）建築許可書を交付する（ことになっている）」のような話だと「現在形」でOKですが、今回は the planned office building 「その計画されているオフィスビル」という具体的な1つのビルに許可書が交付されています。そのため一般論を表す「現在形」はNGで、「現在完了形」が正解になるわけです。\n和訳: 管轄の建設事務所は、計画されているオフィスビルに必要な建築許可書をすべて交付した。\n語句: issue「交付する・発行する」、permit「許可書」、planned「計画された」", "v": []}, {"id": 24, "ch": 6, "ch_title": "時制", "th_title": "完了形", "q": "The analyst's report noted that stock prices ------- steadily over the last six months.", "c": ["will be rising", "is rising", "rising", "have been rising"], "a": 3, "exp": "「期間」を表すoverに注目。文末の over the last six months「ここ6カ月にわたって」に注目です。「6カ月前から今まで」を表しているので、現在完了進行形の (D) have been rising を選びます。over は「〜の間・〜にわたって」を表し、「現在完了形」のヒントになることがよくあります。\n和訳: アナリストの報告書によると、株価はここ6カ月にわたって着実に上がり続けているということだ。\n語句: note that sv「sv と述べる」、stock price「株価」、steadily「着実に」", "v": []}, {"id": 25, "ch": 6, "ch_title": "時制", "th_title": "完了形", "q": "He ------- the book six months before the movie was released.", "c": ["had read", "has read", "reads", "has been reading"], "a": 0, "exp": "過去完了形 “had+p.p.”。before the movie was released に注目します。「映画が公開された」という過去の一点よりも前に「本を読んでいた」わけですから、過去完了形の (A) had read が正解です。ちなみに、今回は six months が before 〜 を前から修飾し、six months before 〜 「〜する6カ月前に」となっています。\n和訳: 彼は映画が公開される6カ月前に原作本を読んでいた。", "v": []}, {"id": 26, "ch": 6, "ch_title": "時制", "th_title": "完了形", "q": "At the end of this month, Mr. Blair ------- at this company for two years.", "c": ["have worked", "work", "will have worked", "will work"], "a": 2, "exp": "未来完了形 “will have+p.p.”。At the end of this month「今月末」に注目です。「今月末」という未来の一点まで「（2年間）働いている」という内容から、未来完了形の (C) will have worked を選びます。未来の一点までの「継続」を表しています。\n和訳: 今月末で、Blair さんはこの会社に勤めて2年になる（今月末で、Blair さんはこの会社で2年働いていることになる）。", "v": []}, {"id": 27, "ch": 6, "ch_title": "時制", "th_title": "現在形の特別用法", "q": "If the stock price -------, we will make a lot of money.", "c": ["rising", "rises", "rose", "will rise"], "a": 1, "exp": "文頭 If から副詞節を作ります。「時・条件を表す副詞節の中では、未来のことでも現在形を使う」というルールから、現在形の (B) rises を選べば OK です。", "v": [{"word": "stock price", "meaning": "株価"}, {"word": "rise", "meaning": "上がる"}, {"word": "make money", "meaning": "お金をもうける"}]}, {"id": 28, "ch": 6, "ch_title": "時制", "th_title": "現在形の特別用法", "q": "By the time they ------- to our e-mail, it will be too late.", "c": ["reply", "replied", "had replied", "will reply"], "a": 0, "exp": "By the time sv, SV. 「sv するまでには SV だ」の形で、By the time から副詞節を作っています。「時・条件を表す副詞節の中では、未来のことでも現在形を使う」というルールから、現在形の (A) reply を選べば OK です。reply to 〜「〜に返信する」となります。", "v": []}, {"id": 29, "ch": 6, "ch_title": "時制", "th_title": "現在形の特別用法", "q": "JTEC, Inc. ------- devices free of charge unless its technicians discover water damage.", "c": ["fix", "will fix", "to fix", "was fixing"], "a": 1, "exp": "SV unless sv. 「sv しない限り SV だ」の形です。unless から副詞節を作りますが、今回は「主節のVが空所」になっています。あくまで「副詞節の中では現在形」で、主節は「未来のことは未来の形」でOKです。よって、(B) will fix が正解となります。(A) fix は3単現のsがついていないので、そもそも主語 JTEC, Inc.(単数形) と合いませんね。", "v": [{"word": "device", "meaning": "機器"}, {"word": "free of charge", "meaning": "無料で"}, {"word": "technician", "meaning": "技術者"}]}, {"id": 30, "ch": 6, "ch_title": "時制", "th_title": "現在形の特別用法", "q": "Only Mr. Lee knows when the company ------- its next generation of smartphones.", "c": ["be unveiled", "unveils", "is unveiled", "will unveil"], "a": 3, "exp": "他動詞 know の後ろなので、when〜は「名詞節（いつ〜するか）」になります。あくまで「副詞節の中では現在形」で、「名詞節」のときは「未来のことは未来の形」でOKです。よって、(D) will unveil が正解となります。", "v": [{"word": "unveil", "meaning": "発表する"}, {"word": "generation", "meaning": "世代"}]}, {"id": 31, "ch": 7, "ch_title": "助動詞", "th_title": "助動詞の基本", "q": "Processing employment applications can ------- as long as four weeks.", "c": ["take", "taking", "to take", "taken"], "a": 0, "exp": "助動詞 can の後ろなので、動詞の原形 (A) take を選べば OK です。“take 時間”「時間がかかる」の形で、時間に as long as four weeks「4週間も」がきています（as long as は「強調」の働きです）。", "v": [{"word": "process", "meaning": "詳細に検討する"}, {"word": "employment", "meaning": "雇用"}, {"word": "application", "meaning": "応募"}, {"word": "as long as 〜", "meaning": "〜も長く"}]}, {"id": 32, "ch": 7, "ch_title": "助動詞", "th_title": "助動詞の基本", "q": "Passengers should always ------- their seatbelts fastened when they are in their seats.", "c": ["kept", "keeping", "keep", "keeps"], "a": 2, "exp": "助動詞 should の後ろなので、動詞の原形 (C) keep を選べば OK です。今回は間に副詞 always が挟まった「助動詞＋副詞＋原形」になります。ちなみに、英文全体は keep OC「O を C のままにする」の形です。", "v": [{"word": "passenger", "meaning": "乗客"}, {"word": "keep OC", "meaning": "O を C のままにする"}, {"word": "fasten", "meaning": "しっかり固定する"}]}, {"id": 33, "ch": 7, "ch_title": "助動詞", "th_title": "will / would", "q": "If the first concert performance sells out, a second performance ------- definitely be added.", "c": ["may", "might", "need", "will"], "a": 3, "exp": "空所直後 definitely「確実に・絶対に」に合うのは、「100%必ず〜する」を表す(D) willです。「売り切れたら、絶対に第2公演が追加されるだろう」という流れも自然ですね。(A) mayは「50%・半々」の感覚、(B) mightはmayよりさらに可能性が低いときに使います(257ページ参照)。また、(C) needはneed to 原形「〜する必要がある」の形はOKですが、助動詞の場合「肯定文」で使うことはできません(否定文・疑問文でのみ使う)。\n和訳：もし第1公演が売り切れたら、絶対に第2公演が追加されるだろう。", "v": []}, {"id": 34, "ch": 7, "ch_title": "助動詞", "th_title": "will / would", "q": "Will you call my cell phone when you arrive?", "c": ["Of course.", "In twenty minutes.", "The line's busy."], "a": 0, "exp": "Will you 〜？「〜してくれる？」という表現を使って、「連絡してくれる？」と頼んでいます。これに対して「OK」と答える(A) Of course.「もちろん」が正解です。ちなみに、(C)のlineは「線」→「電話機を通して人と人をつなぐ線」→「電話線」という意味です。The line's busy.で、直訳「電話線が忙しい・やかましい」→「(電話が)話し中」となります。\n和訳：着いたら携帯に電話してもらえる？ (A) もちろん。 (B) 20分後だよ。 (C) お話し中です。", "v": []}, {"id": 35, "ch": 7, "ch_title": "助動詞", "th_title": "will / would", "q": "Would you like to listen to some music?", "c": ["That's not like him.", "Mike plays the guitar.", "That'd be nice."], "a": 2, "exp": "Would you like to 〜？「〜するのはどうですか？」という表現を使って、「音楽を聞く」ことを提案しています。これに対して同意を示す、(C) That'd be nice.「いいですね」が正解です(That'dはThat wouldの短縮形で、wouldは「推量(〜だろう)」を表しています)。(A)は同じ単語(like)を使ったひっかけ、(B)はmusicからの連想を利用したひっかけです。\n和訳：何か音楽を聞かない？ (A) そんなの彼らしくないね。 (B) マイクはギターを弾くよ。 (C) それはいいね。", "v": []}, {"id": 36, "ch": 7, "ch_title": "助動詞", "th_title": "will / would", "q": "Years ago, people ------- often play volleyball on the beach, but now it is prohibited.", "c": ["were", "would", "should", "would have"], "a": 1, "exp": "空所後に動詞の原形 playがあるので、空所には「助動詞」が入ると考えます。文頭 Years ago に注目して、「過去の習慣」を表す(B) wouldを選べばOKです。would often 〜 や would sometimes 〜 の形でよく使われます。\n和訳：何年か前は、浜辺でよくバレーボールをしている人がいたものだが、今では禁止されている。", "v": []}, {"id": 37, "ch": 7, "ch_title": "助動詞", "th_title": "can / could", "q": "Can I see your notes?", "c": ["I took them.", "No problem.", "They're from Mr. Mendez's presentation."], "a": 1, "exp": "「許可」を表すCan I 〜？\nCan I 〜?「〜してもいい?」という許可を表す表現です。「メモを見てもいい?」に対して「OK」と答える、(B) No problem.「いいよ」が正解になります。ちなみに、note は「メモ」という意味の重要単語です（「ノート（帳面）」は notebook）。", "v": []}, {"id": 38, "ch": 7, "ch_title": "助動詞", "th_title": "can / could", "q": "Seemingly insignificant infections ----- cause medical complications if not treated right away.", "c": ["can", "had", "has", "did"], "a": 0, "exp": "「推量」を表すcan\n空所直後に動詞の原形 cause があるので、助動詞 (A) can を選びます。この can は「ありえる」という意味で、can cause medical complications「内科的合併症を引き起こす可能性がある」となります。ちなみに、英文後半は if {they are} not treated right away から、they are が省略された形です。\n語句: seemingly「うわべは・一見」, insignificant「ささいな」, infection「伝染病」, medical complications「内科的合併症」, treat「治療する」, right away「すぐに」", "v": []}, {"id": 39, "ch": 7, "ch_title": "助動詞", "th_title": "can / could", "q": "Could you lock the door when you leave?", "c": ["He left twenty minutes ago.", "The main entrance.", "I'd be happy to."], "a": 2, "exp": "Could you 〜？は「依頼」\nCould you 〜 ?「〜してくれますか?」という表現を使って、「ドアに鍵をかける」ことを頼んでいます。これに対して「OK」と答える、(C) I'd be happy to.「もちろん」が正解です。この to は「代不定詞」で、I'd be happy to {lock the door when I leave}.「喜んで（出ていくときに鍵をかける）」を表しています。", "v": []}, {"id": 40, "ch": 7, "ch_title": "助動詞", "th_title": "can / could", "q": "Operating your microwave oven with no food inside it ------- the appliance.", "c": ["to damage", "damaging", "damage", "could damage"], "a": 3, "exp": "could「（ひょっとしたら）〜することがありえる」\nOperating your microwave oven with no food inside it が S、空所には V が入ると考えます。V になれるのは (C) damage と (D) could damage ですが、S は動名詞のカタマリなので、(C) damage には3単現の s が必要です。よって、正解は (D) could damage「（ひょっとすると）傷つけるかもしれない」です。", "v": []}, {"id": 41, "ch": 7, "ch_title": "助動詞", "th_title": "shall・should / may・might", "q": "Shall I send out the invitations?", "c": ["They just came in.", "Let's wait a few days.", "The guest list."], "a": 1, "exp": "【Shall I 〜?「〜しましょうか？」】\nShall I 〜?「〜しましょうか？」という表現で、「招待状を送る」ことを申し出ています。これに対して「数日待ってみよう」と言って間接的にNoと伝える、(B) Let's wait a few days. が正解です。\n\n和訳: 招待状をお送りしましょうか？\n(A) 招待状はちょうど手元に届きました。\n(B) 何日か待ってみましょう。\n(C) お客さんの一覧です。", "v": []}, {"id": 42, "ch": 7, "ch_title": "助動詞", "th_title": "shall・should / may・might", "q": "Nicole was just released from the hospital.", "c": ["Visiting hours are until 8 P.M.", "I heard it's already a best seller.", "We ought to go see her."], "a": 2, "exp": "【ought to 原形「〜すべきだ」】\n問題文は、直訳「ちょうど病院から解放された・自由にされた」→「退院した」という意味です。よって、「退院したNicoleに会いに行こう」と言う、(C) We ought to go see her. が正解です。ought to 原形「〜すべきだ・〜した方がいい」の形で、その後ろは“go 原形”「〜しに行く」となっています。\n\n和訳: Nicoleはちょうど退院したところだ。\n(A) 面会時間は午後8時までとなっております。\n(B) それはもうベストセラーだって聞いたよ。\n(C) 彼女に会いに行かないとね。", "v": []}, {"id": 43, "ch": 7, "ch_title": "助動詞", "th_title": "shall・should / may・might", "q": "I'd like to speak with Jeff Barns, please.", "c": ["May I ask who's calling?", "He's an engaging speaker.", "Not very likely."], "a": 0, "exp": "【May I 〜?「〜してよろしいですか？」】\nI'd like to speak with ○○, please.「○○さんと話したいのですが・○○さんはいらっしゃいますか」は、電話でよく使われる表現です。適切な返答は(A) May I ask who's calling? で、直訳「誰が電話しているか、私は尋ねていいですか？」→「お名前をお伺いしてもよろしいですか？・どちら様ですか？」となりました。\n\n和訳: Jeff Barnsと話がしたいのですが。\n(A) どちら様でしょうか？\n(B) 彼は魅力的な講演者です。\n(C) そんなことはないでしょう。", "v": []}, {"id": 44, "ch": 7, "ch_title": "助動詞", "th_title": "shall・should / may・might", "q": "The Jacksonville Botanical Gardens ------- start charging an admission fee if it cannot secure enough funding through donations.", "c": ["might", "need", "want", "consider"], "a": 0, "exp": "【might ≒ may!】\n空所直後に「動詞の原形（start）」がきているので、助動詞 (A) might「（ひょっとすると）〜かもしれない」を選びます。「十分な資金が確保できなければ、入場料を徴収し始めるかもしれない」となり、文意も通りますね。\n\n和訳: Jacksonville植物園は、募金を通じて十分な資金が確保できなければ、入場料を徴収し始めるかもしれない。", "v": []}, {"id": 45, "ch": 7, "ch_title": "助動詞", "th_title": "must・have to / 助動詞の働きをするもの / 助動詞 have p.p.", "q": "Mr. Russo ------- find a new venue for the meeting yesterday.", "c": ["might", "must", "had to", "ought to"], "a": 2, "exp": "文末 yesterday に注目して、「過去」を表すものを選びます。選択肢の中で過去を表すのは、(C) had to 原形「〜しなければならなかった」だけです。(A) might は may とほぼ同じで、「（ひょっとすると）〜かもしれない」という意味でしたね。might を「過去」と思い込んでひっかかってしまう人が多い問題です。\n和訳: Russo さんは昨日、会議のための新しい会場を見つけなくてはならなかった。", "v": [{"word": "venue", "meaning": "会場"}]}, {"id": 46, "ch": 7, "ch_title": "助動詞", "th_title": "must・have to / 助動詞の働きをするもの / 助動詞 have p.p.", "q": "You had better not ------- out too long without putting sunblock on.", "c": ["stay", "to stay", "staying", "to staying"], "a": 0, "exp": "(A) stay を選んで、had better not 原形「〜しない方がよい」の形にします。had better 原形「〜した方がよい」の否定形で、「原形の前に not」が入ります。ちなみに、今回も had better は「〜しないと知らないよ・〜しなさい」という意味で、「日焼け止めを塗らないで長時間外にいると、日焼けしてしまう（からまずい）」というニュアンスを含んでいます。\n和訳: 日焼け止めを塗らないで長時間外にいるのはよくない。", "v": [{"word": "put ~ on", "meaning": "〜を身につける・つける"}, {"word": "sunblock", "meaning": "日焼け止め"}]}, {"id": 47, "ch": 7, "ch_title": "助動詞", "th_title": "must・have to / 助動詞の働きをするもの / 助動詞 have p.p.", "q": "Jessie ------- go to the movies almost every week, but now she is too busy to go.", "c": ["might", "used to", "was used to", "could"], "a": 1, "exp": "「昔は〜していたけど、今はできていない」という流れを考え、(B) used to を選びます。used to 原形「よく〜したものだ」という表現で、Jessie used to go to the movies almost every week, but now ~ 「Jessie は（昔は）毎週のように映画を観にいっていたが、今は〜」となります。be used to -ing「〜することに慣れている」、be used to 原形「〜するために使われる」との区別に注意しましょう。\n和訳: Jessie は毎週のように映画を観に行っていたが、今は忙しすぎて観にいくことができていない。", "v": []}, {"id": 48, "ch": 7, "ch_title": "助動詞", "th_title": "must・have to / 助動詞の働きをするもの / 助動詞 have p.p.", "q": "He's not at his desk and his coat is gone, so he ------- home already.", "c": ["must have gone", "must be going", "had to be going", "had to go"], "a": 0, "exp": "「彼は机にいないし、コートもないから、帰宅したにちがいない」という流れを考え、(A) must have gone を選びます。must have p.p.「〜だったにちがいない」の形です。\n和訳: 彼は自分の机のところにいないし、コートもないから、もう帰宅したにちがいない。", "v": [{"word": "be gone", "meaning": "なくなる・消える"}, {"word": "go home", "meaning": "帰宅する"}]}, {"id": 49, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の全体像 / 仮定法の公式", "q": "If the Radispine Hotel offered a shuttle bus service to the airport, Mr. Porter ------- there when he visits Houston.", "c": ["have stayed", "stay", "will stay", "would stay"], "a": 3, "exp": "If the Radispine Hotel offered に注目し、「仮定法過去」の公式 (If s 過去形, S would 原形) を考えます。主節は \"S would 原形\" になるので、(D) would stay が正解です。\n和訳: もし Radispine ホテルが空港までのシャトルバスのサービスを提供していれば、Porter 氏はヒューストンを訪れるとき、そのホテルに滞在するだろう。", "v": [{"word": "offer", "meaning": "提供する"}, {"word": "shuttle bus", "meaning": "シャトルバス"}]}, {"id": 50, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の全体像 / 仮定法の公式", "q": "If Marianne ------- the order on time, Chesterfield's would not have run out of stock of towels.", "c": ["place", "places", "has placed", "had placed"], "a": 3, "exp": "Chesterfield's would not have run out of stock of towels に注目し(runはp.p.)、「仮定法過去完了」の公式 (If s had p.p., S would have p.p.) を考えます。If節は \"If s had p.p.\" の形になるので、(D) had placed が正解です。\n和訳: Marianne が時間通りに注文していれば、Chesterfield's はタオルの在庫を切らすことはなかっただろう。", "v": [{"word": "place an order", "meaning": "注文する"}, {"word": "on time", "meaning": "時間通りに"}, {"word": "run out of ~", "meaning": "〜を切らす"}, {"word": "stock", "meaning": "在庫"}]}, {"id": 51, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の全体像 / 仮定法の公式", "q": "If you ------- have any questions at all, just dial 0 from the telephone in your room to reach the front desk.", "c": ["should", "will", "could", "must"], "a": 0, "exp": "(A) should を選んで、未来を表す仮定 \"If s should 原形, 命令文.\" の形にします。コンマ以降は \"just 原形\"の形で、命令文になっています (dial は動詞「ダイヤルを回す・(ダイヤルを回して)電話をかける」です)。\n和訳: もし何か質問がございましたら、部屋にある電話で0番にかけていただき、フロントにおつなぎください。", "v": [{"word": "at all", "meaning": "(条件節で) 仮にも・少しでも"}, {"word": "dial", "meaning": "ダイヤルを回す・(ダイヤルを回して)電話をかける"}, {"word": "reach", "meaning": "連絡をとる"}, {"word": "front desk", "meaning": "フロント"}]}, {"id": 52, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の全体像 / 仮定法の公式", "q": "If it were to rain on Saturday, the Richfield Music and Arts Festival ------- postponed.", "c": ["is", "was", "would be", "would have been"], "a": 2, "exp": "If it were to rain on Saturday に注目します。未来を表す仮定 \"If s were to 原形, S would 原形\" の形を考え、(C) would be を選べばOKです。今回の英文は「(実現可能性は置いておいて)雨が降れば」と、完全に仮の世界で述べるときに使われます。\n和訳: もし土曜日に雨が降るようなことがあれば、Richfield Music and Arts Festival は延期されるだろう。", "v": [{"word": "postpone", "meaning": "延期する"}]}, {"id": 53, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の倒置 / ifなし仮定法 / 慣用表現", "q": "------- you require any additional information about apartments in Rochelle Tower, please contact the property manager at 555-4810.", "c": ["Shall", "Should", "Could", "Might"], "a": 1, "exp": "未来を表す仮定の倒置 “Should s 原形, please 〜” の形です。主節には would 原形 ではなく「命令文」がきたパターンで、この「前半“倒置” ＋ 後半“命令文”」の形は TOEIC で本当によく出てきます。\n[和訳] Rochelle Towerのお部屋に関して追加の情報が必要になりましたら、不動産管理者に555-4810まで連絡してください。\n[語句] require「必要とする」 / contact「連絡する」 / property「不動産」", "v": []}, {"id": 54, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の倒置 / ifなし仮定法 / 慣用表現", "q": "Kelly Benson would have taken her laptop back to the store to get it repaired ------- known opening it voided the manufacturer’s warranty.", "c": ["because she has", "she has", "would she", "had she"], "a": 3, "exp": "主節 Kelly Benson would have taken 〜 から「仮定法過去完了」を考えます。選択肢に “if s had p.p.” がないので、「倒置」のパターン (had s p.p.) と考え、(D) had she を選べば OK です。倒置文が主節の後ろに置かれたパターンで、had she known {that} opening it voided the manufacturer’s warranty「もし開封するとメーカーの保証が無効になると彼女が知っていたら」となります。\n[和訳] 開封するとメーカーの保証が受けられなくなることを知っていたら、Kelly Benson はノートパソコンを店舗に持ち帰って、修理してもらっただろうに。\n[語句] get O p.p.「Oを〜してもらう」 / repair「修理する」 / void「無効にする」 / manufacturer「製造会社」 / warranty「保証」", "v": []}, {"id": 55, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の倒置 / ifなし仮定法 / 慣用表現", "q": "I’m sorry, but you purchased these jeans more than two weeks ago, ------- we would be able to give you a refund.", "c": ["therefore", "otherwise", "however", "moreover"], "a": 1, "exp": "空所前に「2週間以上前にジーンズを買った」とあります。「そうでなければ（2週間以上前に買ったものでなければ）、返金できるのに」という流れが自然なので、(B) otherwise を選びます（otherwise の後ろは「仮定法過去」の形）。\n[和訳] 申し訳ありませんが、お客様はこちらのジーンズを2週間以上前に購入されています。もっと最近購入されたものであれば、返金できるのですが。\n[語句] jeans「ジーンズ」 / give 人 a refund「人に返金する」", "v": []}, {"id": 56, "ch": 8, "ch_title": "仮定法", "th_title": "仮定法の倒置 / ifなし仮定法 / 慣用表現", "q": "Can you tell me how to get to Tatum Street?", "c": ["I wish I could, but I’m lost, too.", "He lives right across the street.", "That’s what they tell me."], "a": 0, "exp": "Can you 〜?「〜してくれる？」という表現を使って、「Tatum通りへの行き方」を尋ねています。これに対して丁寧に断る、(A) I wish I could, but I’m lost, too. が正解です。I wish I could {tell you how to get to Tatum Street}, but 〜 ということです。ちなみに、I’m lost.「道に迷っている」という表現も大切です（lost は形容詞「道に迷った」）。\n[和訳] Tatum通りへはどのように行ったらよいですか。\n(A) お伝えしたいのはやまやまなんですが、私も迷っていまして。\n(B) 彼ならこの道のちょうど向かいに住んでいますよ。\n(C) そのように彼らからは聞いていますが。", "v": []}, {"id": 57, "ch": 9, "ch_title": "不定詞", "th_title": "名詞的用法／形容詞的用法", "q": "------- rude to send text messages from your phone when someone is making a presentation.", "c": ["There is", "There are", "It were", "It is"], "a": 3, "exp": "1 仮S構文 \"It is 形容詞 to 〜\"。to sendに注目です。(D) It is を選び、It is rude to send 〜「〜を送ることは無礼だ」という仮S構文を作ります。正解＝(D)\n和訳: 誰かがプレゼンテーションをしているときに、携帯でテキストメッセージを送るのは無礼だ。", "v": [{"word": "rude", "meaning": "無礼な"}, {"word": "text message", "meaning": "(携帯電話の) メッセージ"}, {"word": "make a presentation", "meaning": "プレゼンテーションを行う"}]}, {"id": 58, "ch": 9, "ch_title": "不定詞", "th_title": "名詞的用法／形容詞的用法", "q": "Mr. Briggs has decided to rent a storage unit ------- his growing guitar collection.", "c": ["is storing", "to be stored", "to store", "to storing"], "a": 2, "exp": "2 形容詞的用法(SVの関係)。空所以下は、直前のa storage unit「トランクルーム」を修飾していると考えます。(C) to store(不定詞の形容詞的用法)を選んで、a storage unit to store his growing guitar collection「彼の増えていくギターコレクションを保管するためのトランクルーム」とすればOKです。正解＝(C)\n和訳: Briggs 氏は、増えていく自分のギターコレクションを保管するためのトランクルームを借りることにした。", "v": [{"word": "storage unit", "meaning": "トランクルーム"}, {"word": "growing", "meaning": "増加する"}]}, {"id": 59, "ch": 9, "ch_title": "不定詞", "th_title": "名詞的用法／形容詞的用法", "q": "The best road ------- to the Geo Theater is Forest Avenue, as Harold Street is temporarily closed due to construction.", "c": ["take", "took", "to take", "to taking"], "a": 2, "exp": "3 形容詞的用法(VOの関係)。The best road ------- to the Geo TheaterがSで、空所以下はThe best roadを修飾していると考えます。(C) to take を選んで、The best road to take to the Geo Theater「Geo Theaterに行くための一番良い道」とすればOKです。正解＝(C)\n和訳: Harold 通りは工事で一時的に閉鎖しているので、Geo Theater に行くのに一番良い道は Forest 通りだ。", "v": [{"word": "avenue", "meaning": "大通り"}, {"word": "temporarily", "meaning": "一時的に"}, {"word": "due to 〜", "meaning": "〜が原因で"}]}, {"id": 60, "ch": 9, "ch_title": "不定詞", "th_title": "名詞的用法／形容詞的用法", "q": "Restaurateur Mario Toscano postponed his plan ------- a second bistro because he could not find a suitable head chef.", "c": ["opened", "to open", "opening", "opens"], "a": 1, "exp": "4 a plan to 〜「〜するという計画」。(B) to open を選んで、his plan to open a second bistro「2店舗目のビストロを開店するという計画」とします。このtoは「同格」で、his planを詳しく説明しているわけです。正解＝(B)\n和訳: レストラン経営者の Mario Toscano は、適任の料理長を見つけられなかったので、2店舗目のビストロを開店する計画を延期した。", "v": [{"word": "restaurateur", "meaning": "レストラン経営者"}, {"word": "postpone", "meaning": "延期する"}, {"word": "suitable", "meaning": "適した"}, {"word": "head chef", "meaning": "料理長"}]}, {"id": 61, "ch": 9, "ch_title": "不定詞", "th_title": "副詞的用法", "q": "We arrived at the movie theater ten minutes before showtime, ------- discover the show was sold out.", "c": ["only to", "barely to", "but to", "and we nearly"], "a": 0, "exp": "SV, only to 原形「SVだが、結局〜しただけ」の形。「開演10分前に着いたが、結局売り切れと知っただけ」という流れを考える。ちなみに、今回は only to 原形 の前にコンマがあるが、コンマなしで使うこともできる。", "v": [{"word": "showtime", "meaning": "開演時間"}, {"word": "sell out", "meaning": "完売する"}]}, {"id": 62, "ch": 9, "ch_title": "不定詞", "th_title": "副詞的用法", "q": "Adrian was surprised ------- into Nicole in the Frankfurt airport.", "c": ["run", "being run", "to run", "running"], "a": 2, "exp": "be surprised to 原形「〜して驚く」の形にする。いきなり「驚いた」と言われたら「なんで？」と気になるので、後ろに to をつけて「理由（感情の原因）」を表す。ちなみに、run into 〜 は「〜に偶然出くわす」という熟語。", "v": []}, {"id": 63, "ch": 9, "ch_title": "不定詞", "th_title": "副詞的用法", "q": "Ms. Jacobs realized it would be too expensive ------- her sofa, so she decided to have it reupholstered instead.", "c": ["replace", "replacing", "to replace", "replaced"], "a": 2, "exp": "空所前の too expensive に注目して、to replace を選ぶ。too 〜 to ...「あまりに〜なので…できない / …するには〜すぎる」の形。", "v": [{"word": "realize", "meaning": "気づく"}, {"word": "replace", "meaning": "取り替える"}, {"word": "have O p.p.", "meaning": "O を〜してもらう"}, {"word": "reupholster", "meaning": "（椅子などの）覆いを取り替える"}]}, {"id": 64, "ch": 9, "ch_title": "不定詞", "th_title": "副詞的用法", "q": "Ms. Hoffman's explanation was difficult to ------- for some of the people at the meeting.", "c": ["understand", "be understood", "understanding", "have understood"], "a": 0, "exp": "難易形容詞 difficult を to understand が限定し、difficult to understand で直訳「理解するという点において難しい」→「理解しにくい」となる。（understandのOが欠けた「不完全」な形）。", "v": [{"word": "explanation", "meaning": "説明"}]}, {"id": 65, "ch": 9, "ch_title": "不定詞", "th_title": "to不定詞のバリエーション / 代不定詞", "q": "Is there anything for -------?", "c": ["we do", "we like to do", "us to do", "our doing"], "a": 2, "exp": "“for 人 to 原形” の形\n(C) us to do を選んで、anything for us to do 「私たちがすべきこと」とします。anything to do 「（何か）すべきこと」に、意味上のSを表す “for 人” が入った形です。for us を「私たちにとって」と訳さないように注意しましょう。\n和訳: 何か私たちがすべきことはある？", "v": []}, {"id": 66, "ch": 9, "ch_title": "不定詞", "th_title": "to不定詞のバリエーション / 代不定詞", "q": "Mr. Olson told his assistant ------- the details of the new contract with anyone.", "c": ["not to discuss", "not discuss", "to not discussing", "not to discussing"], "a": 0, "exp": "to不定詞の否定形 “not to 原形”\n空所前の told に注目して、tell 人 to 原形「人に〜するよう伝える」の形を考えます。今回は (A) not to discuss を選んで、tell 人 not to 原形「人に〜しないよう伝える」の形にすれば OK です。to 不定詞の否定形は、not を to の直前に置いて “not to 原形” の形になります。\n和訳: Olson 氏は自分の助手に、新しい契約の詳細に関しては誰にも話さないようにと伝えた。", "v": [{"word": "assistant", "meaning": "助手"}, {"word": "detail", "meaning": "詳細"}, {"word": "contract", "meaning": "契約"}]}, {"id": 67, "ch": 9, "ch_title": "不定詞", "th_title": "to不定詞のバリエーション / 代不定詞", "q": "Ms. Chu is known ------- a quick learner when she first joined Watson and Penny.", "c": ["to have been", "to be", "being", "was"], "a": 0, "exp": "to不定詞の完了形 “to have p.p.”\n空所前 is known と選択肢に注目して、be known to 原形「〜することで知られている」の形を考えます。when she first joined 〜「彼女が〜に入社した当初には」とあるので、「飲み込みが早い（a quick learner）」のは「過去」の話だとわかります。主節は「現在」なので、主節より1つ前の時制を表す「完了不定詞」の (A) to have been が正解です。is known to have been 〜「（過去）〜だったことで、（今）知られている」となります。(B) to be を選ぶと、「飲み込みが早い」のが is known と同じ時制、つまり「現在」のことになってしまいます。\n和訳: Chu さんは、Watson and Penny に入社した当初には飲み込みが早かったことで知られている。", "v": [{"word": "quick learner", "meaning": "飲み込みが早い人"}]}, {"id": 68, "ch": 9, "ch_title": "不定詞", "th_title": "to不定詞のバリエーション / 代不定詞", "q": "Could you reserve a meeting room for 2 o'clock?", "c": ["With some clients.", "I'd be happy to.", "Dinner for two."], "a": 1, "exp": "「代不定詞」を使った頻出表現\n「2時に会議室を予約していただけますか？」という依頼に対して「OK」と答える、(B) I'd be happy to. 「喜んで・もちろん」が正解です。この to は「代不定詞」で、I'd be happy to {reserve a meeting room for 2 o'clock}. を表しています。\n和訳: 2時に会議室を予約していただけますか？\n(A) 何人かの顧客とです。\n(B) もちろん。\n(C) 2人分の夕食です。", "v": []}, {"id": 69, "ch": 9, "ch_title": "不定詞", "th_title": "「to不定詞」をとる動詞 / be to 構文", "q": "Mary Lloyd managed ------- a room at a three-star hotel that was within her budget.", "c": ["finds", "to find", "has found", "is found"], "a": 1, "exp": "空所直前の managed に注目です。(B) to find を選んで、manage to 原形「何とか〜する」の形にします。manage は「何とか〜する」という「積極的」のイメージを持つ動詞なので、後ろに to 不定詞をとります。\n[和訳] Mary Lloyd は、予算に収まる三ツ星ホテルの部屋を何とか見つけることができた。\n[語句] three-star「三ツ星の」 / budget「予算」", "v": []}, {"id": 70, "ch": 9, "ch_title": "不定詞", "th_title": "「to不定詞」をとる動詞 / be to 構文", "q": "At the press conference, the CEO ------- not to know about the poor sales results.", "c": ["said", "pretended", "told", "acted"], "a": 1, "exp": "空所直後の not to know に注目します。後ろに to 不定詞をとり、意味が通るのは (B) pretended です。pretend to 原形「〜のふりをする」の形で、今回はその否定形 pretend not to 原形「〜しないふりをする」となっています。pretend は「単発」のイメージを持つ動詞なので、後ろに to 不定詞をとります。\n[和訳] 記者会見で、CEO は売上が悪いことを知らないふりをした。\n[語句] press conference「記者会見」 / result「結果」", "v": []}, {"id": 71, "ch": 9, "ch_title": "不定詞", "th_title": "「to不定詞」をとる動詞 / be to 構文", "q": "Please don't ------- to contact me if there are any problems with your order.", "c": ["stop", "hesitate", "mind", "avoid"], "a": 1, "exp": "空所直後の to contact に注目です。(B) hesitate を選んで、don't hesitate to 原形「〜するのをためらわないでください」→「遠慮なく〜してください」の形にすれば OK です。hesitate は否定的なイメージですが、「これから〜するのをためらう」という「未来志向」なので to 不定詞をとります。(A) stop to 原形は「〜するために立ち止まる・立ち止まって〜する」という意味なので×、(C) mind「嫌がる」と (D) avoid「避ける」は後ろに -ing をとるので×です。\n[和訳] ご注文に関して何か問題がございましたら、どうぞ遠慮なくご連絡ください。", "v": []}, {"id": 72, "ch": 9, "ch_title": "不定詞", "th_title": "「to不定詞」をとる動詞 / be to 構文", "q": "Employees ------- to inform security immediately if they see unauthorized personnel in the research department.", "c": ["should", "are", "asked", "must"], "a": 1, "exp": "空所直後の to inform に注目します。(B) are を選んで、be to 構文にすれば OK です。今回は are to inform security「警備係に通報することになっている」→「通報すべき（義務）」くらいの意味だと考えればいいでしょう。助動詞 (A) should・(D) must は直後に「動詞の原形」がきます。また、(C) asked は直前に are を置いて、受動態 be asked to 原形「〜するよう頼まれる」の形なら OK です。\n[和訳] 従業員は、もし（入ることを）許可されていないスタッフを調査部で目にしたら、即座に警備係に通報すること。\n[語句] inform「知らせる」 / security「警備」 / immediately「すぐに」 / unauthorized「許可されていない」 / personnel「職員」 / research department「調査部」", "v": []}, {"id": 73, "ch": 10, "ch_title": "動名詞", "th_title": "動名詞の基本 / 動名詞のバリエーション", "q": "------- at local charities is a good way to meet people you might not otherwise meet.", "c": ["Volunteer", "Volunteers", "Volunteering", "Volunteered"], "a": 2, "exp": "at local charitiesがS、isがVなので、空所にはSになる「名詞」が入ります。「ボランティアをすることは～するのに良い方法だ」という意味が自然なので、動名詞の(C) Volunteeringが正解です。ちなみに、(A) Volunteerは名詞もありますが、これは「ボランティア（をする人）」を表すので意味が合いません。\n【和訳】地域の慈善事業でボランティア活動をすることは、そうしなければ会えなかったかもしれない人たちに会う良い方法だ。\n【語句】local「地元の」 / charity「慈善事業」 / otherwise「そうでなければ」", "v": []}, {"id": 74, "ch": 10, "ch_title": "動名詞", "th_title": "動名詞の基本 / 動名詞のバリエーション", "q": "Mr. Carter changed his mind about investing in Sooair, Inc., after ------- several positive reviews of the company's air purifiers.", "c": ["to read", "reading", "read", "reads"], "a": 1, "exp": "前置詞afterの直後なので、空所には「名詞」が入ると考えます。動名詞の(B) readingを選んで、after reading several positive reviews of ～「～の肯定的なレビューを何件か読んだ後に」とすればOKです。動名詞は「名詞」の働きですが、動詞の性質も残しており、直後にOをとれるんでしたね。「前置詞＋動名詞＋名詞」というPart 5頻出パターンです。\n【和訳】Carter氏はSooair株式会社の空気清浄機に対する肯定的なレビューを何件か読んで、その会社に投資しようと心変わりした。\n【語句】change one's mind「人の考えが変わる」 / invest in ～「～に投資する」 / positive「肯定的な」 / review「レビュー・批評」 / air purifier「空気清浄機」", "v": []}, {"id": 75, "ch": 10, "ch_title": "動名詞", "th_title": "動名詞の基本 / 動名詞のバリエーション", "q": "Anthony Reddy feels ------- of the corporate sales department qualifies him for a promotion.", "c": ["for him successfully managing", "he successfully manages", "he successfully managed", "his successful managing"], "a": 3, "exp": "全体はfeel {that} sv「svだと思う」の形で、that節中は------- of the corporate sales departmentがs、qualifiesがvです（qualify 人 for ～「人に～の資格を与える・人は～の資格がある」の形）。(D) his successful managingを選んで、his successful managing of the corporate sales department「彼が法人営業部をうまく管理したこと」という名詞のカタマリを作ればOKです（hisは動名詞managingの「意味上のS」）。\n【和訳】Anthony Reddyは、彼が法人営業部をうまく管理したことは昇進に値すると思っている。\n【語句】successful「成功した・うまくいく」 / manage「管理する」 / corporate「法人の」 / department「部署」 / qualify 人 for ～「人に～の資格を与える・人は～の資格がある」 / promotion「昇進」", "v": []}, {"id": 76, "ch": 10, "ch_title": "動名詞", "th_title": "「動名詞」をとる動詞／toと-ingを両方とる動詞", "q": "Would you mind turning the volume down?\n(A) Turn right here.\n(B) They turned me down.\n(C) No problem.", "c": ["Turn right here.", "They turned me down.", "No problem."], "a": 2, "exp": "Would you mind -ing?「〜するのは嫌ですか？」→「（嫌じゃなければ）〜してくれませんか？」という表現です。この依頼に対して「OK」と答える、(C) No problem. が正解です。「〜するのは嫌ですか？」に対して、No problem. は「ぜんぜん問題ない（嫌じゃない）」＝「OK」を表すわけです。ちなみに、(A) は同じ単語 (turn) を使ったひっかけ、(B) は同じ語句を使ったひっかけです（質問文の turn down は「（音量を）下げる」、(B) では「断る」の意味）。\n和訳：音量を下げていただけませんか？ (A) ここを右に曲がってください。(B) 彼らに断られました。(C) わかりました。", "v": []}, {"id": 77, "ch": 10, "ch_title": "動名詞", "th_title": "「動名詞」をとる動詞／toと-ingを両方とる動詞", "q": "Drake Travel is used to ------- last-minute requests for travel arrangements.", "c": ["receive", "receives", "receiving", "received"], "a": 2, "exp": "be used to -ing「〜することに慣れている」の形にします。この to は（不定詞ではなく）前置詞なので、後ろに -ing をとります。「何度も繰り返して慣れていく」という「反復」のイメージなので、-ing をとるんでしたね。(A) receive を選ぶと be used to 原形 「〜するために使われる」になり、意味が通りません。\n和訳：Drake Travel は、駆け込みで旅行の手配をしてほしいという声には慣れている。\n語句：last-minute「直前の・土壇場の」 arrangement「手配」", "v": []}, {"id": 78, "ch": 10, "ch_title": "動名詞", "th_title": "「動名詞」をとる動詞／toと-ingを両方とる動詞", "q": "Several employees objected ------- working hours to 6:30 because they had other commitments in the evenings.", "c": ["extend", "extending", "to extend", "to extending"], "a": 3, "exp": "(D) to extending を選んで、object to -ing 「〜に反対する」の形にします。動名詞には「逃避」→「反対」のイメージがあるため、object「反対する」との相性が良いわけです。\n和訳：6時30分まで就業時間を延ばすことには何人かの社員が反対した。なぜなら、彼らは夜間に他の予定が入っていたからだ。\n語句：extend「延ばす」 commitment「先約・予定」", "v": []}, {"id": 79, "ch": 10, "ch_title": "動名詞", "th_title": "「動名詞」をとる動詞／toと-ingを両方とる動詞", "q": "Remembering ------- a thank-you note to an interviewer can mean the difference between receiving a job offer and getting a rejection letter.", "c": ["send", "sending", "to send", "to sending"], "a": 2, "exp": "文頭の Remembering に注目です。「（これから）礼状を送ることを覚えておく・忘れずに礼状を送る」という意味が自然なので、(C) to send を選びます。remember は後ろに to 不定詞・-ing の両方をとりますが、-ing だと「〜したことを覚えている」という意味になり、今回は文意が通りません。\n和訳：面接官に忘れず礼状を送ることで、内定をもらえるか、不採用通知を受けとるかの差が生まれるかもしれない。\n語句：thank-you note「礼状」 interviewer「面接官」 rejection letter「不採用通知」", "v": []}, {"id": 80, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第1〜第3文型の語法", "q": "There is a sign ------- from the door that says the shop is closed until Tuesday.", "c": ["was hanging", "to hang", "hanging", "hang"], "a": 2, "exp": "There is に注目です。\"There is 名詞 分詞\" の形を考え、(C) hanging を選べば OK です。元々は A sign is hanging from 〜 「掲示が〜にかかっている」という英文で、新情報 A sign を後ろにまわして There is 名詞 分詞 の形になっています。ちなみに、空所後の that は関係代名詞で、（直前の the door ではなく）a sign の説明をしています。", "v": [{"word": "sign", "meaning": "看板・標識"}, {"word": "say", "meaning": "（本や掲示などに）書いてある"}]}, {"id": 81, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第1〜第3文型の語法", "q": "The software development team expects to remain ------- until they finish the photo-editing app they are working on.", "c": ["busy", "busier", "busily", "busiest"], "a": 0, "exp": "expect to 原形「〜することを予想する」の後ろには、remain ------- がきています。remain 形容詞 「〜のままでいる」の形を考え、(A) busy を選べば OK です。(B) busier は形容詞 busy の比較級、(D) busiest は最上級なのでここでは不自然です（比較対象「〜より」や最上級の範囲「〜の中で」などが不明）。(C) busily は副詞なのでアウトです。", "v": [{"word": "expect to 原形", "meaning": "〜することを予想する"}, {"word": "photo-editing", "meaning": "写真編集の"}, {"word": "app", "meaning": "アプリ"}, {"word": "work on 〜", "meaning": "〜に取り組む"}]}, {"id": 82, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第1〜第3文型の語法", "q": "Hugh ------- his suit for his interview on the table before he went to bed.", "c": ["lain", "laid", "lay", "lied"], "a": 1, "exp": "自動詞 lie と他動詞 lay の使い分けがポイントです。空所直後に名詞（his suit）があるので、空所には「他動詞」が入ると考えます。before he went to bed で過去形が使われていることから、他動詞 lay の過去形 (B) laid を選べば OK です。自動詞 lie は lie - lay - lain、他動詞 lay は lay - laid - laid と変化します。ちなみに、(D) lied は lie「嘘をつく」の過去・過去分詞形です。", "v": [{"word": "interview", "meaning": "面接"}, {"word": "go to bed", "meaning": "床につく・寝る"}]}, {"id": 83, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第1〜第3文型の語法", "q": "The hikers increased their pace in order to ------- the campsite before sunset.", "c": ["arrive", "get", "reach", "return"], "a": 2, "exp": "空所直前は in order to 原形「〜するために」の形で、空所には動詞の原形が入ります。空所直後に名詞（the campsite）があるので、空所には「他動詞」が入ると考え、(C) reach「〜に着く」を選べば OK です。reach ≒ arrive at[in] 〜 ≒ get to 〜 「〜に着く」と押さえておきましょう。ちなみに、(D) return は return to 〜「〜に帰る」の形でよく使います。", "v": []}, {"id": 84, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第4文型の語法", "q": "Bishop Consulting offers small retail companies ------- about how to get started marketing on social media Web sites.", "c": ["has advised", "to advise", "advised", "advice"], "a": 3, "exp": "空所前のoffers small retail companiesに注目して、offer 人 物 「人に物を提供する」の形を予想します。空所には「物（＝名詞）」が入ると考え、名詞 (D) advice 「アドバイス・助言」を選べばOKです。offers small retail companies advice about 〜「小規模な小売業者に〜に関するアドバイスを提供する」となります。ちなみに、adviceは不可算名詞なので、冠詞anや複数のsは不要です（443ページ）。\n和訳: Bishopコンサルティングは小規模な小売業者に、どのようにSNSウェブサイトでマーケティング活動を始めるのか、アドバイスをしている。", "v": [{"word": "retail", "meaning": "小売りの"}, {"word": "get started", "meaning": "始める"}, {"word": "social media", "meaning": "ソーシャルメディア・SNS"}]}, {"id": 85, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第4文型の語法", "q": "Could you do me a favor?", "c": ["That won't do.", "What do you need?", "How do you do?"], "a": 1, "exp": "“do 人 物”の形を使った会話表現。Could you do me a favor? は、直訳「あなたは、私に1つ親切（a favor）を与えて（do）くれませんか？」→「1つお願いがあるのですが」という表現です。これに対して「何が必要？」と聞き返す (B) What do you need? が正解です。このように「疑問文に対して疑問文で返答する」ことは、Part 2でよくあります。\n和訳: 1つお願いがあるのですが。\n(A) それではいけません。\n(B) 何が必要ですか？\n(C) ご機嫌はいかが？", "v": []}, {"id": 86, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第4文型の語法", "q": "It ------- Tara only fifteen minutes to bicycle to work this morning.", "c": ["was", "went", "took", "commuted"], "a": 2, "exp": "It takes 人 時間 to 〜 「人が〜するのに時間がかかる」\n空所直後の Tara only fifteen minutes to 〜 に注目です。選択肢の中で“V 人 物”の形がとれるのは、(C) tookだけです。It takes 人 時間 to 〜 「〜することが人から時間を奪う」→「人が〜するのに時間がかかる」という表現です（Itは仮S、to〜は真S）。ちなみに、(D) commuted「commute（通勤する）の過去・過去分詞形」は、bicycle to workからの連想を利用したひっかけです。\n和訳: 今朝、Taraが自転車で出勤するのにたった15分しかかからなかった。", "v": [{"word": "bicycle to work", "meaning": "自転車で通勤する"}]}, {"id": 87, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第5文型の語法 (1)", "q": "The management of Willowfield Apartments always has units professionally ------- before new tenants move in.", "c": ["clean", "cleaned", "cleaning", "to clean"], "a": 1, "exp": "空所前の has に注目です。SVOC を予想し、units が S'、------- が V' と考えます（今回はその間に副詞 professionally が入っています）。「部屋が掃除される」という受動関係が適切なので、(B) cleaned (p.p.) が正解です。\n\n和訳\nWillowfieldアパートの管理人は、新しい賃借人が引っ越してくる前にいつもプロの手で部屋を掃除してもらっている。", "v": [{"word": "unit", "meaning": "1戸・(1つの) 部屋"}, {"word": "professionally", "meaning": "専門的に・プロによって"}, {"word": "tenant", "meaning": "部屋を借りる人"}, {"word": "move in", "meaning": "引っ越してくる・入居する"}]}, {"id": 88, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第5文型の語法 (1)", "q": "Does anyone know where Arthur is?", "c": ["I just saw him talking to Velma.", "No one will come.", "Arthur knows a lot of people."], "a": 0, "exp": "「どこにいるか知っている？」に対して「Velmaと話しているところを見た」と答える、(A) I just saw him talking to Velma. が正解です（直接「場所」を答えてはいませんが、自然なやりとりが成り立ちます）。知覚動詞 see を使った、see 人 -ing「人が～しているところを目撃する」の形です。今回は Does 〜 ? という疑問文に対して、Yes / No ではなく、いきなり I just 〜 と始まる文が答えになっています。間接疑問文の本当の役割は「Wh-で始まる疑問文を丁寧にしたもの」でしたね（489ページ）。そのため、形式上は Yes / No で答えるはずですが、実際の会話では「いきなり内容を答える・本題を言う」ことが多いわけです。\n\n和訳\nArthurがどこにいるか、誰か知っていますか？\n(A)彼がVelmaと話しているところをちょうど見たよ。\n(B)誰も来ないよ。\n(C)Arthurはたくさんの人を知っている。", "v": []}, {"id": 89, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第5文型の語法 (1)", "q": "Al Meyer heard his number ------- and walked over to the teller windows.", "c": ["call", "called", "calling", "make call"], "a": 1, "exp": "空所前の heard に注目です。SVOC を予想し、his number が S'、------- が V' と考えます。「番号が call される」という受動関係が自然なので、(B) called (p.p.) を選べばOKです。heard his number called「彼の番号が呼ばれるのを耳にした」となります。\n\n和訳\nAl Meyerは自分の番号が呼ばれるのを耳にして、窓口に歩いていった。", "v": [{"word": "walk over to 〜", "meaning": "〜へ歩いていく"}, {"word": "teller window", "meaning": "銀行の窓口"}]}, {"id": 90, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第5文型の語法 (2)", "q": "Why is this windowsill all wet?", "c": ["I'll get some water to put on it now.", "Someone must have left the window open last night.", "There's one on the floor under the sink."], "a": 1, "exp": "Why 〜? で「窓の下枠が濡れている理由」を尋ねています。これに対して「誰かが窓を開けっぱなしにしたにちがいない」と理由を答える、(B) Someone must have left the window open last night. が正解です。must have p.p.「〜だったにちがいない」の形で、後ろには leave the window open「窓を開けっぱなしにする」が続いています。\n\n和訳\nどうして窓の下枠がこんなに濡れているの？\n(A)今、そこを濡らすために水をとってきます。\n(B)誰かが昨晩、窓を開けっぱなしにしたにちがいないね。\n(C)シンクの下の床にあります。", "v": [{"word": "windowsill", "meaning": "窓台・窓の下枠"}, {"word": "sink", "meaning": "シンク・（台所の）流し"}]}, {"id": 91, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第5文型の語法 (2)", "q": "Employees are ------- to take time off to care for a sick family member, but they are expected to inform their manager.", "c": ["wondered", "interested", "examined", "allowed"], "a": 3, "exp": "空所前後の are と to take に注目です。allow 人 to 〜「人が〜するのを許可する」の受動態を考え、(D) allowed を選びます。人 is allowed to 〜「人は〜することが許可されている」の形です。ちなみに、英文後半では expect 人 to 〜 の受動態で、人 is expected to 〜「人は〜することになっている・〜しなければならない」の形になっています。\n\n和訳\n社員は病気の家族を看病するために休みを取ることができるが、部長にそのことを伝える必要がある。", "v": [{"word": "take time off", "meaning": "休みを取る"}, {"word": "care for 〜", "meaning": "〜の世話をする"}, {"word": "sick", "meaning": "病気の"}, {"word": "be expected to 〜", "meaning": "〜することになっている"}, {"word": "inform", "meaning": "知らせる"}]}, {"id": 92, "ch": 11, "ch_title": "文型に関する語法", "th_title": "第5文型の語法 (2)", "q": "Rosemary Buchanan offered to help Kyle Musgrove ------- the press release before sending it to media outlets.", "c": ["proofreader", "proofreads", "proofreading", "proofread"], "a": 3, "exp": "offer to 〜「〜することを申し出る」の後ろは、help 人 (Kyle Musgrove) ------- となっています。help 人 原形「人が〜するのを手伝う」の形を考え、原形 (D) proofread を選べば OK です。ちなみに、TOEIC では「出版」関連の話がよく出るので、proofread「校正する」や proofreader「校正者」は大事な単語です。\n\n和訳\nRosemary Buchananは、Kyle Musgroveが報道機関に公式発表を送る前に校正するのを手伝うことを申し出た。", "v": [{"word": "proofread", "meaning": "校正する"}, {"word": "press release", "meaning": "プレスリリース・報道発表"}, {"word": "media outlet", "meaning": "報道機関"}]}, {"id": 93, "ch": 12, "ch_title": "比較", "th_title": "原級比較", "q": "Mary talked to ------- she could before deciding to order food for the party from Giovanni's.", "c": ["many caterers", "as many as caterers", "as many caterers as", "more and more caterers"], "a": 2, "exp": "(C) as many caterers asを選んで、as many caterers as she could「できる限り多くの仕出し業者」とします(as 〜 as 人 can「できるだけ〜」の形)。\"many 名詞\"や\"much 名詞\"の場合、「名詞までas 〜 as の間にまとめて挟む」ことに注意してください。\nMaryはできる限り多くの仕出し業者に連絡をとった後、パーティーのための食事はGiovanni'sに注文することに決めた。", "v": [{"word": "caterer", "meaning": "仕出し業者"}, {"word": "decide to 原形", "meaning": "〜することに決める"}, {"word": "order", "meaning": "注文する"}]}, {"id": 94, "ch": 12, "ch_title": "比較", "th_title": "原級比較", "q": "The Slimboss 2 is not so much a modified version of the Slimboss 1 ------- a completely new design.", "c": ["above", "that", "as", "than"], "a": 2, "exp": "(C) as を選んで、not so much A as B「AというよりむしろB」という表現にします(「A < B」の関係になる)。今回は、not so much a modified version of the Slimboss 1 as a completely new design「Slimboss 1の改良版というより、むしろ完全に新しいデザイン」となります。\nSlimboss 2 は、Slimboss 1 の改良版というよりは、むしろ完全に新しいデザインだ。", "v": [{"word": "modified", "meaning": "修正された"}, {"word": "completely", "meaning": "完全に"}]}, {"id": 95, "ch": 12, "ch_title": "比較", "th_title": "原級比較", "q": "Doctors at Harrow Hospital see as ------- as 25 patients per day.", "c": ["long", "many", "much", "often"], "a": 1, "exp": "as many as 〜「〜というくらい多くの・〜も」の形です(後ろの語句を「強調」する働き)。今回は後ろに可算名詞(patients)がきているので、muchではなくmanyを使います。ちなみに普通のas 〜 as ...(同等比較)との判別は、このas many as というカタマリを取り除いてもOKなら「強調」です。\nHarrow病院の医師たちは、1日に25人もの患者を診察する。", "v": [{"word": "patient", "meaning": "患者"}, {"word": "per", "meaning": "〜につき"}]}, {"id": 96, "ch": 12, "ch_title": "比較", "th_title": "原級比較", "q": "This sapphire-and-diamond necklace costs ------- that pearl necklace.", "c": ["once or twice", "twice over", "twice as much as", "twice weekly"], "a": 2, "exp": "(C) twice as much as を選んで、costs twice as much as that pearl necklace「あの真珠のネックレスの2倍の値段がする」とします。twice as 〜 as A「Aの2倍〜だ」の形です。「2倍」の場合は、×) two times ではなく twice を使う点にも注意しましょう。\nこのサファイヤとダイヤモンドのネックレスは、あの真珠のネックレスの2倍の値段がする。", "v": [{"word": "sapphire", "meaning": "サファイヤ"}, {"word": "diamond", "meaning": "ダイヤモンド"}, {"word": "pearl", "meaning": "真珠"}]}, {"id": 97, "ch": 12, "ch_title": "比較", "th_title": "比較級", "q": "Citritron office chairs now come with a ------- warranty than they did in the past.", "c": ["longer", "long", "longest", "lengthy"], "a": 0, "exp": "空所直後の than に注目して、比較級 (A) longer を選べば OK です。Part 5 では「than があるから比較級を使う」というシンプルな問題がよく出題されます。ちなみに、(D) lengthy は「たいへん長い・冗長な」という意味です。\n和訳: Citritron の事務用チェアーには現在、以前よりも期間が長い保証がつきます。\n語句: \ncome with: 〜がついてくる\nwarranty: 保証", "v": []}, {"id": 98, "ch": 12, "ch_title": "比較", "th_title": "比較級", "q": "Patrons interested in joining a guided tour of the Danville Metropolitan Art museum are asked to contact the Museum directly for ------- information.", "c": ["previous", "further", "complicated", "obtained"], "a": 1, "exp": "(B) further「さらなる・それ以上の」を選んで、for further information「さらなる情報のために」→「詳細な情報については」という表現にします。ちなみに英文全体は、Patrons interested in ~ museum までが S、are asked to ~「〜するよう頼まれる」が V です。\n和訳: Danville Metropolitan 美術館のガイドつきツアーに参加することに興味のあるお客様は、詳細な情報が必要な場合、美術館に直接ご連絡をお願いします。\n選択肢和訳: (A) 以前の (B) さらなる (C) 複雑な (D) 入手した", "v": []}, {"id": 99, "ch": 12, "ch_title": "比較", "th_title": "比較級", "q": "Customers like Betty's Blossoms' new, ------- complicated pricing for flower arrangements ordered from its Web site.", "c": ["more", "most", "less", "least"], "a": 2, "exp": "「顧客は新しく、より複雑でなくなった（シンプルになった）価格設定を気に入っている」という意味が自然なので、little の比較級 (C) less を選びます。less complicated で「より複雑でない・シンプルな」を表すわけです。ちなみに、今回は空所直前に new とあり、「new と old との比較」だとわかります。そのため、最上級の (D) least を使うことはできません。\n和訳: Betty's Blossoms のオンラインで注文できる生け花の価格設定は新しくよりシンプルになったのだが、顧客はそれを気にいっている。\n語句: \npricing: 価格設定\nflower arrangement: 生け花", "v": []}, {"id": 100, "ch": 12, "ch_title": "比較", "th_title": "比較級", "q": "How are sales this month?", "c": ["What a bargain!", "Couldn't be better.", "Three months in a row."], "a": 1, "exp": "疑問詞 How を使って、「今月の売上はどう？」と聞いています。これに対して「絶好調」と答える (B) Couldn't be better. が正解です。元々は It couldn't be better {than this month's sales}. で、「今月の売上より (than this month's sales)、もっと良い (better) 状態なんて、仮の世界でもありえない (couldn't be)」→「絶好調」となりました。\n和訳: 今月の売上はどうですか？ (A) なんて特価品なんだ！（なんて安いんだ！） (B) 絶好調だよ。 (C) 3カ月連続だよ。\n語句: \nin a row: 連続して", "v": []}, {"id": 101, "ch": 12, "ch_title": "比較", "th_title": "比較級の重要表現", "q": "The company's new Sunrider sedan is ------- to competitors' electrical vehicles, since it holds the record for distance traveled on a single battery charge.", "c": ["superior", "inferior", "better", "worse"], "a": 0, "exp": "空所直後の to と文脈から、be superior to 〜「〜より優れた」という形にします。ラテン比較級は、than の代わりに to を使って「〜より」を表すのがポイントでしたね。ちなみに今回は since 以降で「優れている理由」を述べているので、be inferior to 〜「〜より劣った」は文脈に合いません。\n和訳: その会社の新しい Sunrider セダンは、競合会社の電気自動車よりも優れている。なぜなら、そのセダンは1回の充電での走行最長記録を持っているからだ。\n語句: \nsedan: セダン型自動車\ncompetitor: 競合会社\nelectrical vehicle: 電気自動車\nhold: 持つ\ndistance: 距離\ntravel: 走行する", "v": []}, {"id": 102, "ch": 12, "ch_title": "比較", "th_title": "比較級の重要表現", "q": "The LaserSharp 2570-X is ------- of the two printers when you consider the cost of toner cartridges.", "c": ["cheapest", "relatively cheaper", "cheaper", "the cheaper"], "a": 3, "exp": "空所直後の of the two printers に注目です。(D) the cheaper を選んで、the 比較級 of the two「2つのうちで〜な方」の形にします。2つを比べる場合は「比較級」を使い、さらに「2つのうちで〜な方」といわれたら「共通認識できる（どちらを指すかわかる）」ので、比較級の前に the が必要なわけです。\n和訳: トナーカートリッジの費用を考慮すると、2つのプリンターのうち LaserSharp 2570-X の方が安価だ。\n語句: \nconsider: 考慮する\ntoner cartridge: トナーカートリッジ", "v": []}, {"id": 103, "ch": 12, "ch_title": "比較", "th_title": "比較級の重要表現", "q": "The higher the humidity, the ------- it takes for acrylic paint to dry.", "c": ["length", "long", "longer", "longest"], "a": 2, "exp": "文頭 The higher に注目して、The 比較級 SV, the 比較級 SV.「SV すればするほど SV だ」の形にします（今回は The higher the humidity {is}「湿度が高ければ高いほど」から、is が省略されています）。\n和訳: 湿度が高ければ高いほど、それだけアクリル塗料が乾くのに時間がかかる。\n語句: \nhumidity: 湿度\nacrylic: アクリルの\ndry: 乾く", "v": []}, {"id": 104, "ch": 12, "ch_title": "比較", "th_title": "比較級の重要表現", "q": "Due to declining popularity, White Dove Tours ------- offers bus tours that go through the city's historical district.", "c": ["does not", "no longer", "plans to", "anymore"], "a": 1, "exp": "「人気が下がったので、もうツアーを提供していない」という意味を考え、(B) no longer「もはや〜ない」を選びます。(A) does not と (C) plans to は、後ろに「動詞の原形」がくるので×です。また、(D) anymore は “not 〜 anymore” の形で「もはや〜ない」を表します（文末で使われることが多いです）。\n和訳: 人気下がってしまったので、White Dove Tours は市の歴史的な地区を回るバスツアーをもう行っていない。\n語句: \ndeclining: 衰えつつある\npopularity: 人気\ngo through ~: 〜を通り抜ける\ndistrict: 地区", "v": []}, {"id": 105, "ch": 12, "ch_title": "比較", "th_title": "最上級／比較級・最上級の強調", "q": "------- all the entries in the recipe contest, Ms. Dong's roast chicken recipe has received the most votes so far.", "c": ["With", "Of", "From", "To"], "a": 1, "exp": "「範囲（〜の中で）」を表すof\n後半にある the most votes に注目します。最上級の「範囲（〜の中で）」を表す of が文頭に出た形と考え、(B) Of を選べば OK です。Of all the entries in the recipe contest「レシピコンテストに応募されたすべてのレシピの中で（最も〜だ）」となります。", "v": [{"word": "entry", "meaning": "出品物"}, {"word": "recipe", "meaning": "レシピ"}, {"word": "vote", "meaning": "票"}, {"word": "so far", "meaning": "今のところ"}]}, {"id": 106, "ch": 12, "ch_title": "比較", "th_title": "最上級／比較級・最上級の強調", "q": "Higher oil prices and a wet spring have combined to make strawberries ------- more expensive than they were last year.", "c": ["as", "very", "extremely", "much"], "a": 3, "exp": "比較級を強調するのは？\n空所直後の more expensive に注目して、比較級を強調する (D) much 「はるかに」を選びます。make OC 「O を C にする」の形で、make strawberries much more expensive 「いちごの値段をはるかに高くする」となっています。(B) very は比較級を強調できない点に注意してください。", "v": [{"word": "oil", "meaning": "石油"}, {"word": "wet", "meaning": "雨の多い"}, {"word": "combine", "meaning": "同時に起こる"}, {"word": "make OC", "meaning": "O を C にする"}, {"word": "expensive", "meaning": "高価な"}]}, {"id": 107, "ch": 12, "ch_title": "比較", "th_title": "最上級／比較級・最上級の強調", "q": "McMahonn's is proud to serve the ------- best steaks in Muskogee County.", "c": ["such", "most", "much", "very"], "a": 3, "exp": "最上級の強調は「theの位置」に注意\nthe ------- best に注目して、(D) very を選びます。“the very best” の形で、the very best steaks 「まさに最高のステーキ」となります。(C) much も最上級を強調できますが、こちらは “much the best” の形で使います。どちらも「the の位置」がポイントです。", "v": [{"word": "be proud to 原形", "meaning": "〜することを誇りとしている"}, {"word": "serve", "meaning": "（食事を）出す"}]}, {"id": 108, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "冠詞・名詞の基本", "q": "Do you have the time?", "c": ["I used to have it.", "I'll be free in the afternoon.", "It's twelve-thirty."], "a": 2, "exp": "Do you have the time? は「時刻」を尋ねる表現なので、(C) It's twelve-thirty. が正解。直訳「現時刻（the time）を何らかの手段で持っていますか（持っていたら教えてください）」→「今何時かわかる？」となる。ちなみに、I'll be free in the afternoon. は Do you have (some) time? 「今時間ある？」に対する返答。", "v": []}, {"id": 109, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "冠詞・名詞の基本", "q": "How often do you get your prescription refilled?", "c": ["Yes, I do.", "At the pharmacy.", "Once a month."], "a": 2, "exp": "How often ~? は、直訳「どのくらい（How）頻繁に（often）」→「どのくらいの頻度で〜する？」という表現。頻度を答えた (C) Once a month.「1カ月に1回」が正解。", "v": [{"word": "get O p.p.", "meaning": "Oを〜してもらう"}, {"word": "prescription", "meaning": "処方薬"}, {"word": "refill", "meaning": "補充する"}, {"word": "pharmacy", "meaning": "薬局"}]}, {"id": 110, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "冠詞・名詞の基本", "q": "Every ------- must be submitted online and be accompanied by a scanned copy of your university diploma.", "c": ["applicant", "apply", "application", "applicable"], "a": 2, "exp": "Every ------- が S、must be 〜 が V です。S になるのは名詞なので、(A) applicant「応募者」か (C) application「申込用紙」に絞れる。「申込用紙が提出される」という意味が自然なので、(C) application が正解。", "v": [{"word": "be accompanied by ~", "meaning": "〜を添付する"}, {"word": "diploma", "meaning": "卒業証書"}]}, {"id": 111, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "冠詞・名詞の基本", "q": "Marsha Jenkins delivered her presentation with ------- because she was well prepared.", "c": ["confidence", "confident", "confidently", "confidential"], "a": 0, "exp": "前置詞 with の直後なので、空所には「名詞」が入ると考え、(A) confidence「自信」を選ぶ。with confidence で「自信を持って（＝ confidently）」となる。空所直前に with がなければ、(C) confidently が正解。", "v": []}, {"id": 112, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "不可算名詞・可算名詞／複合名詞", "q": "Theatergoers can visit the theater's Web site for ------- about all movies that are currently showing.", "c": ["information", "informed", "informing", "inform"], "a": 0, "exp": "前置詞 for の O になる「名詞」が入ると考え、(A) information 「情報」を選びます。information は「目に見えない」→「不可算名詞」なので、冠詞 an や複数の s は不要です。また、動名詞の (C) informing は直後に「人」がくるはずなので、今回は×です (inform 人 of 〜 / inform 人 that sv「人に〜を知らせる」の形が重要)。", "v": [{"word": "theatergoer", "meaning": "芝居好き"}, {"word": "currently", "meaning": "現在"}]}, {"id": 113, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "不可算名詞・可算名詞／複合名詞", "q": "All stagehands are asked to go to the stage to finish setting up the audio ------- before the band arrives.", "c": ["equip", "equipped", "equipment", "equips"], "a": 2, "exp": "audio equipment 「音響機器」という表現にします。equipment は「設備ひとまとめ / 設備一式」という意味で、もともと「ひとまとめ」なので数えません。冠詞 an や複数の s がつかない点にも注意しましょう。", "v": [{"word": "stagehand", "meaning": "舞台係"}, {"word": "set up", "meaning": "設営する"}]}, {"id": 114, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "不可算名詞・可算名詞／複合名詞", "q": "Tara Lassiter ------- seats with the man next to her on the bus so he could sit with his colleague.", "c": ["sat", "took", "exchanged", "replaced"], "a": 2, "exp": "exchange seats with 〜 「〜と席を交代する」という表現です。席を交代するには、必ず自分と相手の「2人分の席」が必要なので、複数形 seats になります。(B) took は take a seat 「着席する」の形でよく使われ、今回は形も意味も合いません。また、(D) replaced 「取って代わる」は意味が×です。", "v": [{"word": "so {that} s (助動詞) v", "meaning": "sv するために"}, {"word": "colleague", "meaning": "同僚"}]}, {"id": 115, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "不可算名詞・可算名詞／複合名詞", "q": "Anyone who is currently unemployed or considering changing jobs in the next year is encouraged to attend the ------- seminar.", "c": ["employ", "employment", "employed", "employing"], "a": 1, "exp": "employment seminar 「雇用セミナー・就職セミナー」という、TOEIC 頻出の複合名詞（名詞＋名詞）です。つい「直後に名詞があるから空所には形容詞（分詞）が入る」と考えて、(C) employed や (D) employing を選びがちですが、文脈上「雇用されたセミナー」「雇用しているセミナー」ではおかしいですね。ちなみに、複数形に注意する熟語の change jobs 「転職する」も使われています。", "v": [{"word": "unemployed", "meaning": "失業した"}, {"word": "be encouraged to 原形", "meaning": "〜することを勧められる"}]}, {"id": 116, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞①", "q": "The Royce-Opal Hotel is known for ------- luxurious rooms and superior customer service.", "c": ["itself", "its", "it", "it's"], "a": 1, "exp": "1 人称代名詞の区別\n解説: for ------- luxurious rooms の形に注目です。名詞（のカタマリ）を修飾できるのは「所有格」の代名詞なので、(B) itsを選びます。its は「Royce-Opal ホテルの」を表し、is known for its luxurious rooms and ～ 「Royce-Opal ホテルの豪華な部屋と〜で知られている」となります（be known for 〜 「〜で知られている」）。ちなみに (D) it's は it is の省略形で、所有格の its とは異なります。\n和訳: Royce-Opal ホテルは、豪華な部屋と優れた接客で知られている。\n語句: luxurious 「豪華な」、superior 「優れている」", "v": []}, {"id": 117, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞①", "q": "Kirstie Turner files her taxes -------, rather than paying an accountant to do it for her.", "c": ["her", "she", "hers", "herself"], "a": 3, "exp": "2 再帰代名詞の「強調」用法\n解説: 空所部分がなくても文自体は完成しています。よって、空所には「（文法上）なくても OK な要素」が入ると考え、再帰代名詞の (D) herselfを選べば OK です。これは「S を強調する」用法で、「（会計士にやってもらうのではなく）自分で確定申告をしている」ことを表しています。\n和訳: Kirstie Turner は会計士にお金を払ってやってもらうのではなく、自分で確定申告をしている。\n語句: file one's taxes 「確定申告をする」、rather than 〜 「〜ではなくて」、pay [人] to [原形] 「[人]にお金を払って〜させる」、accountant 「会計士」", "v": []}, {"id": 118, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞①", "q": "I'm sorry but the airport shuttle bus has just departed, but ------- is leaving in 15 minutes.", "c": ["every", "another", "either", "any"], "a": 1, "exp": "3 “another ＝ an＋other”\n解説: 「（たくさんある中の）もう1つのシャトルバスの便が 15 分後に出発する」ということなので、(B) anotherを選びます。“another ＝ an ＋ other”で、「たくさんある中の1つ」を表すわけです。ちなみに空所後の in は「経過（〜後）」を表し、in 15 minutes「15 分後」となります。\n和訳: 申し訳ありませんが、空港のシャトルバスはちょうど出発したところです。ただ、他の便があと 15 分後に出発いたします。\n語句: depart 「出発する」", "v": []}, {"id": 119, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞①", "q": "There will be four presentations today: two will be about our quality control process, and the ------- will be about safety procedures.", "c": ["other", "another", "others", "two"], "a": 2, "exp": "4 「残り全部」を表すには？\n解説: 「4つのプレゼンが予定されており、2つは◯◯、他の2つ（残り全部）は△△」という流れです。他の2つは特定（共通認識）できるので、the others で表します。the other は「1つ」を表すので×、the another はそもそも形が×です（“another ＝ an ＋ other”なので、×）the an otherと冠詞が重複するのはアウトですね）。また、名詞の (D) two は基本的に無冠詞で使います。\n和訳: 今日は4つのプレゼンが予定されている。そのうち2つは品質管理工程に関するもので、他は安全手順に関するものだ。\n語句: process 「工程」、safety procedure 「安全手順」", "v": []}, {"id": 120, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞②", "q": "Dan Montgomery has been looking for a nursing home for his elderly mother, but he hasn't found ------- that they both like.", "c": ["it", "this", "where", "one"], "a": 3, "exp": "itは「特定」、oneは「不特定」\n「老人ホームを探しているが、まだそれは見つかっていない」という文脈から、「不特定」を表す (D) one を選びます。one that they both like で「2人とも気に入る老人ホーム」を指しているわけです。「特定」を表す (A) it だと、そもそも何を指しているのか不明です。\n和訳: Dan Montgomery は高齢の母親のために老人ホームを探しているが、2人とも気に入るような場所は見つかっていない。", "v": [{"word": "look for 〜", "meaning": "〜を探す"}, {"word": "nursing home", "meaning": "老人ホーム"}, {"word": "elderly", "meaning": "年配の・高齢の"}]}, {"id": 121, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞②", "q": "Sales of the Kimodo I-20+ smartphone are double ------- of the I-20.", "c": ["those", "some", "that", "any"], "a": 0, "exp": "既出の「複数名詞」を受けるのは？\n空所には sales を指すものが入ります。既出の複数名詞 (sales) を受ける (A) those を選べば OK です（those は後置修飾 OK なので、those of 〜 の形もバッチリです）。double those of the I-20「I-20 の売上の2倍」となります（double 〜「〜の2倍」の形）。ちなみに (C) that は既出の「単数名詞」を受けるので、今回はアウトです。\n和訳: Kimodo I-20+ スマートフォンの売上は、I-20 の売上の2倍だ。", "v": []}, {"id": 122, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞②", "q": "Shawn Hull stayed in a hotel that was far from the convention center because ------- of the nearby hotels had any vacancies.", "c": ["all", "no", "every", "none"], "a": 3, "exp": "noneは「noの代名詞バージョン」\n「近くのホテルにはどこも空きがなかったので、離れたホテルに滞在した」という流れが自然なので、(D) none「どれも〜ない」を選びます。none は「no の代名詞バージョン」と考えれば OK です（(B) no には代名詞の用法がないので、その代わりに none を使うイメージ）。また、(C) every に代名詞の用法はないので、×) every of 〜 という形はとれません。\n和訳: 近くのホテルにはどこも空きがなかったので、Shawn Hull は会議場から離れたホテルに滞在した。", "v": [{"word": "far from 〜", "meaning": "〜から離れた"}, {"word": "convention center", "meaning": "会議場"}, {"word": "nearby", "meaning": "近くの"}, {"word": "vacancy", "meaning": "空室"}]}, {"id": 123, "ch": 13, "ch_title": "冠詞・名詞・代名詞", "th_title": "代名詞②", "q": "Chef Michiba was surprised that ------- applicants had experience working in restaurants overseas.", "c": ["almost every", "most of", "almost all of", "most of the"], "a": 3, "exp": "“most of the 名詞”\n正しい形は、(D) most of the applicants「ほとんどの志願者」だけです（“most of the 名詞”）。(A) almost every は後ろに「単数形」がくるので×（each / every / either は単数扱いでしたね）、(B) most of と (C) almost all of は後ろに「特定名詞（the+名詞など）」がくるので×です。\n和訳: シェフの Michiba は、ほとんどの志願者に海外のレストランで働いた経験があることに驚いた。", "v": [{"word": "applicant", "meaning": "志願者"}, {"word": "experience", "meaning": "経験"}, {"word": "overseas", "meaning": "海外の"}]}, {"id": 124, "ch": 14, "ch_title": "疑問", "th_title": "付加疑問文／否定疑問文／間接疑問文など", "q": "That hotel was built last year, wasn't it?", "c": ["Not since last year.", "That's not the hotel.", "No, two years ago."], "a": 2, "exp": "付加疑問文は「確認・念押し(〜ですよね？)」。「付加疑問 (〜, wasn't it?)」を使って、「そのホテルは去年に建ったんですよね？」と尋ねている。それに対して「いえ、2年前です」と答える (C) が正解。", "v": []}, {"id": 125, "ch": 14, "ch_title": "疑問", "th_title": "付加疑問文／否定疑問文／間接疑問文など", "q": "Hasn't the roof been fixed yet?", "c": ["No, it's still leaking.", "Yes, the repairman is coming tomorrow.", "He hasn't got one."], "a": 0, "exp": "否定疑問文は「notを無視」して考える。「否定疑問文」なので not を無視して、Hasn't the roof been fixed {yet}? と考える。正解は (A) で、No は「まだ屋根が修理されていない」を表し、直後の it's still leaking「まだ雨漏りしている」とうまくつながる。(B) は Yes が「修理された」を表し、直後の the repairman is coming tomorrow「修理工が明日来る」と矛盾する。", "v": [{"word": "leak", "meaning": "(水・ガスなどが)漏れる"}, {"word": "repairman", "meaning": "修理工"}]}, {"id": 126, "ch": 14, "ch_title": "疑問", "th_title": "付加疑問文／否定疑問文／間接疑問文など", "q": "Did you find out when the sale will be over?", "c": ["It goes until Thursday.", "Twenty-five percent off.", "I hope they don't find out."], "a": 0, "exp": "「間接疑問文」に対する返答。Did you find out when 〜?「いつ〜かわかった？」という間接疑問文。When 〜? を丁寧にした疑問文で、「いつセールが終わる？」と聞いている。よって、「木曜日まで続く」と答えた (A) が正解。", "v": []}, {"id": 127, "ch": 14, "ch_title": "疑問", "th_title": "付加疑問文／否定疑問文／間接疑問文など", "q": "What's living overseas like?", "c": ["It's not over here.", "It's quite an experience.", "It's very likely."], "a": 1, "exp": "What is [S] like?「[S]ってどんな感じ？」という表現で、「海外に住むってどんな感じ？」と尋ねている（like は前置詞「〜のような」）。返答として適切なのは、(B) It's quite an experience.「いい経験だよ」である。(A) は overseas と同じ音を利用したひっかけ、(C) は like と同じ音を利用したひっかけ。", "v": []}, {"id": 128, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞①", "q": "The new IT security policy is aimed ------- protecting our customers' personal information.", "c": ["at", "in", "over", "of"], "a": 0, "exp": "【「対象の一点」を表すat】\nbe aimed at 〜 「〜を目的としている・〜向けである」という熟語です。at の核心は「一点」で、そこから「対象の一点（〜をめがけて）」の意味が生まれました。そのため、aim「狙う・向ける」と前置詞 at の相性が良いわけです。\n\n和訳: 新たなITセキュリティー方針は、弊社のお客様の個人情報を保護することを目的としたものです。\n語句: policy「方針」、protect「保護する」、customer「顧客」、personal information「個人情報」", "v": []}, {"id": 129, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞①", "q": "To prepare to move to our new office, employees must clear all personal belongings out of their desks ------- Friday, July 19.", "c": ["at", "until", "for", "by"], "a": 3, "exp": "【by vs. until】\n「7月19日金曜日までには片付けなければならない」という文意を考え、(D) byを選びます。byは「〜までには」（期限）、untilは「〜までずっと」（継続）と区別しておきましょう。\n\n和訳: 新事務所への移転の準備をするため、従業員は7月19日金曜日までに、机から自分の所有物をすべて片付けておかなくてはなりません。\n語句: prepare to[原形]「〜する準備をする」、move to 〜「〜に移転する」、employee「従業員」、clear「片付ける・取り除く」、belongings「（複数形で）所有物」", "v": []}, {"id": 130, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞①", "q": "------- further information about how to fill out and submit an expense report, click on the link below.", "c": ["From", "To", "For", "Of"], "a": 2, "exp": "【for・furtherのどちらも狙われる】\n正解の (C) For は本来「方向性」で、そこから「気持ちが〜に向かって」→「〜のために」という意味が生まれました。For further information about 〜 で、直訳「〜に関するさらなる情報のために」→「〜に関する詳細な情報については」となるわけです（406ページ）。\n\n和訳: 経費報告書の記入・提出方法の詳細につきましては、下記のリンクをクリックしてください。\n語句: fill out 〜「〜に記入する」、submit「提出する」、expense report「経費報告書」、below「下の」", "v": []}, {"id": 131, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞①", "q": "Members of the audience are asked to switch off their mobile phones and refrain ------- talking during the performance.", "c": ["to", "from", "about", "with"], "a": 1, "exp": "【「分離」を表すfrom】\nrefrain from -ing「〜するのを控える」という熟語です。このfromは「出発点（〜から）」→「分離（〜から離れて）」を表しています。refrain from talking during the performance で、「『公演中に話す』という行為から分離する」→「公演中に話すのを控える」となるわけです。\n\n和訳: 観客は、公演中は携帯電話の電源を切り、会話は慎むよう求められる。\n語句: audience「観客」、be asked to[原形]「〜するよう求められる」、switch off 〜「〜の電源を切る」、performance「公演」", "v": []}, {"id": 132, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞②", "q": "If Ms. Graves does not arrive ------- 15 minutes, let us ask her to meet us at the restaurant.", "c": ["in", "to", "for", "with"], "a": 0, "exp": "「15分経っても来なかったら〜」という文意を考え、「経過（〜後）」を表す (A) in を選べばOKです。現在を基準に「〜後・〜したら」を表すときは in を使い、in 15 minutes「15分後」となります。", "v": [{"word": "let 人 原形", "meaning": "人が〜するのを許可する"}, {"word": "ask 人 to 原形", "meaning": "人に〜するよう頼む"}]}, {"id": 133, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞②", "q": "Holders of Class Y and Class B tickets may reschedule their flights free ------- charge.", "c": ["in", "at", "of", "on"], "a": 2, "exp": "free of charge「無料で」という熟語です。free は本来「ない」という意味で、free of charge は直訳「料金（charge）がかからない（free）」→「無料で」となりました。of は「分離」を表しています。", "v": [{"word": "reschedule", "meaning": "予定を変更する"}]}, {"id": 134, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞②", "q": "Access to the magazine's online archive will be given ------- receipt of the subscription fee payment.", "c": ["in", "at", "upon", "from"], "a": 2, "exp": "(C) upon を選んで、upon receipt of 〜 「〜を受けとり次第」という表現にします。on・upon は「時間上での接触」を表し、直訳「〜の受けとりと接触するくらいすぐに」→「〜を受けとり次第」となりました。", "v": [{"word": "archive", "meaning": "アーカイブ"}, {"word": "receipt", "meaning": "受領"}, {"word": "subscription fee", "meaning": "購読料"}]}, {"id": 135, "ch": 15, "ch_title": "前置詞", "th_title": "基本前置詞②", "q": "Ms. Ormond asked the landscapers to do away ------- the towering gingko tree in her backyard and install a deck in its place.", "c": ["in", "for", "on", "with"], "a": 3, "exp": "do away with 〜 「〜を廃止する・取り除く」という熟語です。with は本来「対立（〜に対して）」を表し、直訳「〜に対して（with）離れる（do away）」→「〜を廃止する」となりました。", "v": [{"word": "landscaper", "meaning": "庭師"}, {"word": "towering", "meaning": "そびえ立つ"}, {"word": "gingko", "meaning": "イチョウ"}, {"word": "backyard", "meaning": "裏庭"}, {"word": "install", "meaning": "設置する"}]}, {"id": 136, "ch": 15, "ch_title": "前置詞", "th_title": "その他の前置詞①", "q": "Any questions ------- the replacement for retiring president Theresa Dawson will be addressed at a press conference at 3 P.M.", "c": ["concerning", "concern", "concerns", "concerned"], "a": 0, "exp": "Any questions ------- the replacement for 〜 が S、will be addressed が V です。空所以下は後ろから Any questions を修飾していると考え、前置詞の (A) concerning「〜に関して」を選べば OK です。Any questions concerning the replacement for 〜「〜の後任に関するいかなる質問も」というSになります。regarding 〜 / with[in] regard to 〜 / pertaining to 〜「〜に関して」はセットで押さえておきましょう。\n[和訳] 近々退任する Theresa Dawson 社長の後任に関する質問は、午後3時の記者会見で扱われる予定だ。", "v": [{"word": "replacement", "meaning": "代わりの人"}, {"word": "retiring", "meaning": "近く退職する"}, {"word": "president", "meaning": "社長"}, {"word": "address", "meaning": "扱う"}, {"word": "press conference", "meaning": "記者会見"}]}, {"id": 137, "ch": 15, "ch_title": "前置詞", "th_title": "その他の前置詞①", "q": "------- the past decade, rush hour traffic in Stockton has gotten worse and worse.", "c": ["At", "On", "Over", "With"], "a": 2, "exp": "「ここ 10 年にわたってますます悪化している」という文意を考え、(C) Over を選びます。over は「ある期間を覆って」→「〜にわたって・〜の間」という意味で、over the past decade「過去 10 年を覆って」→「ここ 10 年にわたって・ここ 10 年間で」となります。今回のように「現在完了形」と相性が良い用法です。\n[和訳] ここ 10 年にわたって、Stockton のラッシュアワーの交通渋滞はますます悪化している。", "v": [{"word": "decade", "meaning": "10年間"}, {"word": "比較級 and 比較級", "meaning": "ますます〜"}]}, {"id": 138, "ch": 15, "ch_title": "前置詞", "th_title": "その他の前置詞①", "q": "------- the terms of the agreement, Harrontec, Inc. shareholders will receive 70 dollars for each share they own.", "c": ["Under", "With", "According", "Of"], "a": 0, "exp": "under the terms of 〜「〜の条件のもとで・〜の条件によると」という表現です。under には「（上から覆われて）下にある」→「被支配（〜の下で）・影響（〜の影響を受けて）」の意味があり、Under the terms of the agreement「契約条件のもとで（によると）」となります。ちなみに、(C) According は According to 〜「〜によると」であれば正解です。\n[和訳] 合意の条件に基づいて、Harrontec 株式会社の株主には、所有している株1つにつき70ドルが支払われる予定だ。", "v": [{"word": "agreement", "meaning": "合意・契約"}, {"word": "shareholder", "meaning": "株主"}, {"word": "share", "meaning": "株"}]}, {"id": 139, "ch": 15, "ch_title": "前置詞", "th_title": "その他の前置詞②", "q": "Passengers are requested to proceed ------- the security checkpoint well in advance of their flight time.", "c": ["with", "under", "at", "through"], "a": 3, "exp": "throughは「貫通」のイメージ\n解説：「検問所を通り抜ける」という文意を考え、(D) through を選びます。proceed through 〜 で、直訳「〜を通って（through）進む（proceed）」→「〜の中を進む・〜を通る」という表現です。(A) with を使った proceed with 〜「〜を進める」という表現もよく使われますが、今回は文意に合いません。ちなみに空所後の well は「強調」を表し、well in advance of 〜「〜の十分前に・十分前もって」となっています。\n和訳：乗客は、フライト時間よりも十分前に検問所を通らなければならない。\n語句：passenger「乗客」、be requested to 原形「〜するよう頼まれる」、security checkpoint「検問所」、in advance of 〜「〜より前に」", "v": []}, {"id": 140, "ch": 15, "ch_title": "前置詞", "th_title": "その他の前置詞②", "q": "The Vortex Pinnacle BB is ------- the fastest Wi-Fi routers on the market today.", "c": ["among", "in", "on", "of"], "a": 0, "exp": "be among 〜 ≒ be one of 〜\n解説：空所直前の is に注目して、be among 〜「〜のうちの1つ」の形にします。among は「たくさんのものに囲まれて」というイメージで、そこから「〜のうちの1つ」という意味が生まれました（今回は「いくつかある高速の Wi-Fi ルーターに囲まれた中の1つ」という感じ）。be among 〜 ≒ be one of 〜 です。\n和訳：Vortex Pinnacle BB は、現在市場に出回っているものの中で最も高速のWi-Fiルーターの1つだ。\n語句：router「ルーター」、on the market「市場に出て」", "v": []}, {"id": 141, "ch": 15, "ch_title": "前置詞", "th_title": "その他の前置詞②", "q": "------- the year-end clearance sale, most items in the store will be 20 percent off.", "c": ["In", "While", "During", "For"], "a": 2, "exp": "during vs. for vs. while\n解説：空所直後に名詞のカタマリ（the year-end clearance sale）がきているので、空所には「前置詞」が入ります（この時点で接続詞 (B) While は消去できます）。今回は直後に the year-end clearance sale という「特定期間（いつ？）」がきているので、(C) During「〜の間」が正解です。(D) For の後ろは「特定できない期間（どのくらいの期間？）」がきます。\n和訳：年末大売り出しセール中は、店内のほとんどの商品が20パーセント割引になります。\n語句：year-end「年末の」、clearance「除去・一掃」", "v": []}];
+
 let state = {
+  app: 'vocab', // 'vocab' or 'grammar'
+
+  // Vocab state
   mode: 'e2j',
   sourceFilter: 'all',
   rangeFilter: null,
-  dateFilter: [], // empty means all
+  dateFilter: [],
   posFilter: 'all',
-  weakFilter: 'all', // all, weak_unlearned, weak_only
-  
+  weakFilter: 'all',
   pool: [],
   currentIndex: 0,
   score: 0,
-  
   weakData: JSON.parse(localStorage.getItem('toeic_weak_words') || '{}'),
-  
   currentOptions: [],
-  answered: false
+  answered: false,
+
+  // Grammar state
+  grammarChapter: 'all',
+  grammarWeakFilter: 'all',
+  grammarPool: [],
+  currentGrammarIndex: 0,
+  grammarScore: 0,
+  grammarWeakData: JSON.parse(localStorage.getItem('toeic_weak_grammar') || '{}'),
+  grammarAnswered: false
 };
 
 const DATES = [...new Set(RAW_WORDS.filter(x => x.d).map(x => getWeekLabel(x.d)))].sort();
@@ -2635,7 +2746,255 @@ function initRangeFilters() {
   });
 }
 
+
+// ==================== GRAMMAR LOGIC ====================
+
+const GRAMMAR_CHAPTERS = [
+  { ch: 'all', title: `全14章 (${RAW_GRAMMAR.length}問)` },
+  ...Array.from(new Set(RAW_GRAMMAR.map(g => JSON.stringify({ ch: g.ch, title: `第${g.ch}章 ${g.ch_title}` }))))
+    .map(s => JSON.parse(s))
+];
+
+function saveGrammarWeakData() {
+  localStorage.setItem('toeic_weak_grammar', JSON.stringify(state.grammarWeakData));
+  updateGrammarWeakBadge();
+}
+
+function updateGrammarWeakBadge() {
+  const count = Object.keys(state.grammarWeakData).length;
+  const badge = document.getElementById('grammar-weak-badge');
+  if (badge) {
+    badge.style.display = count > 0 ? 'inline-block' : 'none';
+    badge.innerText = count;
+  }
+}
+
+function initGrammarFilters() {
+  const gcf = document.getElementById('grammar-chapter-filters');
+  if (!gcf) return;
+  
+  let html = '';
+  GRAMMAR_CHAPTERS.forEach((c, idx) => {
+    html += `<button class="chip ${idx === 0 ? 'active' : ''}" data-gchapter="${c.ch}">${c.title}</button>`;
+  });
+  gcf.innerHTML = html;
+
+  gcf.querySelectorAll('.chip').forEach(btn => {
+    btn.addEventListener('click', e => {
+      gcf.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      const val = e.target.dataset.gchapter;
+      state.grammarChapter = val === 'all' ? 'all' : Number(val);
+      applyGrammarFilters();
+    });
+  });
+
+  document.querySelectorAll('#grammar-weak-segments .segment').forEach(btn => {
+    btn.addEventListener('click', e => {
+      document.querySelectorAll('#grammar-weak-segments .segment').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      state.grammarWeakFilter = e.target.dataset.gweak;
+      applyGrammarFilters();
+    });
+  });
+}
+
+function applyGrammarFilters() {
+  let filtered = RAW_GRAMMAR.filter(ex => {
+    if (state.grammarChapter !== 'all' && ex.ch !== state.grammarChapter) return false;
+    const isWeak = state.grammarWeakData[ex.id] !== undefined;
+    if (state.grammarWeakFilter === 'weak_only' && !isWeak) return false;
+    return true;
+  });
+
+  state.grammarPool = shuffle(filtered);
+  state.currentGrammarIndex = 0;
+  state.grammarScore = 0;
+  updateFilterSummary();
+  renderCurrentGrammar();
+}
+
+function renderCurrentGrammar() {
+  const container = document.getElementById('quiz-container');
+  const choicesDiv = document.getElementById('choices-container');
+  const nextBtn = document.getElementById('next-btn');
+
+  if (state.grammarPool.length === 0) {
+    container.innerHTML = `<div class="card"><div class="meaning-display">条件に合う文法問題がありません</div></div>`;
+    choicesDiv.innerHTML = '';
+    nextBtn.style.display = 'none';
+    updateFooter();
+    return;
+  }
+
+  if (state.currentGrammarIndex >= state.grammarPool.length) {
+    container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答率: ${state.grammarScore} / ${state.grammarPool.length}</div></div>`;
+    choicesDiv.innerHTML = '';
+    nextBtn.style.display = 'none';
+    updateFooter();
+    return;
+  }
+
+  const ex = state.grammarPool[state.currentGrammarIndex];
+  state.grammarAnswered = false;
+  choicesDiv.innerHTML = '';
+  nextBtn.style.display = 'none';
+
+  // Highlight blank in question
+  const formattedQ = ex.q.replace(/-------/g, '<span style="color:var(--seal);font-weight:bold;text-decoration:underline;">_______</span>');
+
+  container.innerHTML = `
+    <div class="card grammar-card" id="main-card">
+      <div class="grammar-meta">
+        <span class="grammar-badge">Part 5</span>
+        <span class="grammar-chapter">第${ex.ch}章 ${ex.ch_title}</span>
+        <span class="grammar-theme">・${ex.th_title}</span>
+      </div>
+      <div class="grammar-question">${formattedQ}</div>
+      <div class="grammar-exp-container" id="grammar-exp-box" style="display:none;">
+        <div class="grammar-correct-ans">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+        <div class="grammar-exp-text">${ex.exp}</div>
+        ${ex.v && ex.v.length > 0 ? `
+          <div class="grammar-vocab-list">
+            <div class="grammar-vocab-title">📌 重要語彙</div>
+            <div class="grammar-vocab-items">
+              ${ex.v.map(v => `<span class="grammar-vocab-item"><strong>${v.word}</strong>: ${v.meaning}</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+
+  const labels = ['A', 'B', 'C', 'D'];
+  ex.c.forEach((choice, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.innerHTML = `<span class="choice-label">${labels[idx]}</span> ${choice}`;
+    btn.onclick = () => handleGrammarAnswer(idx, btn);
+    choicesDiv.appendChild(btn);
+  });
+
+  updateFooter();
+}
+
+function handleGrammarAnswer(selectedIdx, btn) {
+  if (state.grammarAnswered) return;
+  state.grammarAnswered = true;
+
+  const ex = state.grammarPool[state.currentGrammarIndex];
+  const isCorrect = selectedIdx === ex.a;
+
+  document.querySelectorAll('#choices-container .choice-btn').forEach((b, i) => {
+    if (i === ex.a) {
+      b.classList.add('correct');
+    }
+  });
+
+  if (!isCorrect) {
+    btn.classList.add('wrong');
+    document.getElementById('main-card').classList.add('shake');
+    setTimeout(() => document.getElementById('main-card').classList.remove('shake'), 400);
+    recordWeakGrammar(ex, false);
+  } else {
+    state.grammarScore++;
+    recordWeakGrammar(ex, true);
+  }
+
+  const expBox = document.getElementById('grammar-exp-box');
+  if (expBox) expBox.style.display = 'block';
+
+  const nextBtn = document.getElementById('next-btn');
+  nextBtn.style.display = 'block';
+  nextBtn.onclick = () => {
+    state.currentGrammarIndex++;
+    renderCurrentGrammar();
+  };
+  updateFooter();
+}
+
+function recordWeakGrammar(ex, isCorrect) {
+  if (isCorrect) {
+    if (state.grammarWeakData[ex.id]) {
+      state.grammarWeakData[ex.id].streak = (state.grammarWeakData[ex.id].streak || 0) + 1;
+      if (state.grammarWeakData[ex.id].streak >= 2) {
+        delete state.grammarWeakData[ex.id];
+      }
+    }
+  } else {
+    if (!state.grammarWeakData[ex.id]) {
+      state.grammarWeakData[ex.id] = { streak: 0, added: Date.now() };
+    } else {
+      state.grammarWeakData[ex.id].streak = 0;
+    }
+  }
+  saveGrammarWeakData();
+}
+
+function renderGrammarWeakList() {
+  const container = document.getElementById('weak-list-content');
+  const ids = Object.keys(state.grammarWeakData);
+  if (ids.length === 0) {
+    container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">文法の苦手問題はありません</div>';
+    return;
+  }
+  let html = '';
+  ids.forEach(idStr => {
+    const ex = RAW_GRAMMAR.find(g => g.id === Number(idStr));
+    if (!ex) return;
+    html += `
+      <div class="weak-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
+        <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
+          <span style="font-size:11px;color:var(--muted);font-weight:bold;">第${ex.ch}章 ${ex.ch_title}</span>
+          <button class="del-btn" onclick="removeGrammarWeak(${ex.id})">削除</button>
+        </div>
+        <div style="font-size:13px;font-weight:600;color:var(--ink);">${ex.q}</div>
+        <div style="font-size:12px;color:var(--jade);">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+window.removeGrammarWeak = function(id) {
+  delete state.grammarWeakData[id];
+  saveGrammarWeakData();
+  renderGrammarWeakList();
+};
+
 function initFilters() {
+  // App type switcher (Vocab / Grammar)
+  document.querySelectorAll('#app-type-segments .segment').forEach(btn => {
+    btn.addEventListener('click', e => {
+      document.querySelectorAll('#app-type-segments .segment').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      state.app = e.target.dataset.app;
+
+      const appTitle = document.querySelector('.header .title');
+      const modeSegments = document.getElementById('mode-segments');
+      const vocabFilters = document.getElementById('vocab-filters');
+      const grammarFilters = document.getElementById('grammar-filters');
+      const nextBtn = document.getElementById('next-btn');
+      nextBtn.style.display = 'none';
+
+      if (state.app === 'grammar') {
+        if (appTitle) appTitle.innerText = '文法ドリル (Part 5)';
+        if (modeSegments) modeSegments.style.display = 'none';
+        if (vocabFilters) vocabFilters.style.display = 'none';
+        if (grammarFilters) grammarFilters.style.display = 'block';
+        applyGrammarFilters();
+      } else {
+        if (appTitle) appTitle.innerText = '単語ドリル';
+        if (modeSegments) modeSegments.style.display = 'flex';
+        if (vocabFilters) vocabFilters.style.display = 'block';
+        if (grammarFilters) grammarFilters.style.display = 'none';
+        applyFilters();
+      }
+    });
+  });
+
+  initGrammarFilters();
+  updateGrammarWeakBadge();
   initRangeFilters();
 
   document.querySelectorAll('#source-segments .segment').forEach(btn => {
@@ -2732,14 +3091,19 @@ function initFilters() {
 
 function updateFilterSummary() {
   let n = 0;
-  if (state.sourceFilter !== 'all') n++;
-  if (state.sourceFilter === 'teppan') {
-    if (state.rangeFilter) n++;
+  if (state.app === 'grammar') {
+    if (state.grammarChapter !== 'all') n++;
+    if (state.grammarWeakFilter !== 'all') n++;
   } else {
-    n += state.dateFilter.length;
-    if (state.posFilter !== 'all') n++;
+    if (state.sourceFilter !== 'all') n++;
+    if (state.sourceFilter === 'teppan') {
+      if (state.rangeFilter) n++;
+    } else {
+      n += state.dateFilter.length;
+      if (state.posFilter !== 'all') n++;
+    }
+    if (state.weakFilter !== 'all') n++;
   }
-  if (state.weakFilter !== 'all') n++;
   const el = document.getElementById('filter-count');
   if (!el) return;
   el.style.display = n > 0 ? 'inline-block' : 'none';
