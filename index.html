@@ -523,6 +523,12 @@ body {
   color: var(--ink);
   opacity: 0.85;
 }
+.grammar-theme-revealed {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
 .grammar-question {
   font-size: 15px;
   line-height: 1.55;
@@ -2979,11 +2985,11 @@ function renderCurrentGrammar() {
         <span class="grammar-badge">Part 5</span>
         ${bookBadgeHtml}
         <span class="grammar-chapter">第${ex.ch}章 ${ex.ch_title}</span>
-        <span class="grammar-theme">・${ex.th_title}</span>
       </div>
       <div class="grammar-question">${formattedQ}</div>
       <div class="grammar-exp-container" id="grammar-exp-box" style="display:none;">
         <div class="grammar-correct-ans">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+        <div class="grammar-theme-revealed">・${ex.th_title}</div>
         ${ruleHtml}
         <div class="grammar-exp-text">${ex.exp}</div>
         ${ex.v && ex.v.length > 0 ? `
