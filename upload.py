@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Add book-order No. (1-1636) and 100-word range filters to TOEIC Drill"
+MESSAGE = "Add Part 5 Grammar Drill (141 questions with explanations) to TOEIC Drill"
 
 
 def gh(args, payload=None):
