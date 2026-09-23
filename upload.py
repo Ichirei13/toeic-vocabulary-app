@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Update TOEIC practice app"
+MESSAGE = "Update to TOEIC Drill: merge TEPPAN vocabulary (1,936 words)"
 
 
 def gh(args, payload=None):
