@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Add Part 5 Grammar Drill (141 questions with explanations) to TOEIC Drill"
+MESSAGE = "Add Kin no Bunpo Grammar Drill (160 questions with explanations) to TOEIC Drill"
 
 
 def gh(args, payload=None):
