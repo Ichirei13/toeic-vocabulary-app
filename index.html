@@ -2746,6 +2746,7 @@ let state = {
   currentIndex: 0,
   score: 0,
   weakData: JSON.parse(localStorage.getItem('toeic_weak_words') || '{}'),
+  seenWords: new Set(JSON.parse(localStorage.getItem('toeic_seen_words') || '[]')),
   currentOptions: [],
   answered: false,
 
@@ -2910,8 +2911,8 @@ function initGrammarFilters() {
   document.querySelectorAll('#grammar-weak-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
       document.querySelectorAll('#grammar-weak-segments .segment').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      state.grammarWeakFilter = e.target.dataset.gweak;
+      e.currentTarget.classList.add('active');
+      state.grammarWeakFilter = e.currentTarget.dataset.gweak;
       applyGrammarFilters();
     });
   });
@@ -2961,7 +2962,7 @@ function renderCurrentGrammar() {
   nextBtn.style.display = 'none';
 
   // Highlight blank in question
-  const formattedQ = ex.q.replace(/-------/g, '<span style="color:var(--seal);font-weight:bold;text-decoration:underline;">_______</span>');
+  const formattedQ = ex.q.replace(/-{3,}/g, '<span style="color:var(--seal);font-weight:bold;text-decoration:underline;">_______</span>');
 
   const isKin = ex.b === 'kin';
   const bookBadgeHtml = isKin 
@@ -3206,8 +3207,8 @@ function initFilters() {
   document.querySelectorAll('#weak-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
       document.querySelectorAll('#weak-segments .segment').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      state.weakFilter = e.target.dataset.weak;
+      e.currentTarget.classList.add('active');
+      state.weakFilter = e.currentTarget.dataset.weak;
       applyFilters();
     });
   });
@@ -3287,9 +3288,8 @@ function applyFilters() {
     
     // weak
     const isWeak = state.weakData[w.w] !== undefined;
-    const isLearned = state.weakData[w.w]?.learned;
     if (state.weakFilter === 'weak_only' && !isWeak) return false;
-    if (state.weakFilter === 'weak_unlearned' && isLearned) return false;
+    if (state.weakFilter === 'weak_unlearned' && !isWeak && state.seenWords.has(w.w)) return false;
     
     return true;
   });
@@ -3340,7 +3340,7 @@ function renderCurrent() {
     let poolCopy = shuffle(state.pool.length >= 4 ? [...state.pool] : [...RAW_WORDS]);
     for (let w of poolCopy) {
       if (options.length >= 4) break;
-      if (w.w !== word.w && !options.find(x => x.w === w.w)) {
+      if (w.w !== word.w && w.m !== word.m && !options.find(x => x.w === w.w || x.m === w.m)) {
         options.push(w);
       }
     }
@@ -3428,12 +3428,17 @@ function handleAnswer(selectedOpt, btn) {
   updateFooter();
 }
 
+// 見出し語の「~」は入力不要、空白の揺れは無視して比較する
+function normalizeTyped(str) {
+  return str.replace(/[~～]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
 function handleTypeAnswer(val) {
   if (state.answered) return;
   state.answered = true;
   
   const word = state.pool[state.currentIndex];
-  const isCorrect = val.trim().toLowerCase() === word.w.toLowerCase();
+  const isCorrect = word.w.split('/').map(normalizeTyped).includes(normalizeTyped(val));
   
   const choicesDiv = document.getElementById('choices-container');
   choicesDiv.innerHTML = `<div class="choice-btn ${isCorrect ? 'correct' : 'wrong'}" style="text-align:center;">${isCorrect ? 'Correct!' : 'Wrong!'}</div>`;
@@ -3469,17 +3474,25 @@ function recordWeak(word, isCorrect) {
       state.weakData[word.w].streak = 0;
     }
   }
+  if (!state.seenWords.has(word.w)) {
+    state.seenWords.add(word.w);
+    localStorage.setItem('toeic_seen_words', JSON.stringify([...state.seenWords]));
+  }
   saveWeakData();
 }
 
 function updateFooter() {
-  document.getElementById('progress-text').innerText = state.pool.length > 0 ? `${Math.min(state.currentIndex + 1, state.pool.length)} / ${state.pool.length}` : '0 / 0';
-  document.getElementById('score-text').innerText = `👍 ${state.score}`;
+  const isGrammar = state.app === 'grammar';
+  const pool = isGrammar ? state.grammarPool : state.pool;
+  const index = isGrammar ? state.currentGrammarIndex : state.currentIndex;
+  const score = isGrammar ? state.grammarScore : state.score;
+  document.getElementById('progress-text').innerText = pool.length > 0 ? `${Math.min(index + 1, pool.length)} / ${pool.length}` : '0 / 0';
+  document.getElementById('score-text').innerText = `👍 ${score}`;
   
   const stampsContainer = document.getElementById('stamps');
   stampsContainer.innerHTML = '';
   const totalStamps = 12;
-  const filled = state.score % totalStamps;
+  const filled = score % totalStamps;
   for (let i = 0; i < totalStamps; i++) {
     stampsContainer.innerHTML += `<div class="stamp ${i < filled ? 'filled' : ''}"></div>`;
   }
@@ -3492,7 +3505,8 @@ function toggleWeakList() {
     sheet.classList.remove('open');
     overlay.classList.remove('open');
   } else {
-    renderWeakList();
+    if (state.app === 'grammar') renderGrammarWeakList();
+    else renderWeakList();
     sheet.classList.add('open');
     overlay.classList.add('open');
   }
