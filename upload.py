@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Add Kin no Bunpo Grammar Drill (160 questions with explanations) to TOEIC Drill"
+MESSAGE = "Hide grammar theme title until after answering to prevent answer leakage"
 
 
 def gh(args, payload=None):
