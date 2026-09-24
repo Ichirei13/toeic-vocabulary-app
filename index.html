@@ -285,6 +285,20 @@ body {
   flex: 1;
   display: none;
 }
+.dont-know-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed rgba(242, 230, 201, 0.35);
+  font-family: inherit;
+  padding: 13px;
+  border-radius: 12px;
+  font-size: 14px;
+  cursor: pointer;
+  flex: 1;
+  display: none;
+  transition: 0.2s;
+}
+.dont-know-btn:active { background: rgba(242, 230, 201, 0.08); color: var(--paper); }
 .type-input-container {
   width: 100%;
   margin-top: 12px;
@@ -342,6 +356,22 @@ body {
   z-index: 100;
 }
 .bottom-sheet.open { transform: translateY(0); }
+.bottom-sheet .chip { border-color: rgba(0,0,0,0.25); color: var(--muted); }
+.bottom-sheet .chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.guide-chapter { margin-top: 20px; }
+.guide-chapter h3 { font-size: 15px; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--gold); }
+.guide-notes { font-size: 13px; line-height: 1.7; white-space: pre-wrap; background: rgba(255,255,255,0.45); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.guide-notes.empty { color: var(--muted); font-style: italic; }
+.guide-label { font-size: 11px; font-weight: bold; color: var(--muted); margin: 10px 0 4px; }
+.guide-themes { display: flex; flex-wrap: wrap; gap: 4px; }
+.guide-theme { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,0.06); }
+.guide-rule { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,0.08); }
+.guide-rule-no { flex-shrink: 0; min-width: 34px; font-size: 12px; font-weight: bold; color: #b45309; }
+.guide-rule-title { flex: 1; font-size: 13px; line-height: 1.5; }
+.guide-rule-meta { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.guide-rule-weak { color: var(--seal); font-weight: bold; }
+.guide-solve-btn { flex-shrink: 0; background: transparent; border: 1px solid var(--jade); color: var(--jade); border-radius: 12px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.chip.rule-filter-chip { border-color: #b45309; color: #b45309; }
 .sheet-overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -650,6 +680,7 @@ body {
     <div id="choices-container" class="choices"></div>
   </div>
   <div class="action-bar">
+    <button id="dont-know-btn" class="dont-know-btn">わからない</button>
     <button id="next-btn" class="next-btn">次へ</button>
   </div>
 
@@ -657,6 +688,7 @@ body {
     <div class="stats">
       <span id="progress-text">0 / 0</span>
       <span id="score-text">👍 0</span>
+      <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
       <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
     </div>
     <div class="stamps" id="stamps"></div>
@@ -664,7 +696,7 @@ body {
 
   <div class="sheet-overlay" id="sheet-overlay" onclick="toggleWeakList()"></div>
   <div class="bottom-sheet" id="bottom-sheet">
-    <h2 style="margin-top:0;">苦手リスト</h2>
+    <h2 style="margin-top:0;" id="sheet-title">苦手リスト</h2>
     <div id="weak-list-content"></div>
   </div>
 </div>
@@ -2754,6 +2786,8 @@ let state = {
   grammarBook: 'all',
   grammarChapter: 'all',
   grammarWeakFilter: 'all',
+  grammarRule: null, // 金のルール番号で絞り込み中なら数値
+  guideChapter: 'all',
   grammarPool: [],
   currentGrammarIndex: 0,
   grammarScore: 0,
@@ -2872,18 +2906,21 @@ function renderGrammarChapterFilters() {
   
   const chapters = getGrammarChaptersList();
   let html = '';
+  if (state.grammarRule !== null) {
+    html += `<button class="chip active rule-filter-chip" data-clear-rule="1">金のルール ${state.grammarRule} で絞り込み中 ✕</button>`;
+  }
   chapters.forEach((c, idx) => {
-    const isActive = (state.grammarChapter === c.ch) || (idx === 0 && state.grammarChapter === 'all');
+    const isActive = state.grammarRule === null && ((state.grammarChapter === c.ch) || (idx === 0 && state.grammarChapter === 'all'));
     html += `<button class="chip ${isActive ? 'active' : ''}" data-gchapter="${c.ch}">${c.title}</button>`;
   });
   gcf.innerHTML = html;
 
   gcf.querySelectorAll('.chip').forEach(btn => {
     btn.addEventListener('click', e => {
-      gcf.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-      e.target.classList.add('active');
-      const val = e.target.dataset.gchapter;
-      state.grammarChapter = val === 'all' ? 'all' : Number(val);
+      const val = e.currentTarget.dataset.gchapter;
+      state.grammarRule = null;
+      state.grammarChapter = val === undefined || val === 'all' ? 'all' : Number(val);
+      renderGrammarChapterFilters();
       applyGrammarFilters();
     });
   });
@@ -2900,6 +2937,7 @@ function initGrammarFilters() {
         target.classList.add('active');
         state.grammarBook = target.dataset.gbook;
         state.grammarChapter = 'all';
+        state.grammarRule = null;
         renderGrammarChapterFilters();
         applyGrammarFilters();
       });
@@ -2923,6 +2961,7 @@ function applyGrammarFilters() {
     const itemBook = ex.b || 'sekai';
     if (state.grammarBook !== 'all' && itemBook !== state.grammarBook) return false;
     if (state.grammarChapter !== 'all' && ex.ch !== state.grammarChapter) return false;
+    if (state.grammarRule !== null && ex.rule?.number !== state.grammarRule) return false;
     const isWeak = state.grammarWeakData[ex.id] !== undefined;
     if (state.grammarWeakFilter === 'weak_only' && !isWeak) return false;
     return true;
@@ -2936,6 +2975,7 @@ function applyGrammarFilters() {
 }
 
 function renderCurrentGrammar() {
+  setDontKnowVisible(false);
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
   const nextBtn = document.getElementById('next-btn');
@@ -3118,15 +3158,18 @@ function initFilters() {
       const grammarFilters = document.getElementById('grammar-filters');
       const nextBtn = document.getElementById('next-btn');
       nextBtn.style.display = 'none';
+      setDontKnowVisible(false);
 
       if (state.app === 'grammar') {
         if (appTitle) appTitle.innerText = '文法ドリル (Part 5)';
+        document.getElementById('rule-guide-link').style.display = 'inline';
         if (modeSegments) modeSegments.style.display = 'none';
         if (vocabFilters) vocabFilters.style.display = 'none';
         if (grammarFilters) grammarFilters.style.display = 'block';
         applyGrammarFilters();
       } else {
         if (appTitle) appTitle.innerText = '単語ドリル';
+        document.getElementById('rule-guide-link').style.display = 'none';
         if (modeSegments) modeSegments.style.display = 'flex';
         if (vocabFilters) vocabFilters.style.display = 'block';
         if (grammarFilters) grammarFilters.style.display = 'none';
@@ -3235,6 +3278,7 @@ function updateFilterSummary() {
   let n = 0;
   if (state.app === 'grammar') {
     if (state.grammarChapter !== 'all') n++;
+    if (state.grammarRule !== null) n++;
     if (state.grammarWeakFilter !== 'all') n++;
   } else {
     if (state.sourceFilter !== 'all') n++;
@@ -3301,7 +3345,14 @@ function applyFilters() {
   renderCurrent();
 }
 
+// 4択の「わからない」ボタン。次へボタンと同じ枠を回答前だけ使う
+function setDontKnowVisible(visible) {
+  const dk = document.getElementById('dont-know-btn');
+  if (dk) dk.style.display = visible ? 'block' : 'none';
+}
+
 function renderCurrent() {
+  setDontKnowVisible(false);
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
   const nextBtn = document.getElementById('next-btn');
@@ -3354,6 +3405,8 @@ function renderCurrent() {
       btn.onclick = () => handleAnswer(opt, btn);
       choicesDiv.appendChild(btn);
     });
+    setDontKnowVisible(true);
+    document.getElementById('dont-know-btn').onclick = handleDontKnow;
   } else if (state.mode === 'flash') {
     container.innerHTML = `
       <div class="card flash-mode" onclick="this.classList.toggle('flipped')">
@@ -3401,6 +3454,7 @@ function renderCurrent() {
 function handleAnswer(selectedOpt, btn) {
   if (state.answered) return;
   state.answered = true;
+  setDontKnowVisible(false);
   
   const word = state.pool[state.currentIndex];
   const isCorrect = selectedOpt.w === word.w;
@@ -3421,6 +3475,27 @@ function handleAnswer(selectedOpt, btn) {
     recordWeak(word, true);
   }
   
+  document.getElementById('example-box').style.display = 'block';
+  const nextBtn = document.getElementById('next-btn');
+  nextBtn.style.display = 'block';
+  nextBtn.onclick = () => { state.currentIndex++; renderCurrent(); };
+  updateFooter();
+}
+
+// 「わからない」: 正解を見せて苦手に登録。スコアは増やさず、赤表示や揺れは出さない
+function handleDontKnow() {
+  if (state.answered) return;
+  state.answered = true;
+  setDontKnowVisible(false);
+
+  const word = state.pool[state.currentIndex];
+  document.querySelectorAll('#choices-container .choice-btn').forEach((b, i) => {
+    if (state.currentOptions[i] && state.currentOptions[i].w === word.w) {
+      b.classList.add('correct');
+    }
+  });
+  recordWeak(word, false);
+
   document.getElementById('example-box').style.display = 'block';
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
@@ -3498,19 +3573,118 @@ function updateFooter() {
   }
 }
 
-function toggleWeakList() {
-  const sheet = document.getElementById('bottom-sheet');
-  const overlay = document.getElementById('sheet-overlay');
-  if (sheet.classList.contains('open')) {
-    sheet.classList.remove('open');
-    overlay.classList.remove('open');
-  } else {
-    if (state.app === 'grammar') renderGrammarWeakList();
-    else renderWeakList();
-    sheet.classList.add('open');
-    overlay.classList.add('open');
-  }
+function closeSheet() {
+  document.getElementById('bottom-sheet').classList.remove('open');
+  document.getElementById('sheet-overlay').classList.remove('open');
 }
+
+function openSheet(title, render) {
+  document.getElementById('sheet-title').innerText = title;
+  render();
+  const sheet = document.getElementById('bottom-sheet');
+  sheet.scrollTop = 0;
+  sheet.classList.add('open');
+  document.getElementById('sheet-overlay').classList.add('open');
+}
+
+function toggleWeakList() {
+  if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
+  openSheet('苦手リスト', state.app === 'grammar' ? renderGrammarWeakList : renderWeakList);
+}
+
+function toggleRuleGuide() {
+  if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
+  openSheet('金のルール・章ガイド', renderRuleGuide);
+}
+
+// ==================== 金のルール・章ガイド ====================
+
+// 章ごとの解説メモ。{ 1: "本文…", 2: "…" } の形で書くとガイドの各章の先頭に表示される（改行はそのまま反映）。
+const KIN_CHAPTER_NOTES = {};
+
+// 問題データから 金のルール の一覧を組み立てる（番号順、各ルールの問題idつき）
+const KIN_RULES = (() => {
+  const map = new Map();
+  RAW_GRAMMAR.filter(g => g.b === 'kin' && g.rule && g.rule.number).forEach(g => {
+    if (!map.has(g.rule.number)) {
+      map.set(g.rule.number, { number: g.rule.number, title: g.rule.title, ch: g.ch, ids: [] });
+    }
+    map.get(g.rule.number).ids.push(g.id);
+  });
+  return [...map.values()].sort((a, b) => a.number - b.number);
+})();
+
+const KIN_CHAPTERS = (() => {
+  const map = new Map();
+  RAW_GRAMMAR.filter(g => g.b === 'kin').forEach(g => {
+    if (!map.has(g.ch)) map.set(g.ch, { ch: g.ch, title: g.ch_title, sections: {} });
+    // th_title は「必修問題 (Q114)」の形なので、括弧の前をセクション名として数える
+    const section = (g.th_title || '').replace(/\s*\(.*$/, '');
+    const sections = map.get(g.ch).sections;
+    if (section) sections[section] = (sections[section] || 0) + 1;
+  });
+  return [...map.values()].sort((a, b) => a.ch - b.ch);
+})();
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderRuleGuide() {
+  const container = document.getElementById('weak-list-content');
+  let html = `<div class="filter-row" style="flex-wrap:wrap;">
+    <button class="chip ${state.guideChapter === 'all' ? 'active' : ''}" data-guide-ch="all">すべて</button>
+    ${KIN_CHAPTERS.map(c => `<button class="chip ${state.guideChapter === c.ch ? 'active' : ''}" data-guide-ch="${c.ch}">第${c.ch}章</button>`).join('')}
+  </div>`;
+
+  KIN_CHAPTERS.filter(c => state.guideChapter === 'all' || state.guideChapter === c.ch).forEach(c => {
+    const notes = KIN_CHAPTER_NOTES[c.ch];
+    const rules = KIN_RULES.filter(r => r.ch === c.ch);
+    html += `<div class="guide-chapter">
+      <h3>第${c.ch}章 ${escapeHtml(c.title)}</h3>
+      ${notes
+        ? `<div class="guide-notes">${escapeHtml(notes)}</div>`
+        : `<div class="guide-notes empty">章の解説はまだ登録されていません</div>`}
+      <div class="guide-themes">${Object.entries(c.sections).map(([name, n]) => `<span class="guide-theme">${escapeHtml(name)} ${n}問</span>`).join('')}</div>
+      <div class="guide-label">金のルール（${rules.length}）</div>
+      ${rules.map(r => {
+        const weak = r.ids.filter(id => state.grammarWeakData[id] !== undefined).length;
+        return `<div class="guide-rule">
+          <span class="guide-rule-no">No.${r.number}</span>
+          <span class="guide-rule-title">${escapeHtml(r.title)}
+            <span class="guide-rule-meta">${r.ids.length}問${weak > 0 ? ` ・ <span class="guide-rule-weak">苦手 ${weak}</span>` : ''}</span>
+          </span>
+          <button class="guide-solve-btn" data-solve-rule="${r.number}">解く</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function startRuleDrill(number) {
+  state.grammarBook = 'kin';
+  state.grammarChapter = 'all';
+  state.grammarWeakFilter = 'all';
+  state.grammarRule = number;
+  document.querySelectorAll('#grammar-book-segments .segment').forEach(b => b.classList.toggle('active', b.dataset.gbook === 'kin'));
+  document.querySelectorAll('#grammar-weak-segments .segment').forEach(b => b.classList.toggle('active', b.dataset.gweak === 'all'));
+  renderGrammarChapterFilters();
+  applyGrammarFilters();
+  closeSheet();
+}
+
+document.getElementById('weak-list-content').addEventListener('click', e => {
+  const chBtn = e.target.closest('[data-guide-ch]');
+  if (chBtn) {
+    const v = chBtn.dataset.guideCh;
+    state.guideChapter = v === 'all' ? 'all' : Number(v);
+    renderRuleGuide();
+    return;
+  }
+  const solveBtn = e.target.closest('[data-solve-rule]');
+  if (solveBtn) startRuleDrill(Number(solveBtn.dataset.solveRule));
+});
 
 function renderWeakList() {
   const container = document.getElementById('weak-list-content');
