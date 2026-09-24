@@ -681,9 +681,6 @@ body {
         <div class="segment active" data-gweak="all">すべて</div>
         <div class="segment" data-gweak="weak_only">苦手のみ<span id="grammar-weak-badge" class="weak-badge" style="display:none">0</span></div>
       </div>
-      <div id="kin-phases-toggle-btn" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(234,179,8,0.15);border:1px solid rgba(234,179,8,0.4);border-radius:6px;color:#b45309;font-size:12px;font-weight:700;cursor:pointer;text-align:center;">
-        💡 金の文法 章ガイド（解き方フェーズ・金のルール）を開く
-      </div>
     </div>
   </div>
 
@@ -3266,7 +3263,6 @@ function applyGrammarFilters() {
   state.grammarScore = 0;
   updateGrammarWeakBadge();
   updateFilterSummary();
-  updateKinPhasesToggleVisibility();
   renderCurrentGrammar();
 }
 
@@ -4086,19 +4082,6 @@ window.removeWeak = function(w) {
 initFilters();
 updateWeakBadge();
 applyFilters();
-</script>
-<script>
-
-// 絞り込み内の「章ガイドを開く」ボタン（金の文法を選んでいるときだけ表示）
-function updateKinPhasesToggleVisibility() {
-  const btn = document.getElementById('kin-phases-toggle-btn');
-  if (btn) btn.style.display = state.grammarBook === 'kin' ? 'block' : 'none';
-}
-
-document.getElementById('kin-phases-toggle-btn').onclick = () => {
-  state.guideChapter = state.grammarChapter === 'all' ? 'all' : Number(state.grammarChapter);
-  openSheet('金の文法 章ガイド', renderRuleGuide);
-};
 </script>
 </body>
 </html>
