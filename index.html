@@ -328,20 +328,79 @@ body {
   color: var(--muted);
   margin-bottom: 6px;
 }
-.stamps {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
+.progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(242, 230, 201, 0.15);
+  overflow: hidden;
 }
-.stamp {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(242, 230, 201, 0.2);
-}
-.stamp.filled {
+.progress-fill {
+  height: 100%;
+  width: 0;
   background: var(--gold);
+  transition: width 0.3s;
 }
+.sheet-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  margin: -8px -8px 0 0;
+  z-index: 1;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,0.08);
+  color: var(--ink);
+  font-size: 16px;
+  cursor: pointer;
+}
+/* 文法: 回答後は選択肢を1行に縮めて解説に縦を譲る */
+.choices.compact { flex-direction: row; }
+.choices.compact .choice-btn {
+  flex: 1;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 13px;
+}
+.choices.compact .choice-text { display: none; }
+.choice-mark { margin-left: 6px; font-weight: 700; }
+.choices.compact .choice-btn.correct .choice-label,
+.choices.compact .choice-btn.wrong .choice-label { color: #fff; }
+.grammar-your-ans {
+  font-size: 13px;
+  color: var(--seal);
+  font-weight: 600;
+  margin: -4px 0 8px;
+}
+/* タイプモード */
+.type-check-btn {
+  width: 100%;
+  margin-top: 10px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.type-input:disabled { opacity: 1; -webkit-text-fill-color: var(--ink); }
+.type-result {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.type-result.ok { background: rgba(79, 122, 104, 0.15); }
+.type-result.ng { background: rgba(179, 56, 42, 0.1); }
+.type-result-label { font-size: 11px; color: var(--muted); margin-right: 6px; }
+.type-result-yours { text-decoration: line-through; color: var(--seal); font-family: ui-monospace, SFMono-Regular, monospace; }
+.type-result-answer { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 20px; font-weight: bold; color: var(--jade); }
 .bottom-sheet {
   position: absolute;
   bottom: 0; left: 0; right: 0;
@@ -703,15 +762,16 @@ body {
   <div class="footer">
     <div class="stats">
       <span id="progress-text">0 / 0</span>
-      <span id="score-text">👍 0</span>
+      <span id="score-text">正答 0 / 0</span>
       <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
       <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
     </div>
-    <div class="stamps" id="stamps"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
   </div>
 
   <div class="sheet-overlay" id="sheet-overlay" onclick="toggleWeakList()"></div>
   <div class="bottom-sheet" id="bottom-sheet">
+    <button class="sheet-close" onclick="closeSheet()" aria-label="閉じる">✕</button>
     <h2 style="margin-top:0;" id="sheet-title">苦手リスト</h2>
     <div id="weak-list-content"></div>
   </div>
@@ -3060,6 +3120,7 @@ let state = {
   pool: [],
   currentIndex: 0,
   score: 0,
+  answeredCount: 0,
   weakData: JSON.parse(localStorage.getItem('toeic_weak_words') || '{}'),
   seenWords: new Set(JSON.parse(localStorage.getItem('toeic_seen_words') || '[]')),
   currentOptions: [],
@@ -3074,6 +3135,7 @@ let state = {
   grammarPool: [],
   currentGrammarIndex: 0,
   grammarScore: 0,
+  grammarAnsweredCount: 0,
   grammarWeakData: JSON.parse(localStorage.getItem('toeic_weak_grammar') || '{}'),
   grammarAnswered: false
 };
@@ -3261,6 +3323,7 @@ function applyGrammarFilters() {
   state.grammarPool = shuffle(filtered);
   state.currentGrammarIndex = 0;
   state.grammarScore = 0;
+  state.grammarAnsweredCount = 0;
   updateGrammarWeakBadge();
   updateFilterSummary();
   renderCurrentGrammar();
@@ -3268,6 +3331,7 @@ function applyGrammarFilters() {
 
 function renderCurrentGrammar() {
   setDontKnowVisible(false);
+  document.getElementById('choices-container').classList.remove('compact');
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
   const nextBtn = document.getElementById('next-btn');
@@ -3281,7 +3345,7 @@ function renderCurrentGrammar() {
   }
 
   if (state.currentGrammarIndex >= state.grammarPool.length) {
-    container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答率: ${state.grammarScore} / ${state.grammarPool.length}</div></div>`;
+    container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div></div>`;
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
     updateFooter();
@@ -3306,7 +3370,7 @@ function renderCurrentGrammar() {
       <div class="grammar-rule-header">
         <span class="grammar-rule-icon">👑</span>
         <span class="grammar-rule-badge-text">金のルール ${ex.rule.number}</span>
-        ${ex.rule.category ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
+        ${ex.rule.category && ex.rule.category !== `第${ex.ch}章 ${ex.ch_title}` ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
       </div>
       <div class="grammar-rule-title">${ex.rule.title}</div>
     </div>
@@ -3325,12 +3389,12 @@ function renderCurrentGrammar() {
       <div class="grammar-meta">
         <span class="grammar-badge">Part 5</span>
         ${bookBadgeHtml}
-        <span class="grammar-chapter">第${ex.ch}章 ${ex.ch_title}</span>
       </div>
       <div class="grammar-question">${formattedQ}</div>
       <div class="grammar-exp-container" id="grammar-exp-box" style="display:none;">
         <div class="grammar-correct-ans">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
-        <div class="grammar-theme-revealed">・${ex.th_title}</div>
+        <div class="grammar-your-ans" id="grammar-your-ans" style="display:none;"></div>
+        <div class="grammar-theme-revealed">第${ex.ch}章 ${ex.ch_title} ・${ex.th_title}</div>
         ${ruleHtml}
         ${phaseHtml}
         <div class="grammar-exp-text">${ex.exp}</div>
@@ -3350,36 +3414,56 @@ function renderCurrentGrammar() {
   ex.c.forEach((choice, idx) => {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
-    btn.innerHTML = `<span class="choice-label">${labels[idx]}</span> ${choice}`;
+    btn.innerHTML = `<span class="choice-label">${labels[idx]}</span><span class="choice-text">${choice}</span>`;
     btn.onclick = () => handleGrammarAnswer(idx, btn);
     choicesDiv.appendChild(btn);
   });
+  setDontKnowVisible(true);
+  document.getElementById('dont-know-btn').onclick = handleGrammarDontKnow;
 
   updateFooter();
 }
 
 function handleGrammarAnswer(selectedIdx, btn) {
   if (state.grammarAnswered) return;
-  state.grammarAnswered = true;
-
   const ex = state.grammarPool[state.currentGrammarIndex];
   const isCorrect = selectedIdx === ex.a;
-
-  document.querySelectorAll('#choices-container .choice-btn').forEach((b, i) => {
-    if (i === ex.a) {
-      b.classList.add('correct');
-    }
-  });
 
   if (!isCorrect) {
     btn.classList.add('wrong');
     document.getElementById('main-card').classList.add('shake');
     setTimeout(() => document.getElementById('main-card').classList.remove('shake'), 400);
+    const yours = document.getElementById('grammar-your-ans');
+    yours.textContent = `あなたの回答: (${['A','B','C','D'][selectedIdx]}) ${ex.c[selectedIdx]}`;
+    yours.style.display = 'block';
     recordWeakGrammar(ex, false);
   } else {
     state.grammarScore++;
     recordWeakGrammar(ex, true);
   }
+  revealGrammarAnswer(ex);
+}
+
+// 「わからない」: 正解と解説を見せて苦手に登録。スコアは増やさず、赤表示や揺れは出さない
+function handleGrammarDontKnow() {
+  if (state.grammarAnswered) return;
+  const ex = state.grammarPool[state.currentGrammarIndex];
+  recordWeakGrammar(ex, false);
+  revealGrammarAnswer(ex);
+}
+
+function revealGrammarAnswer(ex) {
+  state.grammarAnswered = true;
+  setDontKnowVisible(false);
+
+  const choicesDiv = document.getElementById('choices-container');
+  choicesDiv.querySelectorAll('.choice-btn').forEach((b, i) => {
+    if (i === ex.a) b.classList.add('correct');
+    const mark = i === ex.a ? '✓' : (b.classList.contains('wrong') ? '✗' : '');
+    if (mark) b.insertAdjacentHTML('beforeend', `<span class="choice-mark">${mark}</span>`);
+    // 回答後は全文表示のまま。タップで記号だけの1行に縮めて解説を広く読める（再タップで戻る）
+    b.onclick = () => choicesDiv.classList.toggle('compact');
+  });
 
   const expBox = document.getElementById('grammar-exp-box');
   if (expBox) expBox.style.display = 'block';
@@ -3394,6 +3478,7 @@ function handleGrammarAnswer(selectedIdx, btn) {
 }
 
 function recordWeakGrammar(ex, isCorrect) {
+  state.grammarAnsweredCount++;
   if (isCorrect) {
     if (state.grammarWeakData[ex.id]) {
       state.grammarWeakData[ex.id].streak = (state.grammarWeakData[ex.id].streak || 0) + 1;
@@ -3658,6 +3743,7 @@ function applyFilters() {
   state.pool = shuffle(dedupeWords(filtered));
   state.currentIndex = 0;
   state.score = 0;
+  state.answeredCount = 0;
   updateWeakBadge();
   updateFilterSummary();
   renderCurrent();
@@ -3671,6 +3757,7 @@ function setDontKnowVisible(visible) {
 
 function renderCurrent() {
   setDontKnowVisible(false);
+  document.getElementById('choices-container').classList.remove('compact');
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
   const nextBtn = document.getElementById('next-btn');
@@ -3748,9 +3835,11 @@ function renderCurrent() {
         <div class="pos-tag">${word.no ? `<span style="font-weight:700;margin-right:6px;color:var(--gold);">No.${word.no}</span>` : ''}${word.p}</div>
         <div class="meaning-display">${word.m}</div>
         <div class="type-input-container">
-          <input type="text" id="type-input" class="type-input" placeholder="Type English here..." autocomplete="off">
+          <input type="text" id="type-input" class="type-input" placeholder="英語で入力" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="type-check-btn" id="type-check-btn">答え合わせ</button>
         </div>
-        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${word.w}</div>
+        <div class="type-result" id="type-result" style="display:none;"></div>
+        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}</div>
       </div>
     `;
     const input = document.getElementById('type-input');
@@ -3758,12 +3847,9 @@ function renderCurrent() {
     input.onkeypress = (e) => {
       if (e.key === 'Enter') handleTypeAnswer(input.value);
     };
-    const btn = document.createElement('button');
-    btn.className = 'choice-btn';
-    btn.innerText = 'Check';
-    btn.style.textAlign = 'center';
-    btn.onclick = () => handleTypeAnswer(input.value);
-    choicesDiv.appendChild(btn);
+    document.getElementById('type-check-btn').onclick = () => handleTypeAnswer(input.value);
+    setDontKnowVisible(true);
+    document.getElementById('dont-know-btn').onclick = handleTypeDontKnow;
   }
   
   updateFooter();
@@ -3828,14 +3914,11 @@ function normalizeTyped(str) {
 
 function handleTypeAnswer(val) {
   if (state.answered) return;
-  state.answered = true;
-  
+  if (!val.trim()) return; // 空のまま送信しても不正解にしない
+
   const word = state.pool[state.currentIndex];
   const isCorrect = word.w.split('/').map(normalizeTyped).includes(normalizeTyped(val));
-  
-  const choicesDiv = document.getElementById('choices-container');
-  choicesDiv.innerHTML = `<div class="choice-btn ${isCorrect ? 'correct' : 'wrong'}" style="text-align:center;">${isCorrect ? 'Correct!' : 'Wrong!'}</div>`;
-  
+
   if (!isCorrect) {
     document.getElementById('main-card').classList.add('shake');
     setTimeout(() => document.getElementById('main-card').classList.remove('shake'), 400);
@@ -3844,7 +3927,33 @@ function handleTypeAnswer(val) {
     state.score++;
     recordWeak(word, true);
   }
-  
+  revealTypeAnswer(word, isCorrect, val);
+}
+
+function handleTypeDontKnow() {
+  if (state.answered) return;
+  const word = state.pool[state.currentIndex];
+  recordWeak(word, false);
+  revealTypeAnswer(word, false, '');
+}
+
+function revealTypeAnswer(word, isCorrect, typed) {
+  state.answered = true;
+  setDontKnowVisible(false);
+
+  const input = document.getElementById('type-input');
+  input.disabled = true;
+  input.blur();
+  document.getElementById('type-check-btn').style.display = 'none';
+
+  const result = document.getElementById('type-result');
+  result.className = `type-result ${isCorrect ? 'ok' : 'ng'}`;
+  result.innerHTML = isCorrect
+    ? `<span class="type-result-label">正解</span><span class="type-result-answer">${escapeHtml(word.w)}</span>`
+    : `${typed ? `<div><span class="type-result-label">あなた</span><span class="type-result-yours">${escapeHtml(typed)}</span></div>` : ''}
+       <div><span class="type-result-label">正解</span><span class="type-result-answer">${escapeHtml(word.w)}</span></div>`;
+  result.style.display = 'block';
+
   document.getElementById('example-box').style.display = 'block';
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
@@ -3853,6 +3962,7 @@ function handleTypeAnswer(val) {
 }
 
 function recordWeak(word, isCorrect) {
+  state.answeredCount++;
   if (isCorrect) {
     if (state.weakData[word.w]) {
       state.weakData[word.w].streak = (state.weakData[word.w].streak || 0) + 1;
@@ -3879,16 +3989,13 @@ function updateFooter() {
   const pool = isGrammar ? state.grammarPool : state.pool;
   const index = isGrammar ? state.currentGrammarIndex : state.currentIndex;
   const score = isGrammar ? state.grammarScore : state.score;
+  const answered = isGrammar ? state.grammarAnsweredCount : state.answeredCount;
   document.getElementById('progress-text').innerText = pool.length > 0 ? `${Math.min(index + 1, pool.length)} / ${pool.length}` : '0 / 0';
-  document.getElementById('score-text').innerText = `👍 ${score}`;
-  
-  const stampsContainer = document.getElementById('stamps');
-  stampsContainer.innerHTML = '';
-  const totalStamps = 12;
-  const filled = score % totalStamps;
-  for (let i = 0; i < totalStamps; i++) {
-    stampsContainer.innerHTML += `<div class="stamp ${i < filled ? 'filled' : ''}"></div>`;
-  }
+  const rate = answered > 0 ? `（${Math.round(score / answered * 100)}%）` : '';
+  document.getElementById('score-text').innerText = `正答 ${score} / ${answered}${rate}`;
+  // 進捗バーは「回答済み（次へ進んだ）問題数 / プール全体」
+  const done = Math.min(index, pool.length);
+  document.getElementById('progress-fill').style.width = pool.length > 0 ? `${done / pool.length * 100}%` : '0';
 }
 
 function closeSheet() {
