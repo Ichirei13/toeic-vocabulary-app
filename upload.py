@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Add \"わからない\" button to vocab 4-choice modes; add grammar rule/chapter guide"
+MESSAGE = "Fix weak badge counts and duplicate words; move kin solving phases into chapter guide sheet"
 
 
 def gh(args, payload=None):
