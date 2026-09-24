@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Fix weak badge counts and duplicate words; move kin solving phases into chapter guide sheet"
+MESSAGE = "Remove chapter guide button from filter drawer"
 
 
 def gh(args, payload=None):
