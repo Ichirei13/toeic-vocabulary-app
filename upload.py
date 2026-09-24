@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Remove chapter guide button from filter drawer"
+MESSAGE = "Improve UI: grammar explanation layout, dont-know buttons, type mode, score display"
 
 
 def gh(args, payload=None):
