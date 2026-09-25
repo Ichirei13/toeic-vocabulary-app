@@ -15,7 +15,7 @@ import sys
 REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = ["index.html", "upload.py"]
-MESSAGE = "Improve UI: grammar explanation layout, dont-know buttons, type mode, score display"
+MESSAGE = "Hide part of speech until answered in vocab drill"
 
 
 def gh(args, payload=None):
