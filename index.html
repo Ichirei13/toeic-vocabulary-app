@@ -3755,6 +3755,19 @@ function setDontKnowVisible(visible) {
   if (dk) dk.style.display = visible ? 'block' : 'none';
 }
 
+// 品詞は答えの推測材料になるので回答前は隠す。No.しか無いときは品詞の枠ごと隠す
+function posTagHtml(word, showPos) {
+  const no = word.no ? `<span style="font-weight:700;margin-right:6px;color:var(--gold);">No.${word.no}</span>` : '';
+  return `<div class="pos-tag" id="pos-tag"${!no && !showPos ? ' hidden' : ''}>${no}<span id="pos-text"${showPos ? '' : ' hidden'}>${word.p}</span></div>`;
+}
+
+function revealPos() {
+  const tag = document.getElementById('pos-tag');
+  const text = document.getElementById('pos-text');
+  if (tag) tag.hidden = false;
+  if (text) text.hidden = false;
+}
+
 function renderCurrent() {
   setDontKnowVisible(false);
   document.getElementById('choices-container').classList.remove('compact');
@@ -3786,7 +3799,7 @@ function renderCurrent() {
   if (state.mode === 'e2j' || state.mode === 'j2e') {
     container.innerHTML = `
       <div class="card" id="main-card">
-        <div class="pos-tag">${word.no ? `<span style="font-weight:700;margin-right:6px;color:var(--gold);">No.${word.no}</span>` : ''}${word.p}</div>
+        ${posTagHtml(word, false)}
         <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w : word.m}</div>
         <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${state.mode === 'e2j' ? word.m : word.w}</div>
       </div>
@@ -3817,10 +3830,11 @@ function renderCurrent() {
       <div class="card flash-mode" onclick="this.classList.toggle('flipped')">
         <div class="flip-card-inner">
           <div class="card-face">
-            <div class="pos-tag">${word.no ? `<span style="font-weight:700;margin-right:6px;color:var(--gold);">No.${word.no}</span>` : ''}${word.p}</div>
+            ${posTagHtml(word, false)}
             <div class="word-display">${word.w}</div>
           </div>
           <div class="card-face card-back">
+            <div class="pos-tag">${word.p}</div>
             <div class="meaning-display">${word.m}</div>
             <div style="font-size: 14px; line-height: 1.5; color: ${word.e ? '#555' : 'var(--muted)'}; font-style: ${word.e ? 'normal' : 'italic'};">${word.e || '（例文なし）'}</div>
           </div>
@@ -3832,7 +3846,7 @@ function renderCurrent() {
   } else if (state.mode === 'type') {
     container.innerHTML = `
       <div class="card" id="main-card">
-        <div class="pos-tag">${word.no ? `<span style="font-weight:700;margin-right:6px;color:var(--gold);">No.${word.no}</span>` : ''}${word.p}</div>
+        ${posTagHtml(word, false)}
         <div class="meaning-display">${word.m}</div>
         <div class="type-input-container">
           <input type="text" id="type-input" class="type-input" placeholder="英語で入力" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -3879,6 +3893,7 @@ function handleAnswer(selectedOpt, btn) {
     recordWeak(word, true);
   }
   
+  revealPos();
   document.getElementById('example-box').style.display = 'block';
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
@@ -3900,6 +3915,7 @@ function handleDontKnow() {
   });
   recordWeak(word, false);
 
+  revealPos();
   document.getElementById('example-box').style.display = 'block';
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
@@ -3954,6 +3970,7 @@ function revealTypeAnswer(word, isCorrect, typed) {
        <div><span class="type-result-label">正解</span><span class="type-result-answer">${escapeHtml(word.w)}</span></div>`;
   result.style.display = 'block';
 
+  revealPos();
   document.getElementById('example-box').style.display = 'block';
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
