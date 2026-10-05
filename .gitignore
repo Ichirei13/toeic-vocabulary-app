@@ -1,0 +1,3 @@
+# upload.py が記録する同期状態と、pull 時に退避したファイル
+.upload_state.json
+*.bak
