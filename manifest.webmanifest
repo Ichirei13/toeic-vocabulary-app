@@ -1,0 +1,16 @@
+{
+  "name": "TOEIC Drill",
+  "short_name": "TOEIC Drill",
+  "description": "TOEIC の単語ドリルと Part 5 文法ドリル",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1b1712",
+  "theme_color": "#1b1712",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
