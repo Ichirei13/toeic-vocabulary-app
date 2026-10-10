@@ -494,6 +494,30 @@ body {
 .weak-list-summary strong { color: var(--seal); }
 .weak-due { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .weak-due.now { color: var(--seal); font-weight: bold; }
+/* 学習記録のバックアップ */
+.backup-open-btn { width: 100%; margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; border: 1px dashed rgba(0,0,0,0.3); background: rgba(255,255,255,0.4); color: var(--ink); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.backup-back { background: none; border: none; padding: 0; margin: 0 0 8px; color: var(--muted); font-family: inherit; font-size: 13px; cursor: pointer; }
+.backup-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.backup-table td, .backup-table th { padding: 6px 4px; border-bottom: 1px solid rgba(0,0,0,0.08); text-align: left; }
+.backup-table th { font-size: 11px; color: var(--muted); }
+.backup-table.compare td + td, .backup-table.compare th + th { text-align: right; }
+.backup-note { font-size: 12px; color: var(--muted); margin: 6px 0 10px; }
+.backup-file-name { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; word-break: break-all; }
+.backup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.backup-btn { flex: 1 1 auto; padding: 11px 14px; border-radius: 10px; border: 1px solid var(--ink); background: transparent; color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.backup-btn.primary { background: var(--ink); color: var(--paper); }
+.backup-btn.danger { background: var(--seal); border-color: var(--seal); color: #fff; }
+.backup-btn.small { display: block; margin-top: 6px; padding: 6px 10px; font-size: 12px; }
+.backup-msg { font-size: 13px; line-height: 1.6; border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; }
+.backup-msg.ok { background: rgba(79,122,104,0.15); color: var(--jade); }
+.backup-msg.ng { background: rgba(179,56,42,0.1); color: var(--seal); }
+.backup-msg.warn { background: rgba(234,179,8,0.15); color: #92400e; margin-top: 10px; }
+.backup-notes { margin: 8px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.6; }
+.backup-check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; cursor: pointer; }
+.backup-undo { font-size: 12.5px; line-height: 1.6; background: rgba(0,0,0,0.04); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+.backup-help { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 200; max-width: calc(100% - 32px); background: var(--paper); color: var(--ink); padding: 8px 14px; border-radius: 20px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); transition: opacity 0.4s; }
+.toast.hide { opacity: 0; }
 .weak-badge {
   background: var(--seal);
   color: white;
@@ -819,15 +843,39 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // 復習の間隔（日）。復習日以降に正解するたびに次の間隔へ進み、最後の間隔のあとも正解したら苦手から外れる
 const REVIEW_INTERVALS = [1, 3, 7];
 
-// 前のバージョンの記録（復習日なし）は「今すぐ復習」からやり直す
-function loadWeakData(key) {
-  const data = loadJSON(key, {});
-  Object.keys(data).forEach(k => {
-    const e = data[k];
-    if (!e || typeof e !== 'object') delete data[k];
-    else if (typeof e.due !== 'number') data[k] = { streak: 0, added: e.added || Date.now(), due: 0 };
+// 苦手1件の形を確かめる。前のバージョンの記録（復習日なし）は「今すぐ復習」からやり直し、直せないものは null
+function normalizeWeakEntry(e) {
+  if (!e || typeof e !== 'object' || Array.isArray(e)) return null;
+  const added = Number.isFinite(e.added) && e.added > 0 ? e.added : Date.now();
+  if (e.due === undefined) return { streak: 0, added, due: 0 };
+  if (typeof e.due !== 'number' || !Number.isFinite(e.due) || e.due < 0) return null;
+  if (!Number.isInteger(e.streak) || e.streak < 0 || e.streak > REVIEW_INTERVALS.length) return null;
+  return { streak: e.streak, added, due: e.due };
+}
+
+// 苦手データのキー: 単語は綴り、文法は問題番号
+function isWordKey(k) {
+  return k !== '' && k.length <= 200 && k !== '__proto__';
+}
+
+function isGrammarKey(k) {
+  return /^[1-9]\d{0,8}$/.test(k);
+}
+
+// 苦手データ全体を確かめ、形の正しくない件は除いて数を返す（起動時の読み込みとバックアップの復元で共通）
+function sanitizeWeakData(raw, isValidKey) {
+  const data = {};
+  let invalid = 0;
+  Object.keys(raw).forEach(k => {
+    const entry = isValidKey(k) ? normalizeWeakEntry(raw[k]) : null;
+    if (entry) data[k] = entry;
+    else invalid++;
   });
-  return data;
+  return { data, invalid };
+}
+
+function loadWeakData(key, isValidKey) {
+  return sanitizeWeakData(loadJSON(key, {}), isValidKey).data;
 }
 
 function startOfToday() {
@@ -879,7 +927,7 @@ let state = {
   currentIndex: 0,
   score: 0,
   answeredCount: 0,
-  weakData: loadWeakData('toeic_weak_words'),
+  weakData: loadWeakData('toeic_weak_words', isWordKey),
   seenWords: new Set(loadJSON('toeic_seen_words', [])),
   currentOptions: [],
   answered: false,
@@ -894,7 +942,7 @@ let state = {
   currentGrammarIndex: 0,
   grammarScore: 0,
   grammarAnsweredCount: 0,
-  grammarWeakData: loadWeakData('toeic_weak_grammar'),
+  grammarWeakData: loadWeakData('toeic_weak_grammar', isGrammarKey),
   grammarAnswered: false,
 
   weakSort: 'new' // 苦手リストの並び順
@@ -1809,10 +1857,14 @@ const SESSION_KEY = 'toeic_session';
 const WORD_INDEX = new Map(RAW_WORDS.map((w, i) => [w, i]));
 const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
 
-function saveSettings() {
+function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
                 'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort'];
-  saveJSON(SETTINGS_KEY, Object.fromEntries(keys.map(k => [k, state[k]])));
+  return Object.fromEntries(keys.map(k => [k, state[k]]));
+}
+
+function saveSettings() {
+  saveJSON(SETTINGS_KEY, settingsSnapshot());
 }
 
 // 保存された値のうち、今のデータで有効なものだけを state に戻す
@@ -1842,7 +1894,7 @@ function sessionSignature(app) {
     : [RAW_WORDS.length, state.sourceFilter, state.rangeFilter, state.dateFilter, state.posFilter, state.weakFilter]);
 }
 
-function saveSession() {
+function sessionSnapshot() {
   const sessions = loadJSON(SESSION_KEY, {});
   // 回答済みの問題は開き直したときに出し直さないよう、次の問題から再開する
   if (state.app === 'grammar') {
@@ -1862,7 +1914,11 @@ function saveSession() {
       answered: state.answeredCount,
     };
   }
-  saveJSON(SESSION_KEY, sessions);
+  return sessions;
+}
+
+function saveSession() {
+  saveJSON(SESSION_KEY, sessionSnapshot());
 }
 
 // 保存した続きを戻せたら true。絞り込みが変わっていたり、最後まで解き終えていたら false（新しく出題し直す）
@@ -1882,6 +1938,12 @@ function restoreSession(app) {
   return true;
 }
 
+let activeSheetRender = null; // 今シートに出している画面の描画関数
+
+function isSheetOpen() {
+  return document.getElementById('bottom-sheet').classList.contains('open');
+}
+
 function closeSheet() {
   document.getElementById('bottom-sheet').classList.remove('open');
   document.getElementById('sheet-overlay').classList.remove('open');
@@ -1889,6 +1951,7 @@ function closeSheet() {
 
 function openSheet(title, render) {
   document.getElementById('sheet-title').innerText = title;
+  activeSheetRender = render;
   render();
   const sheet = document.getElementById('bottom-sheet');
   sheet.scrollTop = 0;
@@ -2026,6 +2089,9 @@ function startRuleDrill(number) {
 }
 
 document.getElementById('weak-list-content').addEventListener('click', e => {
+  const backupBtn = e.target.closest('[data-backup]');
+  if (backupBtn) return handleBackupAction(backupBtn.dataset.backup);
+
   const chBtn = e.target.closest('[data-guide-ch]');
   if (chBtn) {
     const v = chBtn.dataset.guideCh;
@@ -2052,6 +2118,7 @@ document.getElementById('weak-list-content').addEventListener('click', e => {
 function renderWeakList() {
   if (state.app === 'grammar') renderGrammarWeakList();
   else renderWordWeakList();
+  document.getElementById('weak-list-content').insertAdjacentHTML('afterbegin', backupEntryHtml());
 }
 
 // items は { entry } を持つ配列。order は「ABC順」「本・章順」の比べ方
@@ -2118,6 +2185,478 @@ function removeWeak(key) {
   renderWeakList();
 }
 
+// ==================== 学習記録のバックアップ・復元 ====================
+// 苦手リスト（復習日を含む）・学習済みの単語・設定・出題の続きを1つの JSON ファイルに書き出し、別の端末などで復元する
+
+const BACKUP_APP_ID = 'toeic-drill';
+// ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
+const BACKUP_FORMAT = 1;
+// 版 n のファイルを版 n+1 に直す変換。例: 1: backup => ({ ...backup, format: 2, data: { … } })
+const BACKUP_MIGRATIONS = {};
+const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
+// ファイルの中の名前 → この端末の保存先
+const RECORD_KEYS = {
+  weakWords: 'toeic_weak_words',
+  weakGrammar: 'toeic_weak_grammar',
+  seenWords: 'toeic_seen_words',
+  settings: SETTINGS_KEY,
+  session: SESSION_KEY,
+};
+const RECORD_STORAGE_KEYS = Object.values(RECORD_KEYS);
+const BACKUP_UNDO_KEY = 'toeic_backup_undo';     // 直前の復元を取り消すための、復元する前の記録（1回分）
+const BACKUP_META_KEY = 'toeic_backup_meta';     // 最後に書き出した日時
+const RESTORE_STAMP_KEY = 'toeic_restore_stamp'; // 復元したことを別のタブに知らせる
+const NOTICE_KEY = 'toeic_notice';               // 読み込み直したあとに出すお知らせ（sessionStorage）
+
+let backupView = { step: 'home' }; // home / confirm（復元の確認）/ undo（取り消しの確認）
+
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+function formatDateTime(ms) {
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ---- 書き出し ----
+
+function buildBackup() {
+  return {
+    app: BACKUP_APP_ID,
+    format: BACKUP_FORMAT,
+    exportedAt: new Date().toISOString(),
+    appData: { words: RAW_WORDS.length, grammar: RAW_GRAMMAR.length },
+    data: {
+      weakWords: state.weakData,
+      weakGrammar: state.grammarWeakData,
+      seenWords: [...state.seenWords],
+      settings: settingsSnapshot(),
+      session: sessionSnapshot(),
+    },
+  };
+}
+
+function backupFile() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  return new File([JSON.stringify(buildBackup(), null, 2)], `toeic-drill-backup-${stamp}.json`, { type: 'application/json' });
+}
+
+function markExported() {
+  saveJSON(BACKUP_META_KEY, { ...loadJSON(BACKUP_META_KEY, {}), lastExportAt: Date.now() });
+}
+
+function downloadBackup() {
+  const file = backupFile();
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  markExported();
+}
+
+// スマホの共有シート（「ファイルに保存」や別の端末へ送る）でファイルを渡せる端末か
+function canShareBackup() {
+  try {
+    return !!(navigator.canShare && navigator.canShare({ files: [new File(['{}'], 'backup.json', { type: 'application/json' })] }));
+  } catch (e) {
+    return false;
+  }
+}
+
+async function shareBackup() {
+  try {
+    await navigator.share({ files: [backupFile()], title: 'TOEIC Drill の学習記録' });
+    markExported();
+    backupView = { step: 'home', success: '共有しました。' };
+  } catch (e) {
+    if (e.name === 'AbortError') return; // 共有シートを閉じただけ
+    backupView = { step: 'home', error: '共有できませんでした。「バックアップを書き出す」を使ってください。' };
+  }
+  refreshBackupSheet();
+}
+
+// ---- 読み込みと検証（ここでは何も書き込まない） ----
+
+function fail(error) {
+  return { ok: false, error };
+}
+
+// 別の端末の時計がずれていても、追加日が未来になったり復習日がずっと先になったりしないようにする
+function clampImportedTimes(data) {
+  const latestDue = startOfToday() + (REVIEW_INTERVALS[REVIEW_INTERVALS.length - 1] + 1) * DAY_MS;
+  Object.values(data).forEach(e => {
+    e.added = Math.min(e.added, Date.now());
+    e.due = Math.min(e.due, latestDue);
+  });
+  return data;
+}
+
+// バックアップの中身を確かめ、復元に使う記録と確認画面に出す件数を返す。全体の形が違えばファイルごと断る
+function parseBackup(text) {
+  let backup;
+  try {
+    backup = JSON.parse(text);
+  } catch (e) {
+    return fail('JSON として読めないファイルです。');
+  }
+  if (!isPlainObject(backup) || backup.app !== BACKUP_APP_ID) return fail('TOEIC Drill のバックアップファイルではありません。');
+  if (!Number.isInteger(backup.format) || backup.format < 1) return fail('ファイル形式の版が読み取れません。');
+  if (backup.format > BACKUP_FORMAT) {
+    return fail('新しいバージョンのアプリで書き出したファイルです。アプリを最新にしてから読み込んでください。');
+  }
+  while (backup.format < BACKUP_FORMAT) {
+    const migrate = BACKUP_MIGRATIONS[backup.format];
+    if (!migrate) return fail('この古い形式のファイルには対応していません。');
+    backup = migrate(backup);
+  }
+
+  const d = backup.data;
+  if (!isPlainObject(d)) return fail('学習記録のデータが入っていません。');
+  if (!isPlainObject(d.weakWords) || !isPlainObject(d.weakGrammar) || !Array.isArray(d.seenWords)) {
+    return fail('苦手リストか学習済みの単語の記録が欠けているか、形が正しくありません。');
+  }
+  if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
+  if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
+
+  const words = sanitizeWeakData(d.weakWords, isWordKey);
+  const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
+  const seenValid = d.seenWords.filter(w => typeof w === 'string' && isWordKey(w));
+  const knownWords = new Set(RAW_WORDS.map(w => w.w));
+  const exportedAt = Date.parse(backup.exportedAt);
+
+  return {
+    ok: true,
+    exportedAt: Number.isFinite(exportedAt) ? exportedAt : null,
+    // 設定と出題の続きの中身は、読み込んだあとに restoreSettings / restoreSession が1項目ずつ確かめる
+    records: {
+      weakWords: clampImportedTimes(words.data),
+      weakGrammar: clampImportedTimes(grammar.data),
+      seenWords: [...new Set(seenValid)],
+      settings: d.settings,
+      session: d.session,
+    },
+    invalid: words.invalid + grammar.invalid + (d.seenWords.length - seenValid.length),
+    // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
+    unknownWords: Object.keys(words.data).filter(k => !knownWords.has(k)).length,
+    unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
+  };
+}
+
+async function readBackupFile(file) {
+  if (file.size === 0) return fail('空のファイルです。');
+  if (file.size > BACKUP_MAX_BYTES) return fail('ファイルが大きすぎます（2MB まで）。TOEIC Drill のバックアップファイルか確かめてください。');
+  try {
+    return parseBackup(await file.text());
+  } catch (e) {
+    return fail('ファイルを読み込めませんでした。');
+  }
+}
+
+// ---- 復元と取り消し ----
+
+function writeRaw(rawByKey) {
+  Object.entries(rawByKey).forEach(([k, raw]) => {
+    if (raw === null) localStorage.removeItem(k);
+    else localStorage.setItem(k, raw);
+  });
+}
+
+// 記録をまとめて書き換える。途中で失敗したら書き換える前に戻し、理由を Error で知らせる。
+// saveUndo が true なら、書き換える前の記録を「直前の復元を取り消す」用に残す（残せなければ何も変えずに中止）
+function replaceRecords(rawByKey, saveUndo, label) {
+  let before;
+  let undoBefore; // 前の復元で残した取り消し用の記録。失敗したときはこれも元に戻す
+  try {
+    before = Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, localStorage.getItem(k)]));
+    undoBefore = localStorage.getItem(BACKUP_UNDO_KEY);
+  } catch (e) {
+    throw new Error(`このブラウザでは記録を読み書きできないため、${label}できません。`);
+  }
+  if (saveUndo) {
+    try {
+      localStorage.setItem(BACKUP_UNDO_KEY, JSON.stringify({ savedAt: Date.now(), records: before }));
+    } catch (e) {
+      throw new Error(`空き容量が足りないため、${label}を中止しました。記録は元のままです。`);
+    }
+  }
+  try {
+    writeRaw(rawByKey);
+  } catch (e) {
+    try {
+      // 先に取り消し用の記録を外して空きを作ってから、元の記録を書き戻す
+      if (saveUndo) localStorage.removeItem(BACKUP_UNDO_KEY);
+      writeRaw(before);
+      if (saveUndo) writeRaw({ [BACKUP_UNDO_KEY]: undoBefore });
+    } catch (e2) {
+      throw new Error(`${label}に失敗し、元の記録にも戻せませんでした。書き出しておいたバックアップファイルから、もう一度復元してください。`);
+    }
+    throw new Error(`保存できなかったため（空き容量不足など）、${label}を中止しました。記録は元のままです。`);
+  }
+}
+
+// 書き換えた記録を読み込み直して画面に反映し、別のタブにも知らせる
+function reloadRecordsFromStorage() {
+  state.weakData = loadWeakData('toeic_weak_words', isWordKey);
+  state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
+  state.seenWords = new Set(loadJSON('toeic_seen_words', []));
+  restoreSettings();
+  syncFilterUI();
+  setApp(state.app);
+  updateWeakBadge();
+  updateGrammarWeakBadge();
+  try {
+    localStorage.setItem(RESTORE_STAMP_KEY, String(Date.now()));
+  } catch (e) {
+    // 別のタブに知らせられなくても、この画面の復元は終わっている
+  }
+}
+
+function runRestore() {
+  const pending = backupView.pending;
+  if (!pending) return;
+  const preExport = document.getElementById('backup-pre-export');
+  if (preExport && preExport.checked) downloadBackup();
+
+  const rawByKey = {};
+  Object.entries(RECORD_KEYS).forEach(([name, key]) => {
+    // ファイルに無い設定・出題の続きは今のまま
+    if (pending.records[name] !== undefined) rawByKey[key] = JSON.stringify(pending.records[name]);
+  });
+  try {
+    replaceRecords(rawByKey, true, '復元');
+  } catch (e) {
+    backupView = { step: 'home', error: e.message };
+    renderBackupSheet();
+    return;
+  }
+  reloadRecordsFromStorage();
+  backupView = { step: 'home', success: 'バックアップから復元しました。' };
+  renderBackupSheet();
+}
+
+function loadUndo() {
+  const undo = loadJSON(BACKUP_UNDO_KEY, {});
+  if (!Number.isFinite(undo.savedAt) || !isPlainObject(undo.records)) return null;
+  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string');
+  return valid ? undo : null;
+}
+
+function runUndo() {
+  const undo = loadUndo();
+  if (!undo) {
+    backupView = { step: 'home', error: '取り消せる復元がありません。' };
+    return renderBackupSheet();
+  }
+  try {
+    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k]])), false, '取り消し');
+  } catch (e) {
+    backupView = { step: 'home', error: e.message };
+    return renderBackupSheet();
+  }
+  try {
+    localStorage.removeItem(BACKUP_UNDO_KEY);
+  } catch (e) {
+    // 消せなくても、もう一度取り消すと同じ記録に戻るだけ
+  }
+  reloadRecordsFromStorage();
+  backupView = { step: 'home', success: '復元する前の記録に戻しました。' };
+  renderBackupSheet();
+}
+
+// ---- 画面 ----
+
+function currentCounts() {
+  const dueCount = data => Object.values(data).filter(isDue).length;
+  return {
+    words: Object.keys(state.weakData).length,
+    wordsDue: dueCount(state.weakData),
+    grammar: Object.keys(state.grammarWeakData).length,
+    grammarDue: dueCount(state.grammarWeakData),
+    seen: state.seenWords.size,
+  };
+}
+
+// 取り消し用に残した記録（保存されている文字列のまま）の件数
+function countsFromRaw(records) {
+  const parse = raw => {
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  };
+  const words = parse(records[RECORD_KEYS.weakWords]);
+  const grammar = parse(records[RECORD_KEYS.weakGrammar]);
+  const seen = parse(records[RECORD_KEYS.seenWords]);
+  return {
+    words: isPlainObject(words) ? Object.keys(words).length : 0,
+    grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
+    seen: Array.isArray(seen) ? seen.length : 0,
+  };
+}
+
+function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
+  return `
+    <table class="backup-table compare">
+      <tr><th></th><th>${leftLabel}</th><th>${rightLabel}</th></tr>
+      <tr><td>単語の苦手</td><td>${left.words}件</td><td>${right.words}件</td></tr>
+      <tr><td>文法の苦手</td><td>${left.grammar}件</td><td>${right.grammar}件</td></tr>
+      <tr><td>学習済みの単語</td><td>${left.seen}語</td><td>${right.seen}語</td></tr>
+      ${extraRows}
+    </table>`;
+}
+
+function backupHomeHtml(v) {
+  const c = currentCounts();
+  const meta = loadJSON(BACKUP_META_KEY, {});
+  const undo = loadUndo();
+  return `
+    ${v.success ? `<div class="backup-msg ok">${escapeHtml(v.success)}</div>` : ''}
+    ${v.error ? `<div class="backup-msg ng">${escapeHtml(v.error)}</div>` : ''}
+    <div class="guide-label">この端末の学習記録</div>
+    <table class="backup-table">
+      <tr><td>単語の苦手</td><td>${c.words}件（要復習 ${c.wordsDue}件）</td></tr>
+      <tr><td>文法の苦手</td><td>${c.grammar}件（要復習 ${c.grammarDue}件）</td></tr>
+      <tr><td>学習済みの単語</td><td>${c.seen}語</td></tr>
+    </table>
+    <div class="backup-note">最後に書き出した日時: ${Number.isFinite(meta.lastExportAt) ? formatDateTime(meta.lastExportAt) : 'まだ書き出していません'}</div>
+    <div class="backup-actions">
+      <button class="backup-btn primary" data-backup="export">バックアップを書き出す</button>
+      ${canShareBackup() ? '<button class="backup-btn" data-backup="share">共有して保存・送る</button>' : ''}
+      <button class="backup-btn" data-backup="pick">ファイルから復元…</button>
+    </div>
+    <!-- accept で絞ると iPhone で .json が選べないことがあるので絞らず、読み込んでから確かめる -->
+    <input type="file" id="backup-file" hidden>
+    ${undo ? `
+      <div class="backup-undo">
+        ${formatDateTime(undo.savedAt)} の復元より前の記録を残しています。
+        <button class="backup-btn small" data-backup="undo">直前の復元を取り消す</button>
+      </div>` : ''}
+    <div class="backup-help">
+      苦手リスト（復習日を含む）・学習済みの単語・設定・出題の続きを1つのファイルに保存します。
+      別の端末やブラウザで「ファイルから復元」すると、同じ記録で続けられます。
+      記録はこの端末の中にしか無いので、ときどき書き出しておくと安心です。
+    </div>`;
+}
+
+function backupConfirmHtml(v) {
+  const p = v.pending;
+  const r = p.records;
+  const notes = [];
+  if (p.invalid > 0) notes.push(`形の正しくない記録 ${p.invalid}件は読み込みません。`);
+  if (p.unknownWords + p.unknownGrammar > 0) {
+    notes.push(`今の単語・問題データに無い記録（単語 ${p.unknownWords}件・問題 ${p.unknownGrammar}件）も、消さずに残します。`);
+  }
+  const fromFile = name => (r[name] === undefined ? 'なし（今のまま）' : 'あり');
+  const fileCounts = { words: Object.keys(r.weakWords).length, grammar: Object.keys(r.weakGrammar).length, seen: r.seenWords.length };
+  return `
+    <div class="guide-label">復元するファイル</div>
+    <div class="backup-file-name">${escapeHtml(v.fileName)}</div>
+    <div class="backup-note">書き出した日時: ${p.exportedAt ? formatDateTime(p.exportedAt) : '不明'}</div>
+    ${compareTable('今の記録', 'ファイル', currentCounts(), fileCounts,
+      `<tr><td>設定</td><td>あり</td><td>${fromFile('settings')}</td></tr>
+       <tr><td>出題の続き</td><td>あり</td><td>${fromFile('session')}</td></tr>`)}
+    ${notes.length ? `<ul class="backup-notes">${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}
+    <div class="backup-msg warn">復元すると、この端末の学習記録はファイルの内容に置き換わります。</div>
+    <label class="backup-check"><input type="checkbox" id="backup-pre-export" checked> 復元の前に、今の記録を書き出しておく</label>
+    <div class="backup-actions">
+      <button class="backup-btn danger" data-backup="restore">復元する</button>
+      <button class="backup-btn" data-backup="cancel">やめる</button>
+    </div>`;
+}
+
+function backupUndoHtml() {
+  const undo = loadUndo();
+  if (!undo) return backupHomeHtml({ error: '取り消せる復元がありません。' });
+  return `
+    <div class="guide-label">直前の復元を取り消す</div>
+    <div class="backup-note">${formatDateTime(undo.savedAt)} に復元する前の記録に戻します。</div>
+    ${compareTable('今の記録', '戻す記録', currentCounts(), countsFromRaw(undo.records))}
+    <div class="backup-msg warn">復元したあとに学習した分は、取り消すと消えます。</div>
+    <div class="backup-actions">
+      <button class="backup-btn danger" data-backup="undo-confirm">取り消す</button>
+      <button class="backup-btn" data-backup="cancel">やめる</button>
+    </div>`;
+}
+
+function renderBackupSheet() {
+  const v = backupView;
+  let html = '<button class="backup-back" data-backup="back">‹ 苦手リストに戻る</button>';
+  if (v.step === 'confirm') html += backupConfirmHtml(v);
+  else if (v.step === 'undo') html += backupUndoHtml();
+  else html += backupHomeHtml(v);
+  document.getElementById('weak-list-content').innerHTML = html;
+  const input = document.getElementById('backup-file');
+  if (input) input.onchange = onBackupFileChosen;
+}
+
+// ファイル選択や共有のあと、バックアップの画面がまだ開いていれば描き直す
+function refreshBackupSheet() {
+  if (isSheetOpen() && activeSheetRender === renderBackupSheet) renderBackupSheet();
+}
+
+async function onBackupFileChosen(e) {
+  const input = e.target;
+  const file = input.files && input.files[0];
+  input.value = ''; // 同じファイルを選び直しても反応するように
+  if (!file) return;
+  const result = await readBackupFile(file);
+  backupView = result.ok
+    ? { step: 'confirm', pending: result, fileName: file.name }
+    : { step: 'home', error: result.error };
+  refreshBackupSheet();
+}
+
+function backupEntryHtml() {
+  return '<button class="backup-open-btn" data-backup="open">💾 学習記録のバックアップ・復元</button>';
+}
+
+function handleBackupAction(action) {
+  switch (action) {
+    case 'open':
+      backupView = { step: 'home' };
+      return openSheet('学習記録のバックアップ', renderBackupSheet);
+    case 'back':
+      return openSheet('苦手リスト', renderWeakList);
+    case 'export':
+      downloadBackup();
+      backupView = { step: 'home', success: '書き出しました。ダウンロードしたファイル（iPhone は「ファイル」アプリ）を保管してください。' };
+      return renderBackupSheet();
+    case 'share':
+      return shareBackup();
+    case 'pick':
+      return document.getElementById('backup-file').click();
+    case 'restore':
+      return runRestore();
+    case 'undo':
+      backupView = { step: 'undo' };
+      return renderBackupSheet();
+    case 'undo-confirm':
+      return runUndo();
+    case 'cancel':
+      backupView = { step: 'home' };
+      return renderBackupSheet();
+  }
+}
+
+function showToast(message) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.setAttribute('role', 'status');
+  el.textContent = message;
+  document.getElementById('app').appendChild(el);
+  setTimeout(() => el.classList.add('hide'), 3500);
+  setTimeout(() => el.remove(), 4000);
+}
+
 // ==================== キーボード操作（PC 向け） ====================
 // 1〜4: 選択肢 / 0: わからない / Enter・スペース: 次へ
 // カードモード: スペース: めくる / Enter: めくる・覚えた / 1・←: まだ / 2・→: 覚えた
@@ -2167,6 +2706,27 @@ restoreSettings();
 initFilters();
 syncFilterUI();
 setApp(state.app);
+
+// 別のタブで復元・取り消しをしたら、古い記録で上書きしないよう読み込み直す
+window.addEventListener('storage', e => {
+  if (e.key !== RESTORE_STAMP_KEY) return;
+  try {
+    sessionStorage.setItem(NOTICE_KEY, '別のタブで学習記録が復元されたため、読み込み直しました。');
+  } catch (err) {
+    // お知らせを出せなくても読み込み直しは行う
+  }
+  location.reload();
+});
+
+try {
+  const notice = sessionStorage.getItem(NOTICE_KEY);
+  if (notice) {
+    sessionStorage.removeItem(NOTICE_KEY);
+    showToast(notice);
+  }
+} catch (e) {
+  // sessionStorage が使えなければお知らせを出さないだけ
+}
 
 // オフラインでも開けるようにする（ファイルを直接開いたときは使えないので登録しない）
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
