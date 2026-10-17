@@ -491,6 +491,7 @@ body {
   cursor: pointer;
 }
 .weak-list-summary { font-size: 12px; color: var(--muted); margin: -4px 0 8px; }
+.weak-mode-row { flex-wrap: wrap; margin-bottom: 10px; }
 .weak-list-summary strong { color: var(--seal); }
 .weak-due { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .weak-due.now { color: var(--seal); font-weight: bold; }
@@ -913,6 +914,76 @@ function dueLabel(entry) {
   return `<div class="weak-due">次の復習 ${d.getMonth()+1}/${d.getDate()}（${days === 1 ? '明日' : `${days}日後`}）</div>`;
 }
 
+// ==================== 単語の記録（モードごと） ====================
+// 苦手と学習済みの単語は、英→日・日→英・カード・タイプのモードごとに別々に記録する
+
+const VOCAB_MODES = ['e2j', 'j2e', 'flash', 'type'];
+const MODE_LABELS = { e2j: '英→日', j2e: '日→英', flash: 'カード', type: 'タイプ' };
+const WEAK_WORDS_KEY = 'toeic_weak_words_by_mode';
+const SEEN_WORDS_KEY = 'toeic_seen_words_by_mode';
+// モード共通だったころの記録。初めて開いたときに移し替え、元の記録は消さずに残す
+const LEGACY_WEAK_WORDS_KEY = 'toeic_weak_words';
+const LEGACY_SEEN_WORDS_KEY = 'toeic_seen_words';
+
+// どのモードで間違えたか分からない記録は、4モード全部に（復習日と段階もそのまま）写す
+function copyToAllModes(value) {
+  return Object.fromEntries(VOCAB_MODES.map(m => [m, JSON.parse(JSON.stringify(value))]));
+}
+
+// { e2j: {綴り: 苦手1件}, … } を確かめる。知らないモード名や形の正しくない件は除いて数を返す
+function sanitizeWeakByMode(raw) {
+  const data = {};
+  let invalid = Object.keys(raw).filter(k => !VOCAB_MODES.includes(k)).length;
+  VOCAB_MODES.forEach(m => {
+    if (raw[m] === undefined) {
+      data[m] = {};
+    } else if (isPlainObject(raw[m])) {
+      const r = sanitizeWeakData(raw[m], isWordKey);
+      data[m] = r.data;
+      invalid += r.invalid;
+    } else {
+      data[m] = {};
+      invalid++;
+    }
+  });
+  return { data, invalid };
+}
+
+// { e2j: [綴り, …], … } を確かめる。文字列以外は除き、重複はまとめる
+function sanitizeSeenByMode(raw) {
+  const data = {};
+  let invalid = Object.keys(raw).filter(k => !VOCAB_MODES.includes(k)).length;
+  VOCAB_MODES.forEach(m => {
+    const list = raw[m] === undefined ? [] : raw[m];
+    if (!Array.isArray(list)) {
+      data[m] = [];
+      invalid++;
+      return;
+    }
+    const valid = list.filter(w => typeof w === 'string' && isWordKey(w));
+    invalid += list.length - valid.length;
+    data[m] = [...new Set(valid)];
+  });
+  return { data, invalid };
+}
+
+function loadWeakByMode() {
+  const saved = loadJSON(WEAK_WORDS_KEY, null);
+  if (saved !== null) return sanitizeWeakByMode(saved).data;
+  const byMode = copyToAllModes(loadWeakData(LEGACY_WEAK_WORDS_KEY, isWordKey));
+  saveJSON(WEAK_WORDS_KEY, byMode);
+  return byMode;
+}
+
+function loadSeenByMode() {
+  const saved = loadJSON(SEEN_WORDS_KEY, null);
+  const lists = saved !== null
+    ? sanitizeSeenByMode(saved).data
+    : copyToAllModes(loadJSON(LEGACY_SEEN_WORDS_KEY, []).filter(w => typeof w === 'string'));
+  if (saved === null) saveJSON(SEEN_WORDS_KEY, lists);
+  return Object.fromEntries(VOCAB_MODES.map(m => [m, new Set(lists[m])]));
+}
+
 let state = {
   app: 'vocab', // 'vocab' or 'grammar'
 
@@ -927,8 +998,8 @@ let state = {
   currentIndex: 0,
   score: 0,
   answeredCount: 0,
-  weakData: loadWeakData('toeic_weak_words', isWordKey),
-  seenWords: new Set(loadJSON('toeic_seen_words', [])),
+  weakByMode: loadWeakByMode(), // { e2j: {綴り: 苦手1件}, … }
+  seenByMode: loadSeenByMode(), // { e2j: Set(綴り), … }
   currentOptions: [],
   answered: false,
 
@@ -945,8 +1016,18 @@ let state = {
   grammarWeakData: loadWeakData('toeic_weak_grammar', isGrammarKey),
   grammarAnswered: false,
 
-  weakSort: 'new' // 苦手リストの並び順
+  weakSort: 'new', // 苦手リストの並び順
+  weakListMode: 'e2j' // 単語の苦手リストで表示しているモード
 };
+
+// 今のモード（または指定したモード）の単語の苦手・学習済み
+function wordWeak(mode = state.mode) {
+  return state.weakByMode[mode];
+}
+
+function wordSeen(mode = state.mode) {
+  return state.seenByMode[mode];
+}
 
 // "2026-06-22" を現地時間の日付として読む（new Date("2026-06-22") は UTC 扱いで、日本より西の地域では前日になる）
 function parseLocalDate(dateStr) {
@@ -965,8 +1046,12 @@ function getWeekLabel(dateStr) {
 const DATES = [...new Set(RAW_WORDS.filter(x => x.d).map(x => x.d).sort().map(getWeekLabel))];
 
 function saveWeakData() {
-  saveJSON('toeic_weak_words', state.weakData);
+  saveJSON(WEAK_WORDS_KEY, state.weakByMode);
   updateWeakBadge();
+}
+
+function seenSnapshot() {
+  return Object.fromEntries(VOCAB_MODES.map(m => [m, [...state.seenByMode[m]]]));
 }
 
 function setBadge(id, count) {
@@ -977,10 +1062,11 @@ function setBadge(id, count) {
 }
 
 function updateWeakBadge() {
-  // 「苦手のみ」「要復習」を押したときに出る問題数（今の出典・日付・品詞・範囲の絞り込みを反映）
-  const weak = dedupeWords(RAW_WORDS.filter(w => state.weakData[w.w] !== undefined && wordMatchesBaseFilters(w)));
+  // 「苦手のみ」「要復習」を押したときに出る問題数（今のモードの記録で、出典・日付・品詞・範囲の絞り込みを反映）
+  const data = wordWeak();
+  const weak = dedupeWords(RAW_WORDS.filter(w => data[w.w] !== undefined && wordMatchesBaseFilters(w)));
   setBadge('weak-badge', weak.length);
-  setBadge('due-badge', weak.filter(w => isDue(state.weakData[w.w])).length);
+  setBadge('due-badge', weak.filter(w => isDue(data[w.w])).length);
 }
 
 // TEPPAN の番号を100語ずつに区切った範囲
@@ -1442,7 +1528,10 @@ function initFilters() {
       document.querySelectorAll('#mode-segments .segment').forEach(b => b.classList.remove('active'));
       e.currentTarget.classList.add('active');
       state.mode = e.currentTarget.dataset.mode;
-      renderCurrent();
+      updateWeakBadge();
+      // 苦手・未学習で絞っているときはモードごとに出題範囲が変わるので出題し直す。「すべて」なら並びはそのまま
+      if (state.weakFilter !== 'all') applyFilters();
+      else renderCurrent();
     });
   });
 
@@ -1532,9 +1621,9 @@ function applyFilters() {
     if (!wordMatchesBaseFilters(w)) return false;
 
     // weak
-    const entry = state.weakData[w.w];
+    const entry = wordWeak()[w.w];
     if (state.weakFilter === 'weak_only' && !entry) return false;
-    if (state.weakFilter === 'weak_unlearned' && !entry && state.seenWords.has(w.w)) return false;
+    if (state.weakFilter === 'weak_unlearned' && !entry && wordSeen().has(w.w)) return false;
     if (state.weakFilter === 'due' && !(entry && isDue(entry))) return false;
 
     return true;
@@ -1823,10 +1912,10 @@ function revealTypeAnswer(word, isCorrect, typed) {
 
 function recordWeak(word, isCorrect) {
   state.answeredCount++;
-  updateWeakEntry(state.weakData, word.w, isCorrect);
-  if (!state.seenWords.has(word.w)) {
-    state.seenWords.add(word.w);
-    saveJSON('toeic_seen_words', [...state.seenWords]);
+  updateWeakEntry(wordWeak(), word.w, isCorrect);
+  if (!wordSeen().has(word.w)) {
+    wordSeen().add(word.w);
+    saveJSON(SEEN_WORDS_KEY, seenSnapshot());
   }
   saveWeakData();
 }
@@ -1891,7 +1980,8 @@ function restoreSettings() {
 function sessionSignature(app) {
   return JSON.stringify(app === 'grammar'
     ? [RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter]
-    : [RAW_WORDS.length, state.sourceFilter, state.rangeFilter, state.dateFilter, state.posFilter, state.weakFilter]);
+    : [RAW_WORDS.length, state.sourceFilter, state.rangeFilter, state.dateFilter, state.posFilter, state.weakFilter,
+       ...(state.weakFilter !== 'all' ? [state.mode] : [])]); // 苦手で絞るときは出題範囲がモードで変わる
 }
 
 function sessionSnapshot() {
@@ -1961,6 +2051,7 @@ function openSheet(title, render) {
 
 function toggleWeakList() {
   if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
+  state.weakListMode = state.mode; // 単語の苦手リストは、まず今のモードの記録を見せる
   openSheet('苦手リスト', renderWeakList);
 }
 
@@ -2102,6 +2193,12 @@ document.getElementById('weak-list-content').addEventListener('click', e => {
   const solveBtn = e.target.closest('[data-solve-rule]');
   if (solveBtn) return startRuleDrill(Number(solveBtn.dataset.solveRule));
 
+  const modeBtn = e.target.closest('[data-weak-mode]');
+  if (modeBtn) {
+    state.weakListMode = modeBtn.dataset.weakMode;
+    renderWeakList();
+    return;
+  }
   const sortBtn = e.target.closest('[data-weak-sort]');
   if (sortBtn) {
     state.weakSort = sortBtn.dataset.weakSort;
@@ -2148,17 +2245,23 @@ function weakListHeader(items, orderLabel) {
 
 function renderWordWeakList() {
   const container = document.getElementById('weak-list-content');
-  const items = Object.keys(state.weakData)
-    .map(k => ({ key: k, entry: state.weakData[k], word: RAW_WORDS.find(x => x.w === k) }))
+  const mode = state.weakListMode;
+  const data = wordWeak(mode);
+  const items = Object.keys(data)
+    .map(k => ({ key: k, entry: data[k], word: RAW_WORDS.find(x => x.w === k) }))
     .filter(x => x.word);
-  document.getElementById('sheet-title').innerText = `苦手リスト（${items.length}）`;
+  document.getElementById('sheet-title').innerText = `苦手リスト ${MODE_LABELS[mode]}（${items.length}）`;
+  // 苦手はモードごとに記録しているので、他のモードの記録も切り替えて見られるようにする
+  let html = `<div class="filter-row weak-mode-row">
+    ${VOCAB_MODES.map(m => `<button class="chip ${m === mode ? 'active' : ''}" data-weak-mode="${m}">${MODE_LABELS[m]} ${Object.keys(wordWeak(m)).length}</button>`).join('')}
+  </div>`;
   if (items.length === 0) {
-    container.innerHTML = '<p>苦手な単語はありません。</p>';
+    container.innerHTML = html + `<p>${MODE_LABELS[mode]}の苦手な単語はありません。</p>`;
     return;
   }
   sortWeakItems(items, (a, b) => a.key.localeCompare(b.key, 'en', { sensitivity: 'base' }));
 
-  let html = weakListHeader(items, 'ABC順');
+  html += weakListHeader(items, 'ABC順');
   items.forEach(({ key, entry, word }) => {
     html += `
       <div class="weak-item">
@@ -2179,7 +2282,7 @@ function removeWeak(key) {
     delete state.grammarWeakData[key];
     saveGrammarWeakData();
   } else {
-    delete state.weakData[key];
+    delete wordWeak(state.weakListMode)[key];
     saveWeakData();
   }
   renderWeakList();
@@ -2190,15 +2293,37 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-const BACKUP_FORMAT = 1;
-// 版 n のファイルを版 n+1 に直す変換。例: 1: backup => ({ ...backup, format: 2, data: { … } })
-const BACKUP_MIGRATIONS = {};
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと
+const BACKUP_FORMAT = 2;
+// 版 n のファイルを版 n+1 に直す変換
+const BACKUP_MIGRATIONS = {
+  // どのモードの記録か分からないので、4モード全部に写す。
+  // 形の正しくない件は写す前に除いて数えておく（写したあとに数えると4倍になる）
+  1: backup => {
+    const d = backup.data;
+    if (!isPlainObject(d)) return { ...backup, format: 2 };
+    let invalid = 0;
+    let weakWords = d.weakWords;
+    let seenWords = d.seenWords;
+    if (isPlainObject(weakWords)) {
+      const r = sanitizeWeakData(weakWords, isWordKey);
+      invalid += r.invalid;
+      weakWords = copyToAllModes(r.data);
+    }
+    if (Array.isArray(seenWords)) {
+      const valid = seenWords.filter(w => typeof w === 'string' && isWordKey(w));
+      invalid += seenWords.length - valid.length;
+      seenWords = copyToAllModes([...new Set(valid)]);
+    }
+    return { ...backup, format: 2, invalidBeforeMigration: invalid, data: { ...d, weakWords, seenWords } };
+  },
+};
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // ファイルの中の名前 → この端末の保存先
 const RECORD_KEYS = {
-  weakWords: 'toeic_weak_words',
+  weakWords: WEAK_WORDS_KEY,
   weakGrammar: 'toeic_weak_grammar',
-  seenWords: 'toeic_seen_words',
+  seenWords: SEEN_WORDS_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
 };
@@ -2229,9 +2354,9 @@ function buildBackup() {
     exportedAt: new Date().toISOString(),
     appData: { words: RAW_WORDS.length, grammar: RAW_GRAMMAR.length },
     data: {
-      weakWords: state.weakData,
+      weakWords: state.weakByMode,
       weakGrammar: state.grammarWeakData,
-      seenWords: [...state.seenWords],
+      seenWords: seenSnapshot(),
       settings: settingsSnapshot(),
       session: sessionSnapshot(),
     },
@@ -2312,24 +2437,27 @@ function parseBackup(text) {
   if (backup.format > BACKUP_FORMAT) {
     return fail('新しいバージョンのアプリで書き出したファイルです。アプリを最新にしてから読み込んでください。');
   }
+  let invalidBeforeMigration = 0; // 古い版を変換したときに除いた件数（変換を通ったときだけ数える）
   while (backup.format < BACKUP_FORMAT) {
     const migrate = BACKUP_MIGRATIONS[backup.format];
     if (!migrate) return fail('この古い形式のファイルには対応していません。');
     backup = migrate(backup);
+    invalidBeforeMigration += Number.isInteger(backup.invalidBeforeMigration) ? backup.invalidBeforeMigration : 0;
   }
 
   const d = backup.data;
   if (!isPlainObject(d)) return fail('学習記録のデータが入っていません。');
-  if (!isPlainObject(d.weakWords) || !isPlainObject(d.weakGrammar) || !Array.isArray(d.seenWords)) {
+  if (!isPlainObject(d.weakWords) || !isPlainObject(d.weakGrammar) || !isPlainObject(d.seenWords)) {
     return fail('苦手リストか学習済みの単語の記録が欠けているか、形が正しくありません。');
   }
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
 
-  const words = sanitizeWeakData(d.weakWords, isWordKey);
+  const words = sanitizeWeakByMode(d.weakWords);
   const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
-  const seenValid = d.seenWords.filter(w => typeof w === 'string' && isWordKey(w));
+  const seen = sanitizeSeenByMode(d.seenWords);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
+  const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
 
   return {
@@ -2337,15 +2465,15 @@ function parseBackup(text) {
     exportedAt: Number.isFinite(exportedAt) ? exportedAt : null,
     // 設定と出題の続きの中身は、読み込んだあとに restoreSettings / restoreSession が1項目ずつ確かめる
     records: {
-      weakWords: clampImportedTimes(words.data),
+      weakWords: Object.fromEntries(VOCAB_MODES.map(m => [m, clampImportedTimes(words.data[m])])),
       weakGrammar: clampImportedTimes(grammar.data),
-      seenWords: [...new Set(seenValid)],
+      seenWords: seen.data,
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + (d.seenWords.length - seenValid.length),
+    invalid: words.invalid + grammar.invalid + seen.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
-    unknownWords: Object.keys(words.data).filter(k => !knownWords.has(k)).length,
+    unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
   };
 }
@@ -2404,9 +2532,9 @@ function replaceRecords(rawByKey, saveUndo, label) {
 
 // 書き換えた記録を読み込み直して画面に反映し、別のタブにも知らせる
 function reloadRecordsFromStorage() {
-  state.weakData = loadWeakData('toeic_weak_words', isWordKey);
+  state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
-  state.seenWords = new Set(loadJSON('toeic_seen_words', []));
+  state.seenByMode = loadSeenByMode();
   restoreSettings();
   syncFilterUI();
   setApp(state.app);
@@ -2473,14 +2601,22 @@ function runUndo() {
 
 // ---- 画面 ----
 
+// 単語の苦手はモードごとの件数、学習済みはどれかのモードで答えた単語の数
+function wordCounts(weakByMode, seenByMode) {
+  const list = x => (Array.isArray(x) || x instanceof Set ? [...x] : []);
+  return {
+    words: Object.fromEntries(VOCAB_MODES.map(m => [m, isPlainObject(weakByMode[m]) ? Object.keys(weakByMode[m]).length : 0])),
+    seen: new Set(VOCAB_MODES.flatMap(m => list(seenByMode[m]))).size,
+  };
+}
+
 function currentCounts() {
   const dueCount = data => Object.values(data).filter(isDue).length;
   return {
-    words: Object.keys(state.weakData).length,
-    wordsDue: dueCount(state.weakData),
+    ...wordCounts(state.weakByMode, state.seenByMode),
+    wordsDue: Object.fromEntries(VOCAB_MODES.map(m => [m, dueCount(state.weakByMode[m])])),
     grammar: Object.keys(state.grammarWeakData).length,
     grammarDue: dueCount(state.grammarWeakData),
-    seen: state.seenWords.size,
   };
 }
 
@@ -2497,9 +2633,8 @@ function countsFromRaw(records) {
   const grammar = parse(records[RECORD_KEYS.weakGrammar]);
   const seen = parse(records[RECORD_KEYS.seenWords]);
   return {
-    words: isPlainObject(words) ? Object.keys(words).length : 0,
+    ...wordCounts(isPlainObject(words) ? words : {}, isPlainObject(seen) ? seen : {}),
     grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
-    seen: Array.isArray(seen) ? seen.length : 0,
   };
 }
 
@@ -2507,7 +2642,7 @@ function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
   return `
     <table class="backup-table compare">
       <tr><th></th><th>${leftLabel}</th><th>${rightLabel}</th></tr>
-      <tr><td>単語の苦手</td><td>${left.words}件</td><td>${right.words}件</td></tr>
+      ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${left.words[m]}件</td><td>${right.words[m]}件</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${left.grammar}件</td><td>${right.grammar}件</td></tr>
       <tr><td>学習済みの単語</td><td>${left.seen}語</td><td>${right.seen}語</td></tr>
       ${extraRows}
@@ -2523,7 +2658,7 @@ function backupHomeHtml(v) {
     ${v.error ? `<div class="backup-msg ng">${escapeHtml(v.error)}</div>` : ''}
     <div class="guide-label">この端末の学習記録</div>
     <table class="backup-table">
-      <tr><td>単語の苦手</td><td>${c.words}件（要復習 ${c.wordsDue}件）</td></tr>
+      ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${c.words[m]}件（要復習 ${c.wordsDue[m]}件）</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${c.grammar}件（要復習 ${c.grammarDue}件）</td></tr>
       <tr><td>学習済みの単語</td><td>${c.seen}語</td></tr>
     </table>
@@ -2541,7 +2676,8 @@ function backupHomeHtml(v) {
         <button class="backup-btn small" data-backup="undo">直前の復元を取り消す</button>
       </div>` : ''}
     <div class="backup-help">
-      苦手リスト（復習日を含む）・学習済みの単語・設定・出題の続きを1つのファイルに保存します。
+      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・設定・出題の続きを1つのファイルに保存します。
+      学習済みの単語は、どれかのモードで答えた単語の数です。
       別の端末やブラウザで「ファイルから復元」すると、同じ記録で続けられます。
       記録はこの端末の中にしか無いので、ときどき書き出しておくと安心です。
     </div>`;
@@ -2556,7 +2692,7 @@ function backupConfirmHtml(v) {
     notes.push(`今の単語・問題データに無い記録（単語 ${p.unknownWords}件・問題 ${p.unknownGrammar}件）も、消さずに残します。`);
   }
   const fromFile = name => (r[name] === undefined ? 'なし（今のまま）' : 'あり');
-  const fileCounts = { words: Object.keys(r.weakWords).length, grammar: Object.keys(r.weakGrammar).length, seen: r.seenWords.length };
+  const fileCounts = { ...wordCounts(r.weakWords, r.seenWords), grammar: Object.keys(r.weakGrammar).length };
   return `
     <div class="guide-label">復元するファイル</div>
     <div class="backup-file-name">${escapeHtml(v.fileName)}</div>
