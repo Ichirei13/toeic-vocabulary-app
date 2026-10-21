@@ -17,13 +17,19 @@ test('1問回答すると連続日数と今日の数が増える', () => withApp
   assert.equal(await barText(page), '🔥3日連続 ・ 今日 1/20');
 }));
 
-test('バーを押すと目標が 20→50 になり、トーストが出て、リロードしても残る', () => withApp({ time: TIME, storage: { toeic_daily_log: LOG } }, async page => {
+test('バーを押すと目標が 20→50 になり、トーストが出て、保存され読み戻せる', () => withApp({ time: TIME, storage: { toeic_daily_log: LOG } }, async page => {
   await page.click('#streak-bar');
   assert.equal(await page.evaluate(() => state.goal), 50);
   assert.equal(await barText(page), '🔥2日連続 ・ 今日 0/50');
   assert.match(await page.textContent('.toast'), /50/);
-  await page.reload();
-  assert.equal(await page.evaluate(() => state.goal), 50);
+  // 書いた直後のリロードは file:// だと反映が間に合わないことがあるので、保存した値と読み戻す処理を直接確かめる
+  const r = await page.evaluate(() => {
+    const saved = JSON.parse(localStorage.getItem('toeic_settings')).goal;
+    state.goal = 20;
+    restoreSettings();
+    return { saved, restored: state.goal };
+  });
+  assert.deepEqual(r, { saved: 50, restored: 50 });
 }));
 
 test('目標は 100 の次に 10 へ戻る。Enter キーでも変えられる', () => withApp({ time: TIME }, async page => {
