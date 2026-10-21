@@ -764,6 +764,10 @@ body {
   </div>
 
   <div class="filters" id="filter-drawer">
+    <div class="segments" id="priority-segments" style="margin-bottom: 6px;">
+      <div class="segment active" data-priority="due_first">要復習を先に</div>
+      <div class="segment" data-priority="random">ランダム</div>
+    </div>
     <div id="vocab-filters">
       <div class="segments" id="source-segments" style="margin-bottom: 4px;">
         <div class="segment active" data-source="all">すべて</div>
@@ -1100,6 +1104,7 @@ let state = {
   app: 'vocab', // 'vocab' or 'grammar'
   dailyLog: loadDailyLog(), // 日ごとの回答数と正解数
   goal: 20, // 1日の目標問題数（GOALS のどれか）
+  priority: 'due_first', // 出題順: 'due_first'（要復習を先に）か 'random'
 
   // Vocab state
   mode: 'e2j',
@@ -1337,7 +1342,9 @@ function applyGrammarFilters() {
     return true;
   });
 
-  state.grammarPool = shuffle(filtered);
+  state.grammarPool = state.priority === 'due_first' && state.grammarWeakFilter === 'all'
+    ? orderByDue(filtered, ex => { const e = state.grammarWeakData[ex.id]; return !!e && isDue(e); })
+    : shuffle(filtered);
   state.currentGrammarIndex = 0;
   state.grammarScore = 0;
   state.grammarAnsweredCount = 0;
@@ -1575,6 +1582,7 @@ function syncFilterUI() {
   mark('#range-filters .chip', d => d.range === range);
   mark('#weak-segments .segment', d => d.weak === state.weakFilter);
   mark('#mode-segments .segment', d => d.mode === state.mode);
+  mark('#priority-segments .segment', d => d.priority === state.priority);
   mark('#grammar-book-segments .segment', d => d.gbook === state.grammarBook);
   mark('#grammar-weak-segments .segment', d => d.gweak === state.grammarWeakFilter);
   renderGrammarChapterFilters();
@@ -1638,6 +1646,16 @@ function initFilters() {
     });
   });
 
+  document.querySelectorAll('#priority-segments .segment').forEach(btn => {
+    btn.addEventListener('click', e => {
+      state.priority = e.currentTarget.dataset.priority;
+      syncFilterUI();
+      saveSettings();
+      if (state.app === 'grammar') applyGrammarFilters();
+      else applyFilters();
+    });
+  });
+
   document.querySelectorAll('#mode-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
       document.querySelectorAll('#mode-segments .segment').forEach(b => b.classList.remove('active'));
@@ -1692,6 +1710,13 @@ function shuffle(array) {
   return array;
 }
 
+// 期限の来たものを先頭に、残りを後ろに、それぞれシャッフルして並べる（元の配列は変えない）
+function orderByDue(items, isDueFn) {
+  const due = items.filter(isDueFn);
+  const rest = items.filter(x => !isDueFn(x));
+  return [...shuffle(due), ...shuffle(rest)];
+}
+
 // 品詞「句・表現」に含める品詞（TEPPAN はそのまま「句・表現」で登録されている）
 const PHRASE_POS = ['名詞句', '動詞句', '形容詞句', '副詞句', '表現', '句・表現'];
 
@@ -1744,7 +1769,11 @@ function applyFilters() {
     return true;
   });
   
-  state.pool = shuffle(dedupeWords(filtered));
+  // 苦手で絞っているときは出題範囲がもともと苦手の語なので、並びは変えない
+  const deduped = dedupeWords(filtered);
+  state.pool = state.priority === 'due_first' && state.weakFilter === 'all'
+    ? orderByDue(deduped, w => { const e = wordWeak()[w.w]; return !!e && isDue(e); })
+    : shuffle(deduped);
   state.currentIndex = 0;
   state.score = 0;
   state.answeredCount = 0;
@@ -2065,7 +2094,7 @@ const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
 
 function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
-                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort', 'goal'];
+                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort', 'goal', 'priority'];
   return Object.fromEntries(keys.map(k => [k, state[k]]));
 }
 
@@ -2092,14 +2121,22 @@ function restoreSettings() {
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
   state.goal = pick(saved.goal, GOALS, 20);
+  state.priority = pick(saved.priority, ['due_first', 'random'], 'due_first');
+}
+
+// 出題順が「ランダム」のときだけ署名に足す（初期設定の署名を変えず、保存済みの出題の続きをそのまま使うため）
+function priorityTerm() {
+  return state.priority === 'random' ? ['random'] : [];
 }
 
 // 今の絞り込みを表す値。保存した出題順はこれが一致するときだけ使う（データが増減したときも作り直す）
 function sessionSignature(app) {
   return JSON.stringify(app === 'grammar'
-    ? [RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter]
+    ? [RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter,
+       ...priorityTerm()]
     : [RAW_WORDS.length, state.sourceFilter, state.rangeFilter, state.dateFilter, state.posFilter, state.weakFilter,
-       ...(state.weakFilter !== 'all' ? [state.mode] : [])]); // 苦手で絞るときは出題範囲がモードで変わる
+       ...(state.weakFilter !== 'all' ? [state.mode] : []), // 苦手で絞るときは出題範囲がモードで変わる
+       ...priorityTerm()]);
 }
 
 function sessionSnapshot() {
