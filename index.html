@@ -51,6 +51,17 @@ body {
   gap: 12px;
   flex-shrink: 0;
 }
+.streak-bar {
+  margin: 0 20px 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(201, 160, 92, 0.35);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ivory);
+  text-align: center;
+  cursor: pointer;
+}
+.streak-bar.done { border-color: var(--jade); color: var(--jade); background: rgba(79, 122, 104, 0.15); }
 .title-wrap { text-align: left; line-height: 1.15; }
 .eyebrow {
   color: var(--gold);
@@ -738,6 +749,8 @@ body {
     </button>
   </div>
 
+  <div class="streak-bar" id="streak-bar" role="button" tabindex="0" onclick="cycleGoal()" onkeydown="if (event.key === 'Enter') cycleGoal()"></div>
+
   <div class="segments" id="app-type-segments" style="margin: 0 20px 8px;">
     <div class="segment active" data-app="vocab">単語ドリル</div>
     <div class="segment" data-app="grammar">文法ドリル (Part 5)</div>
@@ -1055,9 +1068,30 @@ function streakDays(log, todayKey) {
   return n;
 }
 
+const GOALS = [10, 20, 50, 100];
+
+// 画面上部の「🔥3日連続 ・ 今日 12/20」。今日の目標に届いたら done クラスを付ける
+function updateStreakBar() {
+  const bar = document.getElementById('streak-bar');
+  if (!bar) return;
+  const today = dateKey();
+  const count = dayCount(state.dailyLog, today);
+  bar.textContent = `🔥${streakDays(state.dailyLog, today)}日連続 ・ 今日 ${count}/${state.goal}`;
+  bar.classList.toggle('done', count >= state.goal);
+}
+
+// 1日の目標を次の値にする（100 の次は 10）
+function cycleGoal() {
+  state.goal = GOALS[(GOALS.indexOf(state.goal) + 1) % GOALS.length];
+  saveSettings();
+  updateStreakBar();
+  showToast(`今日の目標を${state.goal}問にしました`);
+}
+
 let state = {
   app: 'vocab', // 'vocab' or 'grammar'
   dailyLog: loadDailyLog(), // 日ごとの回答数と正解数
+  goal: 20, // 1日の目標問題数（GOALS のどれか）
 
   // Vocab state
   mode: 'e2j',
@@ -2007,7 +2041,8 @@ function updateFooter() {
   const done = Math.min(index, pool.length);
   document.getElementById('progress-fill').style.width = pool.length > 0 ? `${done / pool.length * 100}%` : '0';
 
-  // 表示が変わるたびに呼ばれるので、ここで設定と進み具合を保存しておく
+  // 表示が変わるたびに呼ばれるので、ここで連続日数の表示を更新し、設定と進み具合を保存しておく
+  updateStreakBar();
   saveSettings();
   saveSession();
 }
@@ -2022,7 +2057,7 @@ const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
 
 function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
-                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort'];
+                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort', 'goal'];
   return Object.fromEntries(keys.map(k => [k, state[k]]));
 }
 
@@ -2048,6 +2083,7 @@ function restoreSettings() {
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
+  state.goal = pick(saved.goal, GOALS, 20);
 }
 
 // 今の絞り込みを表す値。保存した出題順はこれが一致するときだけ使う（データが増減したときも作り直す）
