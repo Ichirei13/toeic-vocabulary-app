@@ -984,8 +984,80 @@ function loadSeenByMode() {
   return Object.fromEntries(VOCAB_MODES.map(m => [m, new Set(lists[m])]));
 }
 
+// ==================== 学習ログ ====================
+// 日ごとの回答数と正解数。{ '2026-10-21': { v: [回答, 正解], g: [回答, 正解] } }（v は単語、g は文法）。
+// 連続日数と学習統計はここから計算する
+
+const DAILY_LOG_KEY = 'toeic_daily_log';
+const DAILY_LOG_MAX_DAYS = 400;
+
+// 端末のローカル日付を YYYY-MM-DD にする
+function dateKey(d = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// [回答, 正解] を確かめる。回答も正解も 0 以上の整数で、正解は回答を超えない
+function isCountPair(p) {
+  return Array.isArray(p) && p.length === 2 && p.every(n => Number.isInteger(n) && n >= 0) && p[1] <= p[0];
+}
+
+// 日付キーが実在する日か（2026-13-40 などを弾く）
+function isRealDateKey(k) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(k) && dateKey(parseLocalDate(k)) === k;
+}
+
+// 学習ログ全体を確かめ、形の正しくない日は除いて数を返す。新しい400日分だけ残す（古い分は件数に数えない）
+function sanitizeDailyLog(raw) {
+  const data = {};
+  let invalid = 0;
+  Object.keys(raw).forEach(k => {
+    const day = raw[k];
+    const ok = isRealDateKey(k) && day && typeof day === 'object' && !Array.isArray(day)
+      && (day.v === undefined || isCountPair(day.v)) && (day.g === undefined || isCountPair(day.g));
+    if (ok) data[k] = { v: day.v || [0, 0], g: day.g || [0, 0] };
+    else invalid++;
+  });
+  Object.keys(data).sort().slice(0, -DAILY_LOG_MAX_DAYS).forEach(k => delete data[k]);
+  return { data, invalid };
+}
+
+function loadDailyLog() {
+  return sanitizeDailyLog(loadJSON(DAILY_LOG_KEY, {})).data;
+}
+
+// 回答を1件、今日の記録に足す（「わからない」は不正解として数える）
+function recordActivity(app, isCorrect, now = new Date()) {
+  const key = dateKey(now);
+  const day = state.dailyLog[key] || (state.dailyLog[key] = { v: [0, 0], g: [0, 0] });
+  const pair = day[app === 'grammar' ? 'g' : 'v'];
+  pair[0]++;
+  if (isCorrect) pair[1]++;
+  Object.keys(state.dailyLog).sort().slice(0, -DAILY_LOG_MAX_DAYS).forEach(k => delete state.dailyLog[k]);
+  saveJSON(DAILY_LOG_KEY, state.dailyLog);
+}
+
+// その日の回答数（単語と文法の合計）
+function dayCount(log, key) {
+  const day = log[key];
+  return day ? day.v[0] + day.g[0] : 0;
+}
+
+// 連続して学習した日数。今日まだ学習していなければ、昨日から数える
+function streakDays(log, todayKey) {
+  const d = parseLocalDate(todayKey);
+  if (dayCount(log, dateKey(d)) === 0) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (dayCount(log, dateKey(d)) > 0) {
+    n++;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
+}
+
 let state = {
   app: 'vocab', // 'vocab' or 'grammar'
+  dailyLog: loadDailyLog(), // 日ごとの回答数と正解数
 
   // Vocab state
   mode: 'e2j',
@@ -1379,6 +1451,7 @@ function revealGrammarAnswer(ex) {
 
 function recordWeakGrammar(ex, isCorrect) {
   state.grammarAnsweredCount++;
+  recordActivity('grammar', isCorrect);
   updateWeakEntry(state.grammarWeakData, ex.id, isCorrect);
   saveGrammarWeakData();
 }
@@ -1912,6 +1985,7 @@ function revealTypeAnswer(word, isCorrect, typed) {
 
 function recordWeak(word, isCorrect) {
   state.answeredCount++;
+  recordActivity('vocab', isCorrect);
   updateWeakEntry(wordWeak(), word.w, isCorrect);
   if (!wordSeen().has(word.w)) {
     wordSeen().add(word.w);
