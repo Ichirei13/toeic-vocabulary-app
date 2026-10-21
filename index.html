@@ -2400,6 +2400,7 @@ const RECORD_KEYS = {
   seenWords: SEEN_WORDS_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
+  dailyLog: DAILY_LOG_KEY,
 };
 const RECORD_STORAGE_KEYS = Object.values(RECORD_KEYS);
 const BACKUP_UNDO_KEY = 'toeic_backup_undo';     // 直前の復元を取り消すための、復元する前の記録（1回分）
@@ -2433,6 +2434,7 @@ function buildBackup() {
       seenWords: seenSnapshot(),
       settings: settingsSnapshot(),
       session: sessionSnapshot(),
+      dailyLog: state.dailyLog,
     },
   };
 }
@@ -2526,10 +2528,12 @@ function parseBackup(text) {
   }
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
+  if (d.dailyLog !== undefined && !isPlainObject(d.dailyLog)) return fail('学習ログの記録の形が正しくありません。');
 
   const words = sanitizeWeakByMode(d.weakWords);
   const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
   const seen = sanitizeSeenByMode(d.seenWords);
+  const log = d.dailyLog === undefined ? null : sanitizeDailyLog(d.dailyLog);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -2544,8 +2548,10 @@ function parseBackup(text) {
       seenWords: seen.data,
       settings: d.settings,
       session: d.session,
+      // ファイルに無いときは今の学習ログを残す（キー自体を作らない）
+      ...(log ? { dailyLog: log.data } : {}),
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + invalidBeforeMigration,
+    invalid: words.invalid + grammar.invalid + seen.invalid + (log ? log.invalid : 0) + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
@@ -2609,6 +2615,7 @@ function reloadRecordsFromStorage() {
   state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
   state.seenByMode = loadSeenByMode();
+  state.dailyLog = loadDailyLog();
   restoreSettings();
   syncFilterUI();
   setApp(state.app);

@@ -21,7 +21,7 @@
 - 各コミットの末尾に次の2行を付ける:
   `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`
   `Claude-Session: https://claude.ai/code/session_011WiduHyqST1VbNbLioEuZF`
-- テストの実行: `NODE_PATH="$(npm root -g)" node --test tests/<ファイル>`。全部は `NODE_PATH="$(npm root -g)" node --test tests/`。
+- テストの実行: `NODE_PATH="$(npm root -g)" node --test tests/<ファイル>`。全部は `NODE_PATH="$(npm root -g)" node --test tests/*.test.cjs`。
 
 ## Review Focus
 
@@ -249,7 +249,7 @@
 
 - [ ] **Step 1: `CACHE` を `'toeic-drill-v2'` に変える。**
 
-- [ ] **Step 2: 全テストを実行する** — `NODE_PATH="$(npm root -g)" node --test tests/`。Expected: すべて PASS、失敗 0。
+- [ ] **Step 2: 全テストを実行する** — `NODE_PATH="$(npm root -g)" node --test tests/*.test.cjs`。Expected: すべて PASS、失敗 0。
 
 - [ ] **Step 3: 通しで画面を確認する** — Playwright で幅 390×844 で開き、(a) 単語ドリルの英→日（バー、🔊）、(b) 統計シート、(c) 穴埋めモードの回答前と回答後、(d) 文法ドリル、のスクリーンショットを scratchpad に保存して見る。レイアウトの崩れ、バーがはみ出す、シートが読めない、がないこと。見つけたら直して、該当するテストを足す。
 
