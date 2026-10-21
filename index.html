@@ -528,6 +528,13 @@ body {
 .backup-check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; cursor: pointer; }
 .backup-undo { font-size: 12.5px; line-height: 1.6; background: rgba(0,0,0,0.04); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
 .backup-help { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.stat-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(201, 160, 92, 0.2); font-size: 14px; }
+.stat-label { color: var(--muted); flex-shrink: 0; }
+.stat-value { text-align: right; }
+.stat-bars { display: flex; gap: 4px; height: 80px; margin: 16px 0 4px; }
+.stat-bar-col { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.stat-bar { width: 100%; background: var(--gold); border-radius: 3px 3px 0 0; }
+.stat-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
 .toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 200; max-width: calc(100% - 32px); background: var(--paper); color: var(--ink); padding: 8px 14px; border-radius: 20px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); transition: opacity 0.4s; }
 .toast.hide { opacity: 0; }
 .weak-badge {
@@ -816,6 +823,7 @@ body {
       <span id="progress-text">0 / 0</span>
       <span id="score-text">正答 0 / 0</span>
       <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
+      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleStats()">統計</span>
       <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
@@ -2163,6 +2171,81 @@ function toggleWeakList() {
   if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
   state.weakListMode = state.mode; // 単語の苦手リストは、まず今のモードの記録を見せる
   openSheet('苦手リスト', renderWeakList);
+}
+
+// ==================== 学習統計 ====================
+
+// 今日・直近7日・累計の回答数(n)と正解数(c)、直近14日の日ごとの回答数。単語と文法の合計
+function statsSummary(log, todayKey) {
+  const sum = keys => keys.reduce((t, k) => {
+    const day = log[k];
+    if (day) {
+      t.n += day.v[0] + day.g[0];
+      t.c += day.v[1] + day.g[1];
+    }
+    return t;
+  }, { n: 0, c: 0 });
+  const d = parseLocalDate(todayKey);
+  const keys = [];
+  for (let i = 0; i < 14; i++) {
+    keys.unshift(dateKey(d));
+    d.setDate(d.getDate() - 1);
+  }
+  return {
+    today: sum([todayKey]),
+    week: sum(keys.slice(-7)),
+    total: sum(Object.keys(log)),
+    days: keys.map(k => ({ key: k, n: dayCount(log, k) })),
+  };
+}
+
+// 学習済みの単語数と、苦手・要復習の数。単語は全モードをまとめて重複なしで数える
+function learnedStats() {
+  const known = new Set(RAW_WORDS.map(w => w.w));
+  const unionOf = lists => new Set(lists.flatMap(l => [...l]).filter(w => known.has(w)));
+  const seen = unionOf(VOCAB_MODES.map(m => state.seenByMode[m]));
+  const weak = unionOf(VOCAB_MODES.map(m => Object.keys(state.weakByMode[m])));
+  const due = unionOf(VOCAB_MODES.map(m => Object.keys(state.weakByMode[m]).filter(w => isDue(state.weakByMode[m][w]))));
+  const grammar = Object.values(state.grammarWeakData);
+  return {
+    learned: seen.size,
+    total: known.size,
+    weak: weak.size,
+    due: due.size,
+    gWeak: grammar.length,
+    gDue: grammar.filter(isDue).length,
+  };
+}
+
+function statRate(t) {
+  return t.n === 0 ? '0問' : `${t.n}問 ・ 正答率 ${Math.round(t.c / t.n * 100)}%`;
+}
+
+function renderStatsSheet() {
+  const s = statsSummary(state.dailyLog, dateKey());
+  const l = learnedStats();
+  const row = (label, value) => `<div class="stat-row"><span class="stat-label">${label}</span><span class="stat-value">${value}</span></div>`;
+  const dayLabel = key => `${Number(key.slice(5, 7))}/${Number(key.slice(8))}`;
+  const max = Math.max(...s.days.map(d => d.n), 1);
+  const bars = s.days.map(d => {
+    const label = `${dayLabel(d.key)} ${d.n}問`;
+    const height = d.n === 0 ? '2px' : `${Math.max(4, d.n / max * 100)}%`;
+    return `<div class="stat-bar-col" title="${label}" aria-label="${label}"><div class="stat-bar" style="height:${height}"></div></div>`;
+  }).join('');
+  document.getElementById('weak-list-content').innerHTML =
+    row('今日', statRate(s.today)) +
+    row('直近7日', statRate(s.week)) +
+    row('累計', statRate(s.total)) +
+    `<div class="stat-bars">${bars}</div>` +
+    `<div class="stat-axis"><span>${dayLabel(s.days[0].key)}</span><span>${dayLabel(s.days[13].key)}</span></div>` +
+    row('学習済み', `${l.learned} / ${l.total}語（${Math.round(l.learned / l.total * 100)}%）`) +
+    row('単語', `苦手 ${l.weak}語 ・ 要復習 ${l.due}語`) +
+    row('文法', `苦手 ${l.gWeak}問 ・ 要復習 ${l.gDue}問`);
+}
+
+function toggleStats() {
+  if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
+  openSheet('学習統計', renderStatsSheet);
 }
 
 function toggleRuleGuide() {
