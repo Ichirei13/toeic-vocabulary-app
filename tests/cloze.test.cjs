@@ -123,3 +123,50 @@ test('苦手リストのモードのチップに「穴埋め」が出る', () =>
   assert.equal(await page.locator('[data-weak-mode="cloze"]').count(), 1);
   assert.match(await page.textContent('[data-weak-mode="cloze"]'), /穴埋め/);
 }));
+
+// ---- 最終レビューの修正: 穴埋めに出入りしても、他のモードの出題の続きは失われない ----
+
+test('英→日で2問解いて穴埋めを試して戻っても、出題の続きと並びが残る', () => withApp({}, async page => {
+  for (let i = 0; i < 2; i++) {
+    await page.click('#dont-know-btn');
+    await page.click('#next-btn');
+  }
+  const before = await page.evaluate(() => ({ index: state.currentIndex, answered: state.answeredCount, head: state.pool.slice(0, 5).map(w => w.w) }));
+  assert.equal(before.index, 2);
+  await page.click('[data-mode="cloze"]');
+  await page.click('[data-mode="e2j"]');
+  const after = await page.evaluate(() => ({ index: state.currentIndex, answered: state.answeredCount, head: state.pool.slice(0, 5).map(w => w.w) }));
+  assert.deepEqual(after, before);
+}));
+
+test('穴埋めの続きも、他のモードに寄り道して戻ると残る', () => withApp({}, async page => {
+  await page.click('[data-mode="cloze"]');
+  await page.click('#dont-know-btn');
+  await page.click('#next-btn');
+  const before = await page.evaluate(() => ({ index: state.currentIndex, head: state.pool.slice(0, 5).map(w => w.w) }));
+  assert.equal(before.index, 1);
+  await page.click('[data-mode="e2j"]');
+  await page.click('[data-mode="cloze"]');
+  assert.deepEqual(await page.evaluate(() => ({ index: state.currentIndex, head: state.pool.slice(0, 5).map(w => w.w) })), before);
+}));
+
+test('いま選んでいる穴埋めをもう一度押しても、進み具合は戻らない', () => withApp({}, async page => {
+  await page.click('[data-mode="cloze"]');
+  await page.click('#dont-know-btn');
+  await page.click('#next-btn');
+  await page.click('[data-mode="cloze"]');
+  assert.equal(await page.evaluate(() => state.currentIndex), 1);
+}));
+
+test('穴埋めのまま開き直しても、穴埋めの続きから始まる（設定と出題の続きが合う）', () => withApp({}, async page => {
+  await page.click('[data-mode="cloze"]');
+  await page.click('#dont-know-btn');
+  await page.click('#next-btn');
+  const r = await page.evaluate(() => {
+    const index = state.currentIndex;
+    state.pool = [];
+    state.currentIndex = 0;
+    return { index, ok: restoreSession('vocab'), restored: state.currentIndex, allBlank: state.pool.every(w => findBlank(w)) };
+  });
+  assert.deepEqual(r, { index: 1, ok: true, restored: 1, allBlank: true });
+}));

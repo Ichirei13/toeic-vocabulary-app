@@ -88,3 +88,57 @@ test('出題の続き: 「ランダム」のときは署名が変わり、その
   });
   assert.deepEqual(r, { ok: true, restored: 1 });
 }));
+
+// ---- 最終レビューの修正: 続きから再開するとき、いま期限の来た語を未回答の先頭へ寄せる ----
+
+test('出題の続き（単語）: あとで期限が来た語が、未回答の先頭に寄る。回答済みと他の並びは変わらない', () => withApp({}, async page => {
+  await page.click('#dont-know-btn');
+  await page.click('#next-btn');
+  const r = await page.evaluate(() => {
+    const index = state.currentIndex;
+    const original = state.pool.map(w => w.w);
+    const target = original[50];
+    state.weakByMode.e2j[target] = { streak: 0, added: 1, due: 0 };
+    state.pool = [];
+    state.currentIndex = 0;
+    const ok = restoreSession('vocab');
+    const now = state.pool.map(w => w.w);
+    return { index, ok, restored: state.currentIndex, target, original, now };
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.restored, r.index);
+  assert.equal(r.now[r.index], r.target);
+  assert.deepEqual(r.now.slice(0, r.index), r.original.slice(0, r.index));
+  assert.deepEqual(r.now.filter(w => w !== r.target), r.original.filter(w => w !== r.target));
+}));
+
+test('出題の続き（文法）: あとで期限が来た問題が、未回答の先頭に寄る', () => withApp({}, async page => {
+  await page.click('[data-app="grammar"]');
+  await page.click('#dont-know-btn');
+  await page.click('#next-btn');
+  const r = await page.evaluate(() => {
+    const target = state.grammarPool[40].id;
+    state.grammarWeakData[target] = { streak: 0, added: 1, due: 0 };
+    state.grammarPool = [];
+    state.currentGrammarIndex = 0;
+    const ok = restoreSession('grammar');
+    return { ok, id: state.grammarPool[state.currentGrammarIndex].id, target };
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.id, r.target);
+}));
+
+test('出題の続き: 「ランダム」のときは、期限の来た語を寄せない', () => withApp({}, async page => {
+  await page.click('#filter-toggle');
+  await page.click('[data-priority="random"]');
+  await page.click('#dont-know-btn');
+  await page.click('#next-btn');
+  const r = await page.evaluate(() => {
+    const original = state.pool.map(w => w.w);
+    state.weakByMode.e2j[original[50]] = { streak: 0, added: 1, due: 0 };
+    state.pool = [];
+    const ok = restoreSession('vocab');
+    return { ok, same: JSON.stringify(state.pool.map(w => w.w)) === JSON.stringify(original) };
+  });
+  assert.deepEqual(r, { ok: true, same: true });
+}));

@@ -54,3 +54,26 @@ for (const bad of ['{"goal":7}', '{"goal":"x"}', '{}']) {
     assert.equal(await page.evaluate(() => state.goal), 20);
   }));
 }
+
+// ---- 最終レビューの修正: 目標バーで押した Enter・Space が、次へ／採点まで実行しない ----
+
+test('回答後に目標バーで Enter を押しても、次の問題へ進まない', () => withApp({ time: TIME }, async page => {
+  await page.click('#dont-know-btn');
+  await page.focus('#streak-bar');
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await page.evaluate(() => ({ goal: state.goal, index: state.currentIndex })), { goal: 50, index: 0 });
+}));
+
+test('カードをめくったあと目標バーで Enter を押しても、「覚えた」と採点されない', () => withApp({ time: TIME }, async page => {
+  await page.click('[data-mode="flash"]');
+  await page.click('#flash-card');
+  await page.focus('#streak-bar');
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await page.evaluate(() => ({ goal: state.goal, answered: state.answered, count: state.answeredCount })), { goal: 50, answered: false, count: 0 });
+}));
+
+test('目標バーでは Space でも目標が変わる', () => withApp({ time: TIME }, async page => {
+  await page.focus('#streak-bar');
+  await page.keyboard.press(' ');
+  assert.equal(await page.evaluate(() => state.goal), 50);
+}));
