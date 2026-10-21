@@ -528,6 +528,8 @@ body {
 .backup-check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; cursor: pointer; }
 .backup-undo { font-size: 12.5px; line-height: 1.6; background: rgba(0,0,0,0.04); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
 .backup-help { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.cloze-sentence { font-size: clamp(16px, 5vw, 20px); font-weight: 600; line-height: 1.6; margin-bottom: 8px; word-break: break-word; }
+mark { background: rgba(201, 160, 92, 0.35); color: inherit; border-radius: 3px; padding: 0 2px; }
 .speak-btn { background: none; border: none; cursor: pointer; font-size: 0.7em; padding: 2px 6px; margin-left: 4px; vertical-align: middle; }
 .speak-row { margin-top: 6px; display: flex; gap: 8px; }
 .stat-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(201, 160, 92, 0.2); font-size: 14px; }
@@ -813,6 +815,7 @@ body {
     <div class="segment" data-mode="j2e">日→英</div>
     <div class="segment" data-mode="flash">カード</div>
     <div class="segment" data-mode="type">タイプ</div>
+    <div class="segment" data-mode="cloze">穴埋め</div>
   </div>
 
   <div class="main-area">
@@ -944,8 +947,8 @@ function dueLabel(entry) {
 // ==================== 単語の記録（モードごと） ====================
 // 苦手と学習済みの単語は、英→日・日→英・カード・タイプのモードごとに別々に記録する
 
-const VOCAB_MODES = ['e2j', 'j2e', 'flash', 'type'];
-const MODE_LABELS = { e2j: '英→日', j2e: '日→英', flash: 'カード', type: 'タイプ' };
+const VOCAB_MODES = ['e2j', 'j2e', 'flash', 'type', 'cloze'];
+const MODE_LABELS = { e2j: '英→日', j2e: '日→英', flash: 'カード', type: 'タイプ', cloze: '穴埋め' };
 const WEAK_WORDS_KEY = 'toeic_weak_words_by_mode';
 const SEEN_WORDS_KEY = 'toeic_seen_words_by_mode';
 // モード共通だったころの記録。初めて開いたときに移し替え、元の記録は消さずに残す
@@ -1662,10 +1665,11 @@ function initFilters() {
     btn.addEventListener('click', e => {
       document.querySelectorAll('#mode-segments .segment').forEach(b => b.classList.remove('active'));
       e.currentTarget.classList.add('active');
+      const previous = state.mode;
       state.mode = e.currentTarget.dataset.mode;
       updateWeakBadge();
-      // 苦手・未学習で絞っているときはモードごとに出題範囲が変わるので出題し直す。「すべて」なら並びはそのまま
-      if (state.weakFilter !== 'all') applyFilters();
+      // 苦手・未学習で絞っているときと、穴埋めに出入りするときは出題範囲が変わるので出題し直す。それ以外なら並びはそのまま
+      if (state.weakFilter !== 'all' || previous === 'cloze' || state.mode === 'cloze') applyFilters();
       else renderCurrent();
     });
   });
@@ -1724,6 +1728,9 @@ const PHRASE_POS = ['名詞句', '動詞句', '形容詞句', '副詞句', '表�
 
 // 苦手フィルタ以外の絞り込み（出典・範囲・日付・品詞）
 function wordMatchesBaseFilters(w) {
+  // 穴埋めは、例文の見出し語を空欄にできる語だけ出題する
+  if (state.mode === 'cloze' && !findBlank(w)) return false;
+
   // source
   if (state.sourceFilter !== 'all' && w.s !== state.sourceFilter) return false;
 
@@ -1852,6 +1859,62 @@ function buildOptions(word) {
   return shuffle(options);
 }
 
+// ==================== 穴埋め ====================
+// 例文の見出し語を空欄にして、英単語の4択で答える
+
+const CLOZE_BLANK = '-------';
+const clozeCache = new Map();
+
+// 日本語訳（…）を同じ長さの空白に置き換える。空欄の位置を元の例文の添字のまま探せる
+function maskGloss(text) {
+  return text.replace(/（[^）]*）/g, m => ' '.repeat(m.length));
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// 例文の中で空欄にする範囲 { start, end }（例文の添字）。見出し語がそのまま、なければ語幹で探し、無ければ null
+function findBlank(word) {
+  const example = word.e || '';
+  const key = `${word.w}\u0000${example}`;
+  if (!clozeCache.has(key)) clozeCache.set(key, computeBlank(word.w, example));
+  return clozeCache.get(key);
+}
+
+function computeBlank(headword, example) {
+  if (!headword || !example) return null;
+  const text = maskGloss(example);
+  const exact = new RegExp(`\\b${escapeRegExp(headword)}\\b`, 'i').exec(text);
+  if (exact) return { start: exact.index, end: exact.index + exact[0].length };
+  // 活用していそうなら、5文字以上の語の語尾(ion/ing/ed/es/s/e/y)を落とした語幹で探す
+  const stem = headword.split(' ').map(t => (t.length > 4 ? t.replace(/(ion|ing|ed|es|s|e|y)$/, '') : t)).join(' ');
+  const loose = new RegExp(`\\b${escapeRegExp(stem)}\\w*`, 'i').exec(text);
+  return loose ? { start: loose.index, end: loose.index + loose[0].length } : null;
+}
+
+// 空欄にした例文。revealed なら元の例文（日本語訳つき）で、空欄だった部分を mark で囲む
+function clozeSentenceHtml(word, revealed) {
+  const example = word.e || '';
+  const blank = findBlank(word);
+  if (!blank) return escapeHtml(example);
+  const gloss = t => t.replace(/（[^）]*）/g, '');
+  const before = example.slice(0, blank.start);
+  const after = example.slice(blank.end);
+  if (revealed) return `${escapeHtml(before)}<mark>${escapeHtml(example.slice(blank.start, blank.end))}</mark>${escapeHtml(after)}`;
+  return `${escapeHtml(gloss(before))}${CLOZE_BLANK}${escapeHtml(gloss(after))}`;
+}
+
+function clozeCardHtml(word) {
+  return `
+      <div class="card" id="main-card">
+        ${posTagHtml(word, false)}
+        <div class="cloze-sentence">${clozeSentenceHtml(word, false)}</div>
+        <div class="example-display" id="example-box">${clozeSentenceHtml(word, true)}<br><br>${word.m}${speakRowHtml(word)}</div>
+      </div>
+    `;
+}
+
 // ==================== 発音 ====================
 // 端末の読み上げ（speechSynthesis）を使う。使えない端末ではボタンを出さない
 
@@ -1914,8 +1977,8 @@ function renderCurrent() {
   state.answered = false;
   choicesDiv.innerHTML = '';
 
-  if (state.mode === 'e2j' || state.mode === 'j2e') {
-    container.innerHTML = `
+  if (state.mode === 'e2j' || state.mode === 'j2e' || state.mode === 'cloze') {
+    container.innerHTML = state.mode === 'cloze' ? clozeCardHtml(word) : `
       <div class="card" id="main-card">
         ${posTagHtml(word, false)}
         <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w + speakBtnHtml(word.w) : word.m}</div>
@@ -2148,7 +2211,7 @@ function restoreSettings() {
   const saved = loadJSON(SETTINGS_KEY, {});
   const pick = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
   state.app = pick(saved.app, ['vocab', 'grammar'], 'vocab');
-  state.mode = pick(saved.mode, ['e2j', 'j2e', 'flash', 'type'], 'e2j');
+  state.mode = pick(saved.mode, VOCAB_MODES, 'e2j');
   state.sourceFilter = pick(saved.sourceFilter, ['all', 'daily', 'teppan'], 'all');
   const range = saved.rangeFilter;
   state.rangeFilter = range && TEPPAN_RANGES.some(r => r.start === range.start && r.end === range.end)
@@ -2176,7 +2239,7 @@ function sessionSignature(app) {
     ? [RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter,
        ...priorityTerm()]
     : [RAW_WORDS.length, state.sourceFilter, state.rangeFilter, state.dateFilter, state.posFilter, state.weakFilter,
-       ...(state.weakFilter !== 'all' ? [state.mode] : []), // 苦手で絞るときは出題範囲がモードで変わる
+       ...(state.weakFilter !== 'all' || state.mode === 'cloze' ? [state.mode] : []), // 苦手で絞るとき・穴埋めのときは出題範囲がモードで変わる
        ...priorityTerm()]);
 }
 
