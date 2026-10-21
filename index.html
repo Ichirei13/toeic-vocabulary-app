@@ -528,6 +528,8 @@ body {
 .backup-check { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; cursor: pointer; }
 .backup-undo { font-size: 12.5px; line-height: 1.6; background: rgba(0,0,0,0.04); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
 .backup-help { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.speak-btn { background: none; border: none; cursor: pointer; font-size: 0.7em; padding: 2px 6px; margin-left: 4px; vertical-align: middle; }
+.speak-row { margin-top: 6px; display: flex; gap: 8px; }
 .stat-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(201, 160, 92, 0.2); font-size: 14px; }
 .stat-label { color: var(--muted); flex-shrink: 0; }
 .stat-value { text-align: right; }
@@ -1850,6 +1852,44 @@ function buildOptions(word) {
   return shuffle(options);
 }
 
+// ==================== 発音 ====================
+// 端末の読み上げ（speechSynthesis）を使う。使えない端末ではボタンを出さない
+
+function speechAvailable() {
+  return !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function';
+}
+
+// 読み上げる文字列。日本語訳の（…）と、入力不要の ~ は読まない
+function speechText(text) {
+  return String(text).replace(/（[^）]*）/g, '').replace(/[~～]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function speak(text) {
+  if (!speechAvailable()) return;
+  const utterance = new SpeechSynthesisUtterance(speechText(text));
+  utterance.lang = 'en-US';
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+function speakBtnHtml(text) {
+  if (!speechAvailable() || !speechText(text)) return '';
+  return `<button type="button" class="speak-btn" data-speak="${escapeHtml(text)}" aria-label="発音を聞く">🔊</button>`;
+}
+
+// 単語と例文の 🔊（回答後の例文欄とカードの裏面に置く）
+function speakRowHtml(word) {
+  return `<div class="speak-row">${speakBtnHtml(word.w)}${speakBtnHtml(word.e || '')}</div>`;
+}
+
+// キャプチャ段階で受けて止める。カードの onclick が先に動いてめくれてしまわないようにする
+document.addEventListener('click', e => {
+  const btn = e.target.closest && e.target.closest('.speak-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  speak(btn.dataset.speak);
+}, true);
+
 function renderCurrent() {
   resetActionBar();
   document.getElementById('choices-container').classList.remove('compact');
@@ -1878,8 +1918,8 @@ function renderCurrent() {
     container.innerHTML = `
       <div class="card" id="main-card">
         ${posTagHtml(word, false)}
-        <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w : word.m}</div>
-        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${state.mode === 'e2j' ? word.m : word.w}</div>
+        <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w + speakBtnHtml(word.w) : word.m}</div>
+        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${state.mode === 'e2j' ? word.m : word.w}${speakRowHtml(word)}</div>
       </div>
     `;
 
@@ -1901,12 +1941,13 @@ function renderCurrent() {
         <div class="flip-card-inner">
           <div class="card-face">
             ${posTagHtml(word, false)}
-            <div class="word-display">${word.w}</div>
+            <div class="word-display">${word.w}${speakBtnHtml(word.w)}</div>
           </div>
           <div class="card-face card-back">
             <div class="pos-tag">${word.p}</div>
             <div class="meaning-display">${word.m}</div>
             <div style="font-size: 14px; line-height: 1.5; color: ${word.e ? '#555' : 'var(--muted)'}; font-style: ${word.e ? 'normal' : 'italic'};">${word.e || '（例文なし）'}</div>
+            ${speakRowHtml(word)}
           </div>
         </div>
       </div>
@@ -1924,7 +1965,7 @@ function renderCurrent() {
           <button class="type-check-btn" id="type-check-btn">答え合わせ</button>
         </div>
         <div class="type-result" id="type-result" style="display:none;"></div>
-        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}</div>
+        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}${speakRowHtml(word)}</div>
       </div>
     `;
     const input = document.getElementById('type-input');
