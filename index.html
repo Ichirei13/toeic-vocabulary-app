@@ -531,7 +531,8 @@ body {
 .cloze-sentence { font-size: clamp(16px, 5vw, 20px); font-weight: 600; line-height: 1.6; margin-bottom: 8px; word-break: break-word; }
 mark { background: rgba(201, 160, 92, 0.35); color: inherit; border-radius: 3px; padding: 0 2px; }
 .speak-btn { background: none; border: none; cursor: pointer; font-size: 0.7em; padding: 2px 6px; margin-left: 4px; vertical-align: middle; }
-.speak-row { margin-top: 6px; display: flex; gap: 8px; }
+.speak-row { margin-top: 8px; display: flex; justify-content: center; gap: 8px; }
+.speak-row .speak-btn { font-size: 14px; margin: 0; padding: 8px 14px; min-height: 36px; border: 1px solid rgba(0,0,0,0.15); border-radius: 18px; color: var(--ink); }
 .stat-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(201, 160, 92, 0.2); font-size: 14px; }
 .stat-label { color: var(--muted); flex-shrink: 0; }
 .stat-value { text-align: right; }
@@ -1935,14 +1936,15 @@ function speak(text) {
   window.speechSynthesis.speak(utterance);
 }
 
-function speakBtnHtml(text) {
+// label を渡すと「🔊 単語」のようにラベルを付ける（単語と例文が並ぶときに区別するため）
+function speakBtnHtml(text, label = '') {
   if (!speechAvailable() || !speechText(text)) return '';
-  return `<button type="button" class="speak-btn" data-speak="${escapeHtml(text)}" aria-label="発音を聞く">🔊</button>`;
+  return `<button type="button" class="speak-btn" data-speak="${escapeHtml(text)}" aria-label="発音を聞く">🔊${label ? ` ${label}` : ''}</button>`;
 }
 
 // 単語と例文の 🔊（回答後の例文欄とカードの裏面に置く）
 function speakRowHtml(word) {
-  return `<div class="speak-row">${speakBtnHtml(word.w)}${speakBtnHtml(word.e || '')}</div>`;
+  return `<div class="speak-row">${speakBtnHtml(word.w, '単語')}${speakBtnHtml(word.e || '', '例文')}</div>`;
 }
 
 // キャプチャ段階で受けて止める。カードの onclick が先に動いてめくれてしまわないようにする

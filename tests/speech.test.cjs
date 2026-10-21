@@ -61,6 +61,14 @@ test('回答後の例文欄に単語と例文の 🔊 が出て、例文は日�
   assert.deepEqual(await spoken(page), [`${expected}|en-US`]);
 }));
 
+test('回答後の 🔊 は「単語」「例文」のラベル付きで、タップしやすい大きさ', () => withApp({ init: STUB }, async page => {
+  await page.click('#dont-know-btn');
+  const buttons = page.locator('#example-box .speak-btn');
+  assert.deepEqual(await buttons.allTextContents(), ['🔊 単語', '🔊 例文']);
+  const box = await buttons.first().boundingBox();
+  assert.ok(box.height >= 32, `height ${box.height}`);
+}));
+
 for (const mode of ['j2e', 'type']) {
   test(`${mode}: 回答前は答えが分かる 🔊 を出さず、回答後に出る`, () => withApp({ init: STUB }, async page => {
     await page.click(`[data-mode="${mode}"]`);

@@ -72,3 +72,32 @@ test('dailyLog ありのファイルを復元すると、state.dailyLog がフ�
   assert.deepEqual(r.mem, { '2026-10-01': { v: [4, 3], g: [2, 2] } });
   assert.deepEqual(r.saved, r.mem);
 }));
+
+test('通し: 回答→書き出し→全消去→復元で、学習ログ・穴埋めの苦手・文法の苦手が戻る', () => withApp({ time: TIME }, async page => {
+  await page.click('[data-mode="cloze"]');
+  const wrong = await page.evaluate(() => state.currentOptions.findIndex(o => o.w !== state.pool[state.currentIndex].w));
+  await page.locator('#choices-container .choice-btn').nth(wrong).click();
+  await page.click('[data-app="grammar"]');
+  await page.click('#dont-know-btn');
+  const r = await page.evaluate(() => {
+    const snapshot = () => ({
+      log: JSON.parse(JSON.stringify(state.dailyLog)),
+      cloze: Object.keys(state.weakByMode.cloze),
+      grammar: Object.keys(state.grammarWeakData),
+    });
+    const before = snapshot();
+    const text = JSON.stringify(buildBackup());
+    localStorage.clear();
+    reloadRecordsFromStorage();
+    const emptied = snapshot();
+    backupView = { step: 'confirm', pending: parseBackup(text) };
+    runRestore();
+    return { before, emptied, after: snapshot() };
+  });
+  assert.deepEqual(r.emptied, { log: {}, cloze: [], grammar: [] });
+  assert.equal(r.before.cloze.length, 1);
+  assert.equal(r.before.grammar.length, 1);
+  assert.deepEqual(r.before.log['2026-10-21'].v, [1, 0]);
+  assert.deepEqual(r.after, r.before);
+  assert.deepEqual(page.errors, []);
+}));
