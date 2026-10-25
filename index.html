@@ -754,6 +754,37 @@ body {
   margin-right: 6px;
   color: var(--gold);
 }
+.choice-key {
+  display: none;
+}
+@media (min-width: 600px), (hover: hover) and (pointer: fine) {
+  .choice-key {
+    display: inline-block;
+    min-width: 18px;
+    height: 18px;
+    line-height: 16px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--gold);
+    background: rgba(201, 160, 92, 0.12);
+    border: 1px solid rgba(201, 160, 92, 0.35);
+    border-radius: 4px;
+    margin-right: 8px;
+    vertical-align: middle;
+    box-sizing: border-box;
+  }
+  .choice-btn.correct .choice-key,
+  .choice-btn.wrong .choice-key {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+  }
+  .choices.compact .choice-key {
+    display: none;
+  }
+}
 
 </style>
 </head>
@@ -1402,7 +1433,7 @@ function renderCurrentGrammar() {
   ex.c.forEach((choice, idx) => {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
-    btn.innerHTML = `<span class="choice-label">${labels[idx]}</span><span class="choice-text">${choice}</span>`;
+    btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-label">${labels[idx]}</span><span class="choice-text">${choice}</span>`;
     btn.onclick = () => handleGrammarAnswer(idx, btn);
     choicesDiv.appendChild(btn);
   });
@@ -1847,10 +1878,10 @@ function renderCurrent() {
     const options = buildOptions(word);
     state.currentOptions = options;
 
-    options.forEach(opt => {
+    options.forEach((opt, idx) => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
-      btn.innerText = state.mode === 'e2j' ? opt.m : opt.w;
+      btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-text">${state.mode === 'e2j' ? opt.m : opt.w}</span>`;
       btn.onclick = () => handleAnswer(opt, btn);
       choicesDiv.appendChild(btn);
     });
@@ -3192,7 +3223,7 @@ function showToast(message) {
 }
 
 // ==================== キーボード操作（PC 向け） ====================
-// 1〜4: 選択肢 / 0: わからない / Enter・スペース: 次へ
+// 1〜4 (テンキー・全角・A〜D): 選択肢 / 0: わからない / Enter・スペース: 次へ
 // カードモード: スペース: めくる / Enter: めくる・覚えた / 1・←: まだ / 2・→: 覚えた
 // Esc: 下から出るシートを閉じる
 
@@ -3201,12 +3232,15 @@ function isShown(el) {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  // 修飾キー（Command, Ctrl, Alt）が押されている時はブラウザ操作を優先
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
   if (document.getElementById('bottom-sheet').classList.contains('open')) {
     if (e.key === 'Escape') closeSheet();
     return;
   }
   const t = e.target;
+  // テキスト入力中はキーボードショートカットを発火させない
   if ((t.tagName === 'INPUT' && !t.disabled) || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
 
   const dk = document.getElementById('dont-know-btn');
@@ -3216,20 +3250,45 @@ document.addEventListener('keydown', e => {
     btn.click();
   };
 
+  // 全角数字やテンキー対応のための正規化
+  const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '０': '0' };
+  const rawKey = fullToHalf[e.key] || e.key;
+
+  // 単語カードモード
   if (state.app === 'vocab' && state.mode === 'flash' && document.getElementById('flash-card')) {
-    if (e.key === ' ') return press(document.getElementById('flash-card'));
-    if ((e.key === '1' || e.key === 'ArrowLeft') && isShown(dk)) return press(dk);
-    if ((e.key === '2' || e.key === 'ArrowRight' || e.key === 'Enter') && isShown(nextBtn)) return press(nextBtn);
+    if (rawKey === ' ' || e.code === 'Space') return press(document.getElementById('flash-card'));
+    if ((rawKey === '1' || e.code === 'Digit1' || e.code === 'Numpad1' || e.key === 'ArrowLeft') && isShown(dk)) return press(dk);
+    if ((rawKey === '2' || e.code === 'Digit2' || e.code === 'Numpad2' || e.key === 'ArrowRight' || e.key === 'Enter') && isShown(nextBtn)) return press(nextBtn);
     return;
   }
 
-  if (/^[1-4]$/.test(e.key)) {
-    // 回答前（わからないボタンが出ている間）だけ選択肢を選べる
-    const btn = document.querySelectorAll('#choices-container .choice-btn')[Number(e.key) - 1];
-    if (btn && isShown(dk)) press(btn);
-  } else if (e.key === '0' && isShown(dk)) {
-    press(dk);
-  } else if ((e.key === 'Enter' || e.key === ' ') && isShown(nextBtn)) {
+  // 選択肢インデックス判定（1〜4, テンキー1〜4, A〜Dキー）
+  let choiceIdx = -1;
+  if (/^[1-4]$/.test(rawKey)) {
+    choiceIdx = Number(rawKey) - 1;
+  } else if (/^Digit[1-4]$/.test(e.code)) {
+    choiceIdx = Number(e.code.replace('Digit', '')) - 1;
+  } else if (/^Numpad[1-4]$/.test(e.code)) {
+    choiceIdx = Number(e.code.replace('Numpad', '')) - 1;
+  } else if (/^[a-dA-D]$/.test(rawKey)) {
+    const map = { a: 0, b: 1, c: 2, d: 3, A: 0, B: 1, C: 2, D: 3 };
+    choiceIdx = map[rawKey];
+  }
+
+  // 回答前かどうか判定（内部フラグまたは「わからない」ボタンの表示）
+  const isAnswering = state.app === 'grammar'
+    ? !state.grammarAnswered
+    : (!state.answered && (state.mode === 'e2j' || state.mode === 'j2e'));
+
+  if (choiceIdx >= 0) {
+    const buttons = document.querySelectorAll('#choices-container .choice-btn');
+    const btn = buttons[choiceIdx];
+    if (btn && (isAnswering || isShown(dk))) {
+      press(btn);
+    }
+  } else if ((rawKey === '0' || e.code === 'Digit0' || e.code === 'Numpad0') && (isAnswering || isShown(dk))) {
+    if (isShown(dk)) press(dk);
+  } else if ((e.key === 'Enter' || rawKey === ' ' || e.code === 'Space') && isShown(nextBtn)) {
     press(nextBtn);
   }
 });
