@@ -226,6 +226,37 @@ body {
   color: var(--ink);
   margin-bottom: 8px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pos-tag[hidden] { display: none !important; }
+.item-stat-inline {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.item-stat-badge {
+  background: rgba(0,0,0,0.06);
+  color: var(--muted);
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  margin-left: auto;
+}
+.backup-paste-area {
+  width: 100%;
+  min-height: 72px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.2);
+  background: rgba(255,255,255,0.7);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 11px;
+  box-sizing: border-box;
 }
 .meaning-display {
   font-size: clamp(16px, 5vw, 20px);
@@ -804,11 +835,12 @@ body {
       <span id="score-text">正答 0 / 0</span>
       <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
       <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
+      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleDataManager()">データ管理</span>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
   </div>
 
-  <div class="sheet-overlay" id="sheet-overlay" onclick="toggleWeakList()"></div>
+  <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
   <div class="bottom-sheet" id="bottom-sheet">
     <button class="sheet-close" onclick="closeSheet()" aria-label="閉じる">✕</button>
     <h2 style="margin-top:0;" id="sheet-title">苦手リスト</h2>
@@ -925,6 +957,53 @@ const SEEN_WORDS_KEY = 'toeic_seen_words_by_mode';
 const LEGACY_WEAK_WORDS_KEY = 'toeic_weak_words';
 const LEGACY_SEEN_WORDS_KEY = 'toeic_seen_words';
 
+// 問題ごとの正誤カウント { [key]: { a: 解答数, c: 正解数 } }
+const WORD_STATS_KEY = 'toeic_word_stats';
+const GRAMMAR_STATS_KEY = 'toeic_grammar_stats';
+
+function loadStatsData(key) {
+  const data = loadJSON(key, {});
+  Object.keys(data).forEach(k => {
+    const e = data[k];
+    if (!e || typeof e !== 'object' || !Number.isFinite(e.a) || e.a <= 0) {
+      delete data[k];
+    } else {
+      const a = Math.max(1, Math.floor(e.a));
+      const c = Math.min(a, Math.max(0, Math.floor(Number(e.c) || 0)));
+      data[k] = { a, c };
+    }
+  });
+  return data;
+}
+
+function recordItemStat(store, storageKey, itemKey, isCorrect) {
+  const k = String(itemKey);
+  const cur = store[k] || { a: 0, c: 0 };
+  store[k] = { a: cur.a + 1, c: cur.c + (isCorrect ? 1 : 0) };
+  saveJSON(storageKey, store);
+}
+
+function statLabelText(stat) {
+  if (!stat || !stat.a) return '';
+  return `過去 ${stat.c}/${stat.a} 正解`;
+}
+
+function summarizeStats(statsObj) {
+  let totalA = 0;
+  let totalC = 0;
+  let items = 0;
+  if (statsObj && typeof statsObj === 'object') {
+    Object.values(statsObj).forEach(st => {
+      if (st && st.a > 0) {
+        totalA += st.a;
+        totalC += st.c;
+        items++;
+      }
+    });
+  }
+  return { totalA, totalC, items, rate: totalA > 0 ? Math.round((totalC / totalA) * 100) : 0 };
+}
+
 // どのモードで間違えたか分からない記録は、4モード全部に（復習日と段階もそのまま）写す
 function copyToAllModes(value) {
   return Object.fromEntries(VOCAB_MODES.map(m => [m, JSON.parse(JSON.stringify(value))]));
@@ -1000,6 +1079,7 @@ let state = {
   answeredCount: 0,
   weakByMode: loadWeakByMode(), // { e2j: {綴り: 苦手1件}, … }
   seenByMode: loadSeenByMode(), // { e2j: Set(綴り), … }
+  wordStats: loadStatsData(WORD_STATS_KEY),
   currentOptions: [],
   answered: false,
 
@@ -1014,6 +1094,7 @@ let state = {
   grammarScore: 0,
   grammarAnsweredCount: 0,
   grammarWeakData: loadWeakData('toeic_weak_grammar', isGrammarKey),
+  grammarStats: loadStatsData(GRAMMAR_STATS_KEY),
   grammarAnswered: false,
 
   weakSort: 'new', // 苦手リストの並び順
@@ -1287,11 +1368,15 @@ function renderCurrentGrammar() {
     </details>
   ` : '';
 
+  const gStat = state.grammarStats[String(ex.id)];
+  const gStatHtml = `<span id="grammar-stat-badge" class="item-stat-badge"${gStat && gStat.a ? '' : ' hidden'}>${statLabelText(gStat)}</span>`;
+
   container.innerHTML = `
     <div class="card grammar-card" id="main-card">
-      <div class="grammar-meta">
+      <div class="grammar-meta" style="width:100%;">
         <span class="grammar-badge">Part 5</span>
         ${bookBadgeHtml}
+        ${gStatHtml}
       </div>
       <div class="grammar-question">${formattedQ}</div>
       <div class="grammar-exp-container" id="grammar-exp-box" style="display:none;">
@@ -1379,8 +1464,22 @@ function revealGrammarAnswer(ex) {
 
 function recordWeakGrammar(ex, isCorrect) {
   state.grammarAnsweredCount++;
+  recordItemStat(state.grammarStats, GRAMMAR_STATS_KEY, ex.id, isCorrect);
+  const badge = document.getElementById('grammar-stat-badge');
+  if (badge) {
+    badge.textContent = statLabelText(state.grammarStats[String(ex.id)]);
+    badge.hidden = false;
+  }
   updateWeakEntry(state.grammarWeakData, ex.id, isCorrect);
   saveGrammarWeakData();
+}
+
+function obsidianSyncBarHtml() {
+  return `
+    <div class="filter-row" style="flex-wrap:wrap;margin-bottom:8px;">
+      <button class="chip" data-obsidian-export="1">📤 Obsidianへ苦手出力</button>
+      <button class="chip" data-obsidian-import="1">📥 Obsidianから同期読込</button>
+    </div>`;
 }
 
 function renderGrammarWeakList() {
@@ -1390,19 +1489,21 @@ function renderGrammarWeakList() {
     .filter(x => x.ex);
   document.getElementById('sheet-title').innerText = `苦手リスト（${items.length}）`;
   if (items.length === 0) {
-    container.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;">文法の苦手問題はありません</div>';
+    container.innerHTML = obsidianSyncBarHtml() + '<div style="color:var(--muted);text-align:center;padding:20px;">文法の苦手問題はありません</div>';
     return;
   }
   const bookOrder = ex => (ex.b === 'kin' ? 0 : 1);
   sortWeakItems(items, (a, b) => bookOrder(a.ex) - bookOrder(b.ex) || a.ex.ch - b.ex.ch || a.ex.id - b.ex.id);
 
-  let html = weakListHeader(items, '本・章順');
+  let html = obsidianSyncBarHtml() + weakListHeader(items, '本・章順');
   items.forEach(({ key, entry, ex }) => {
+    const stText = statLabelText(state.grammarStats[String(ex.id)]);
     html += `
       <div class="weak-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
           <span style="font-size:11px;color:var(--muted);font-weight:bold;">
             ${ex.b === 'kin' ? '<span style="color:#b45309;">👑 金の文法</span>' : '<span style="color:#1d4ed8;">📖 世界一</span>'} 第${ex.ch}章 ${ex.ch_title}
+            ${stText ? `<span style="margin-left:6px;font-weight:normal;">（${stText}）</span>` : ''}
           </span>
           <button class="del-btn" data-remove-weak="${key}">削除</button>
         </div>
@@ -1673,10 +1774,14 @@ function shakeCard() {
   setTimeout(() => card.classList.remove('shake'), 400);
 }
 
-// 品詞は答えの推測材料になるので回答前は隠す。No.しか無いときは品詞の枠ごと隠す
+// 品詞は答えの推測材料になるので回答前は隠す。No.や正誤履歴しか無いときは品詞だけ隠し、すべて無ければ枠ごと隠す
 function posTagHtml(word, showPos) {
-  const no = word.no ? `<span style="font-weight:700;margin-right:6px;color:var(--gold);">No.${word.no}</span>` : '';
-  return `<div class="pos-tag" id="pos-tag"${!no && !showPos ? ' hidden' : ''}>${no}<span id="pos-text"${showPos ? '' : ' hidden'}>${word.p}</span></div>`;
+  const no = word.no ? `<span style="font-weight:700;color:var(--gold);">No.${word.no}</span>` : '';
+  const st = state.wordStats[word.w];
+  const stText = statLabelText(st);
+  const statHtml = `<span id="item-stat-text" class="item-stat-inline"${stText ? '' : ' hidden'}>${stText}</span>`;
+  const hasVisible = Boolean(no || showPos || stText);
+  return `<div class="pos-tag" id="pos-tag"${hasVisible ? '' : ' hidden'}>${no}<span id="pos-text"${showPos ? '' : ' hidden'}>${word.p}</span>${statHtml}</div>`;
 }
 
 function revealPos() {
@@ -1912,6 +2017,14 @@ function revealTypeAnswer(word, isCorrect, typed) {
 
 function recordWeak(word, isCorrect) {
   state.answeredCount++;
+  recordItemStat(state.wordStats, WORD_STATS_KEY, word.w, isCorrect);
+  const statEl = document.getElementById('item-stat-text');
+  const tagEl = document.getElementById('pos-tag');
+  if (statEl) {
+    statEl.textContent = statLabelText(state.wordStats[word.w]);
+    statEl.hidden = false;
+  }
+  if (tagEl) tagEl.hidden = false;
   updateWeakEntry(wordWeak(), word.w, isCorrect);
   if (!wordSeen().has(word.w)) {
     wordSeen().add(word.w);
@@ -2056,8 +2169,14 @@ function toggleWeakList() {
 }
 
 function toggleRuleGuide() {
-  if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
+  if (isSheetOpen() && activeSheetRender === renderRuleGuide) return closeSheet();
   openSheet('金の文法 章ガイド', renderRuleGuide);
+}
+
+function toggleDataManager() {
+  if (isSheetOpen() && activeSheetRender === renderBackupSheet) return closeSheet();
+  backupView = { step: 'home' };
+  openSheet('学習記録のバックアップ', renderBackupSheet);
 }
 
 // ==================== 金のルール・章ガイド ====================
@@ -2208,7 +2327,71 @@ document.getElementById('weak-list-content').addEventListener('click', e => {
   }
   const delBtn = e.target.closest('[data-remove-weak]');
   if (delBtn) removeWeak(delBtn.dataset.removeWeak);
+  if (e.target.closest('[data-obsidian-export]')) exportObsidianGrammarSync();
+  if (e.target.closest('[data-obsidian-import]')) importObsidianGrammarSync();
 });
+
+function exportObsidianGrammarSync() {
+  const payload = {
+    app: 'toeic_practice',
+    exportedAt: new Date().toISOString(),
+    weak: state.grammarWeakData
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'obsidian_grammar_sync.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function applyObsidianSyncPayload(data) {
+  const weakObj = (data && typeof data.weak === 'object' && data.weak) ? data.weak : data;
+  const masteredList = (data && Array.isArray(data.mastered)) ? data.mastered : [];
+  if (!weakObj || typeof weakObj !== 'object') return;
+  Object.entries(weakObj).forEach(([k, v]) => {
+    if (!/^\d+$/.test(k) || !v || typeof v !== 'object') return;
+    state.grammarWeakData[k] = {
+      streak: Number(v.streak) || 0,
+      added: Number(v.added) || Date.now(),
+      due: Number(v.due) || Date.now()
+    };
+  });
+  masteredList.forEach(id => {
+    delete state.grammarWeakData[String(id)];
+  });
+  saveGrammarWeakData();
+  renderGrammarWeakList();
+}
+
+async function importObsidianGrammarSync() {
+  try {
+    const res = await fetch('data/obsidian_grammar_sync.json?t=' + Date.now());
+    if (res.ok) {
+      const data = await res.json();
+      applyObsidianSyncPayload(data);
+      return;
+    }
+  } catch (e) {}
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json,application/json';
+  inp.onchange = ev => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = re => {
+      try {
+        applyObsidianSyncPayload(JSON.parse(re.target.result));
+      } catch (err) {}
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
 
 // ==================== 苦手リスト ====================
 
@@ -2263,10 +2446,11 @@ function renderWordWeakList() {
 
   html += weakListHeader(items, 'ABC順');
   items.forEach(({ key, entry, word }) => {
+    const stText = statLabelText(state.wordStats[key]);
     html += `
       <div class="weak-item">
         <div>
-          <div class="weak-word">${escapeHtml(word.w)}</div>
+          <div class="weak-word">${escapeHtml(word.w)}${stText ? ` <span style="font-family:sans-serif;font-size:11px;font-weight:normal;color:var(--muted);">（${stText}）</span>` : ''}</div>
           <div class="weak-meaning">${escapeHtml(word.m)}</div>
           ${dueLabel(entry)}
         </div>
@@ -2293,8 +2477,8 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと
-const BACKUP_FORMAT = 2;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む
+const BACKUP_FORMAT = 3;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。
@@ -2317,6 +2501,18 @@ const BACKUP_MIGRATIONS = {
     }
     return { ...backup, format: 2, invalidBeforeMigration: invalid, data: { ...d, weakWords, seenWords } };
   },
+  2: backup => {
+    const d = backup.data;
+    return {
+      ...backup,
+      format: 3,
+      data: isPlainObject(d) ? {
+        ...d,
+        wordStats: isPlainObject(d.wordStats) ? d.wordStats : {},
+        grammarStats: isPlainObject(d.grammarStats) ? d.grammarStats : {},
+      } : d
+    };
+  },
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // ファイルの中の名前 → この端末の保存先
@@ -2324,6 +2520,8 @@ const RECORD_KEYS = {
   weakWords: WEAK_WORDS_KEY,
   weakGrammar: 'toeic_weak_grammar',
   seenWords: SEEN_WORDS_KEY,
+  wordStats: WORD_STATS_KEY,
+  grammarStats: GRAMMAR_STATS_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
 };
@@ -2333,7 +2531,7 @@ const BACKUP_META_KEY = 'toeic_backup_meta';     // 最後に書き出した日�
 const RESTORE_STAMP_KEY = 'toeic_restore_stamp'; // 復元したことを別のタブに知らせる
 const NOTICE_KEY = 'toeic_notice';               // 読み込み直したあとに出すお知らせ（sessionStorage）
 
-let backupView = { step: 'home' }; // home / confirm（復元の確認）/ undo（取り消しの確認）
+let backupView = { step: 'home', restoreMode: 'merge' }; // home / confirm（復元の確認）/ undo（取り消しの確認）
 
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -2357,6 +2555,8 @@ function buildBackup() {
       weakWords: state.weakByMode,
       weakGrammar: state.grammarWeakData,
       seenWords: seenSnapshot(),
+      wordStats: state.wordStats,
+      grammarStats: state.grammarStats,
       settings: settingsSnapshot(),
       session: sessionSnapshot(),
     },
@@ -2424,6 +2624,23 @@ function clampImportedTimes(data) {
   return data;
 }
 
+function sanitizeStatsMap(raw) {
+  const data = {};
+  let invalid = 0;
+  if (!isPlainObject(raw)) return { data, invalid: 0 };
+  Object.keys(raw).forEach(k => {
+    const e = raw[k];
+    if (e && typeof e === 'object' && Number.isFinite(Number(e.a)) && Number(e.a) > 0) {
+      const a = Math.max(1, Math.floor(Number(e.a)));
+      const c = Math.min(a, Math.max(0, Math.floor(Number(e.c) || 0)));
+      data[String(k)] = { a, c };
+    } else {
+      invalid++;
+    }
+  });
+  return { data, invalid };
+}
+
 // バックアップの中身を確かめ、復元に使う記録と確認画面に出す件数を返す。全体の形が違えばファイルごと断る
 function parseBackup(text) {
   let backup;
@@ -2432,7 +2649,29 @@ function parseBackup(text) {
   } catch (e) {
     return fail('JSON として読めないファイルです。');
   }
-  if (!isPlainObject(backup) || backup.app !== BACKUP_APP_ID) return fail('TOEIC Drill のバックアップファイルではありません。');
+  if (!isPlainObject(backup) || (backup.app !== BACKUP_APP_ID && backup.app !== 'toeic_practice_backup')) {
+    return fail('TOEIC Drill のバックアップファイルではありません。');
+  }
+
+  // 独自形式や互換形式の変換
+  if (backup.app === 'toeic_practice_backup') {
+    const rawData = backup.data || {};
+    backup = {
+      app: BACKUP_APP_ID,
+      format: BACKUP_FORMAT,
+      exportedAt: backup.exportedAt || new Date().toISOString(),
+      data: {
+        weakWords: isPlainObject(rawData.weakWords) ? copyToAllModes(rawData.weakWords) : {},
+        weakGrammar: rawData.weakGrammar || {},
+        seenWords: Array.isArray(rawData.seenWords) ? copyToAllModes(rawData.seenWords) : {},
+        wordStats: rawData.wordStats || {},
+        grammarStats: rawData.grammarStats || {},
+        settings: rawData.settings,
+        session: rawData.session,
+      }
+    };
+  }
+
   if (!Number.isInteger(backup.format) || backup.format < 1) return fail('ファイル形式の版が読み取れません。');
   if (backup.format > BACKUP_FORMAT) {
     return fail('新しいバージョンのアプリで書き出したファイルです。アプリを最新にしてから読み込んでください。');
@@ -2456,6 +2695,8 @@ function parseBackup(text) {
   const words = sanitizeWeakByMode(d.weakWords);
   const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
   const seen = sanitizeSeenByMode(d.seenWords);
+  const wordStats = sanitizeStatsMap(d.wordStats);
+  const grammarStats = sanitizeStatsMap(d.grammarStats);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -2468,10 +2709,12 @@ function parseBackup(text) {
       weakWords: Object.fromEntries(VOCAB_MODES.map(m => [m, clampImportedTimes(words.data[m])])),
       weakGrammar: clampImportedTimes(grammar.data),
       seenWords: seen.data,
+      wordStats: wordStats.data,
+      grammarStats: grammarStats.data,
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + invalidBeforeMigration,
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
@@ -2535,6 +2778,8 @@ function reloadRecordsFromStorage() {
   state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
   state.seenByMode = loadSeenByMode();
+  state.wordStats = loadStatsData(WORD_STATS_KEY);
+  state.grammarStats = loadStatsData(GRAMMAR_STATS_KEY);
   restoreSettings();
   syncFilterUI();
   setApp(state.app);
@@ -2547,26 +2792,99 @@ function reloadRecordsFromStorage() {
   }
 }
 
+function mergeWeakByMode(cur, inc) {
+  const out = {};
+  VOCAB_MODES.forEach(m => {
+    out[m] = { ...(cur[m] || {}) };
+    Object.entries(inc[m] || {}).forEach(([k, entry]) => {
+      const c = out[m][k];
+      if (!c) {
+        out[m][k] = entry;
+      } else if (entry.streak > c.streak || (entry.streak === c.streak && entry.due > c.due)) {
+        out[m][k] = entry;
+      }
+    });
+  });
+  return out;
+}
+
+function mergeSeenByMode(cur, inc) {
+  const out = {};
+  VOCAB_MODES.forEach(m => {
+    const curList = cur[m] ? [...cur[m]] : [];
+    const incList = inc[m] || [];
+    out[m] = [...new Set([...curList, ...incList])];
+  });
+  return out;
+}
+
+function mergeStatsMap(cur, inc) {
+  const out = { ...(cur || {}) };
+  Object.entries(inc || {}).forEach(([k, st]) => {
+    const c = out[k];
+    if (!c || st.a > c.a || (st.a === c.a && st.c > c.c)) {
+      out[k] = { a: st.a, c: st.c };
+    }
+  });
+  return out;
+}
+
 function runRestore() {
   const pending = backupView.pending;
   if (!pending) return;
   const preExport = document.getElementById('backup-pre-export');
   if (preExport && preExport.checked) downloadBackup();
 
+  const isOverwrite = backupView.restoreMode === 'overwrite';
+  let targetRecords;
+
+  if (isOverwrite) {
+    targetRecords = pending.records;
+  } else {
+    // 統合モード: 既存の記録とファイルの内容を合わせる
+    const curWeakByMode = state.weakByMode;
+    const curSeenByMode = seenSnapshot();
+    const curWeakGrammar = state.grammarWeakData;
+    const curWordStats = state.wordStats;
+    const curGrammarStats = state.grammarStats;
+
+    const mergedWeakWords = mergeWeakByMode(curWeakByMode, pending.records.weakWords || {});
+    const mergedSeenWords = mergeSeenByMode(curSeenByMode, pending.records.seenWords || {});
+    const mergedWeakGrammar = { ...curWeakGrammar };
+    Object.entries(pending.records.weakGrammar || {}).forEach(([k, inc]) => {
+      const cur = mergedWeakGrammar[k];
+      if (!cur || inc.streak > cur.streak || (inc.streak === cur.streak && inc.due > cur.due)) {
+        mergedWeakGrammar[k] = inc;
+      }
+    });
+    const mergedWordStats = mergeStatsMap(curWordStats, pending.records.wordStats || {});
+    const mergedGrammarStats = mergeStatsMap(curGrammarStats, pending.records.grammarStats || {});
+
+    targetRecords = {
+      ...pending.records,
+      weakWords: mergedWeakWords,
+      weakGrammar: mergedWeakGrammar,
+      seenWords: mergedSeenWords,
+      wordStats: mergedWordStats,
+      grammarStats: mergedGrammarStats,
+      settings: pending.records.settings || loadJSON(SETTINGS_KEY, {}),
+      session: pending.records.session || loadJSON(SESSION_KEY, {}),
+    };
+  }
+
   const rawByKey = {};
   Object.entries(RECORD_KEYS).forEach(([name, key]) => {
-    // ファイルに無い設定・出題の続きは今のまま
-    if (pending.records[name] !== undefined) rawByKey[key] = JSON.stringify(pending.records[name]);
+    if (targetRecords[name] !== undefined) rawByKey[key] = JSON.stringify(targetRecords[name]);
   });
   try {
-    replaceRecords(rawByKey, true, '復元');
+    replaceRecords(rawByKey, true, isOverwrite ? '上書き復元' : '統合復元');
   } catch (e) {
     backupView = { step: 'home', error: e.message };
     renderBackupSheet();
     return;
   }
   reloadRecordsFromStorage();
-  backupView = { step: 'home', success: 'バックアップから復元しました。' };
+  backupView = { step: 'home', success: isOverwrite ? 'バックアップから上書き復元しました。' : 'バックアップデータを統合して復元しました。' };
   renderBackupSheet();
 }
 
@@ -2617,6 +2935,8 @@ function currentCounts() {
     wordsDue: Object.fromEntries(VOCAB_MODES.map(m => [m, dueCount(state.weakByMode[m])])),
     grammar: Object.keys(state.grammarWeakData).length,
     grammarDue: dueCount(state.grammarWeakData),
+    wordStats: summarizeStats(state.wordStats),
+    grammarStats: summarizeStats(state.grammarStats),
   };
 }
 
@@ -2632,9 +2952,13 @@ function countsFromRaw(records) {
   const words = parse(records[RECORD_KEYS.weakWords]);
   const grammar = parse(records[RECORD_KEYS.weakGrammar]);
   const seen = parse(records[RECORD_KEYS.seenWords]);
+  const wordStats = parse(records[RECORD_KEYS.wordStats]);
+  const grammarStats = parse(records[RECORD_KEYS.grammarStats]);
   return {
     ...wordCounts(isPlainObject(words) ? words : {}, isPlainObject(seen) ? seen : {}),
     grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
+    wordStats: summarizeStats(isPlainObject(wordStats) ? wordStats : {}),
+    grammarStats: summarizeStats(isPlainObject(grammarStats) ? grammarStats : {}),
   };
 }
 
@@ -2645,6 +2969,8 @@ function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${left.words[m]}件</td><td>${right.words[m]}件</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${left.grammar}件</td><td>${right.grammar}件</td></tr>
       <tr><td>学習済みの単語</td><td>${left.seen}語</td><td>${right.seen}語</td></tr>
+      <tr><td>単語 累計解答数</td><td>${left.wordStats ? `${left.wordStats.totalA}問 (${left.wordStats.rate}%)` : '—'}</td><td>${right.wordStats ? `${right.wordStats.totalA}問 (${right.wordStats.rate}%)` : '—'}</td></tr>
+      <tr><td>文法 累計解答数</td><td>${left.grammarStats ? `${left.grammarStats.totalA}問 (${left.grammarStats.rate}%)` : '—'}</td><td>${right.grammarStats ? `${right.grammarStats.totalA}問 (${right.grammarStats.rate}%)` : '—'}</td></tr>
       ${extraRows}
     </table>`;
 }
@@ -2656,7 +2982,11 @@ function backupHomeHtml(v) {
   return `
     ${v.success ? `<div class="backup-msg ok">${escapeHtml(v.success)}</div>` : ''}
     ${v.error ? `<div class="backup-msg ng">${escapeHtml(v.error)}</div>` : ''}
-    <div class="guide-label">この端末の学習記録</div>
+    <div class="guide-label">この端末の学習記録・通算成績</div>
+    <div style="background:rgba(255,255,255,0.4);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6;">
+      📘 <strong>単語ドリル通算:</strong> ${c.wordStats.totalA.toLocaleString()}問解答（正答率 ${c.wordStats.rate}%・学習済み ${c.seen}語）<br>
+      👑 <strong>文法ドリル通算:</strong> ${c.grammarStats.totalA.toLocaleString()}問解答（正答率 ${c.grammarStats.rate}%・苦手 ${c.grammar}問）
+    </div>
     <table class="backup-table">
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${c.words[m]}件（要復習 ${c.wordsDue[m]}件）</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${c.grammar}件（要復習 ${c.grammarDue}件）</td></tr>
@@ -2664,21 +2994,26 @@ function backupHomeHtml(v) {
     </table>
     <div class="backup-note">最後に書き出した日時: ${Number.isFinite(meta.lastExportAt) ? formatDateTime(meta.lastExportAt) : 'まだ書き出していません'}</div>
     <div class="backup-actions">
-      <button class="backup-btn primary" data-backup="export">バックアップを書き出す</button>
+      <button class="backup-btn primary" data-backup="export">💾 バックアップを書き出す</button>
+      <button class="backup-btn" data-backup="copy">📋 クリップボードにコピー</button>
       ${canShareBackup() ? '<button class="backup-btn" data-backup="share">共有して保存・送る</button>' : ''}
-      <button class="backup-btn" data-backup="pick">ファイルから復元…</button>
+      <button class="backup-btn" data-backup="pick">📂 ファイルから復元…</button>
     </div>
     <!-- accept で絞ると iPhone で .json が選べないことがあるので絞らず、読み込んでから確かめる -->
     <input type="file" id="backup-file" hidden>
+    <div style="margin-top:14px;border-top:1px dashed rgba(0,0,0,0.15);padding-top:10px;">
+      <div class="guide-label">テキストを貼り付けて復元・引き継ぎ</div>
+      <textarea id="backup-paste-input" class="backup-paste-area" placeholder="ここにバックアップJSONテキストを貼り付けて復元できます"></textarea>
+      <button class="backup-btn small" data-backup="paste-confirm" style="width:100%;text-align:center;">📥 貼り付けたテキストから復元…</button>
+    </div>
     ${undo ? `
-      <div class="backup-undo">
+      <div class="backup-undo" style="margin-top:14px;">
         ${formatDateTime(undo.savedAt)} の復元より前の記録を残しています。
         <button class="backup-btn small" data-backup="undo">直前の復元を取り消す</button>
       </div>` : ''}
-    <div class="backup-help">
-      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・設定・出題の続きを1つのファイルに保存します。
-      学習済みの単語は、どれかのモードで答えた単語の数です。
-      別の端末やブラウザで「ファイルから復元」すると、同じ記録で続けられます。
+    <div class="backup-help" style="margin-top:14px;">
+      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・通算の正誤カウント・設定・出題の続きを1つのファイルに保存します。
+      別の端末やブラウザで復元すると、同じ記録で続けられます（統合と上書きを選べます）。
       記録はこの端末の中にしか無いので、ときどき書き出しておくと安心です。
     </div>`;
 }
@@ -2692,19 +3027,37 @@ function backupConfirmHtml(v) {
     notes.push(`今の単語・問題データに無い記録（単語 ${p.unknownWords}件・問題 ${p.unknownGrammar}件）も、消さずに残します。`);
   }
   const fromFile = name => (r[name] === undefined ? 'なし（今のまま）' : 'あり');
-  const fileCounts = { ...wordCounts(r.weakWords, r.seenWords), grammar: Object.keys(r.weakGrammar).length };
+  const fileCounts = {
+    ...wordCounts(r.weakWords, r.seenWords),
+    grammar: Object.keys(r.weakGrammar).length,
+    wordStats: summarizeStats(r.wordStats),
+    grammarStats: summarizeStats(r.grammarStats),
+  };
+  const isOverwrite = v.restoreMode === 'overwrite';
   return `
-    <div class="guide-label">復元するファイル</div>
+    <div class="guide-label">復元するファイル・テキスト</div>
     <div class="backup-file-name">${escapeHtml(v.fileName)}</div>
     <div class="backup-note">書き出した日時: ${p.exportedAt ? formatDateTime(p.exportedAt) : '不明'}</div>
-    ${compareTable('今の記録', 'ファイル', currentCounts(), fileCounts,
+    ${compareTable('今の記録', 'ファイル・テキスト', currentCounts(), fileCounts,
       `<tr><td>設定</td><td>あり</td><td>${fromFile('settings')}</td></tr>
        <tr><td>出題の続き</td><td>あり</td><td>${fromFile('session')}</td></tr>`)}
     ${notes.length ? `<ul class="backup-notes">${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}
-    <div class="backup-msg warn">復元すると、この端末の学習記録はファイルの内容に置き換わります。</div>
+    
+    <div class="guide-label" style="margin-top:12px;">復元方法</div>
+    <div class="filter-row" style="flex-wrap:wrap;margin-bottom:6px;">
+      <button class="chip ${!isOverwrite ? 'active' : ''}" data-backup="mode-merge">今の記録に統合（おすすめ）</button>
+      <button class="chip ${isOverwrite ? 'active' : ''}" data-backup="mode-overwrite">上書きして置き換え</button>
+    </div>
+    <div class="backup-note" style="margin-bottom:10px;">
+      ${isOverwrite
+        ? '⚠️ この端末の記録はバックアップの内容に完全に入れ替わります。'
+        : '💡 苦手・学習済み・問題ごとの正誤カウントを両方合わせ、より進んでいる記録を残します。'}
+    </div>
+
+    <div class="backup-msg warn">${isOverwrite ? '復元すると、この端末の学習記録はバックアップの内容に置き換わります。' : '復元すると、バックアップのデータが現在の記録に合算・統合されます。'}</div>
     <label class="backup-check"><input type="checkbox" id="backup-pre-export" checked> 復元の前に、今の記録を書き出しておく</label>
     <div class="backup-actions">
-      <button class="backup-btn danger" data-backup="restore">復元する</button>
+      <button class="backup-btn danger" data-backup="restore">${isOverwrite ? '上書き復元する' : '統合して復元する'}</button>
       <button class="backup-btn" data-backup="cancel">やめる</button>
     </div>`;
 }
@@ -2746,7 +3099,7 @@ async function onBackupFileChosen(e) {
   if (!file) return;
   const result = await readBackupFile(file);
   backupView = result.ok
-    ? { step: 'confirm', pending: result, fileName: file.name }
+    ? { step: 'confirm', pending: result, fileName: file.name, restoreMode: 'merge' }
     : { step: 'home', error: result.error };
   refreshBackupSheet();
 }
@@ -2755,10 +3108,45 @@ function backupEntryHtml() {
   return '<button class="backup-open-btn" data-backup="open">💾 学習記録のバックアップ・復元</button>';
 }
 
+async function copyBackup() {
+  const json = JSON.stringify(buildBackup(), null, 2);
+  try {
+    await navigator.clipboard.writeText(json);
+    markExported();
+    backupView = { ...backupView, success: 'バックアップのJSONテキストをクリップボードにコピーしました。' };
+  } catch (e) {
+    const area = document.getElementById('backup-paste-input');
+    if (area) {
+      area.value = json;
+      area.focus();
+      area.select();
+      markExported();
+      backupView = { ...backupView, success: '下のテキスト欄にバックアップ内容を出力しました。コピーしてご利用ください。' };
+    } else {
+      backupView = { ...backupView, error: 'クリップボードにコピーできませんでした。' };
+    }
+  }
+  refreshBackupSheet();
+}
+
+function onBackupPasteConfirm() {
+  const area = document.getElementById('backup-paste-input');
+  const text = area ? area.value.trim() : '';
+  if (!text) {
+    backupView = { ...backupView, error: 'テキスト欄にバックアップJSONを貼り付けてください。' };
+    return refreshBackupSheet();
+  }
+  const result = parseBackup(text);
+  backupView = result.ok
+    ? { step: 'confirm', pending: result, fileName: '貼り付けたテキスト', restoreMode: 'merge' }
+    : { step: 'home', error: result.error };
+  refreshBackupSheet();
+}
+
 function handleBackupAction(action) {
   switch (action) {
     case 'open':
-      backupView = { step: 'home' };
+      backupView = { step: 'home', restoreMode: 'merge' };
       return openSheet('学習記録のバックアップ', renderBackupSheet);
     case 'back':
       return openSheet('苦手リスト', renderWeakList);
@@ -2766,10 +3154,20 @@ function handleBackupAction(action) {
       downloadBackup();
       backupView = { step: 'home', success: '書き出しました。ダウンロードしたファイル（iPhone は「ファイル」アプリ）を保管してください。' };
       return renderBackupSheet();
+    case 'copy':
+      return copyBackup();
     case 'share':
       return shareBackup();
     case 'pick':
       return document.getElementById('backup-file').click();
+    case 'paste-confirm':
+      return onBackupPasteConfirm();
+    case 'mode-merge':
+      backupView.restoreMode = 'merge';
+      return refreshBackupSheet();
+    case 'mode-overwrite':
+      backupView.restoreMode = 'overwrite';
+      return refreshBackupSheet();
     case 'restore':
       return runRestore();
     case 'undo':
@@ -2778,7 +3176,7 @@ function handleBackupAction(action) {
     case 'undo-confirm':
       return runUndo();
     case 'cancel':
-      backupView = { step: 'home' };
+      backupView = { step: 'home', restoreMode: 'merge' };
       return renderBackupSheet();
   }
 }
