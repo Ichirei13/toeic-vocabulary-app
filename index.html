@@ -603,6 +603,22 @@ body {
 .filter-toggle.active .caret { 
   transform: rotate(180deg); 
 }
+
+.filter-toggle.pulse-glow {
+  animation: filterBtnPulse 2.2s infinite ease-in-out;
+  border-color: var(--accent) !important;
+}
+@keyframes filterBtnPulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-glow, rgba(212, 167, 89, 0.5));
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 0, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+}
 .filter-count {
   background: var(--wrong);
   color: #fff;
@@ -614,22 +630,308 @@ body {
   display: none;
 }
 
-/* Filters Drawer */
-.filters {
-  padding: 0 20px;
+
+/* 絞り込み促進ナッジ・オーバーレイモーダル（テーマ連動） */
+.nudge-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nudge-modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.nudge-modal-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--top-sheet-bg, #1f1a16);
+  color: var(--text-page);
+  border: 1.5px solid var(--top-sheet-border, var(--accent));
+  border-radius: 24px;
+  padding: 24px 20px 20px;
+  position: relative;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+  transform: scale(0.92) translateY(8px);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+}
+.nudge-modal-overlay.open .nudge-modal-card {
+  transform: scale(1) translateY(0);
+}
+.nudge-card-header {
+  margin-bottom: 14px;
+  position: relative;
+}
+.nudge-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent);
+}
+.nudge-card-close {
+  position: absolute;
+  top: -10px;
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.nudge-card-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+.nudge-card-body {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--text-page);
+  margin-bottom: 18px;
+  opacity: 0.95;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.nudge-card-body b {
+  color: var(--accent);
+}
+.nudge-card-actions {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex-shrink: 0;
-  max-height: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease, padding 0.28s ease;
 }
-.filters.open {
-  max-height: 310px;
-  opacity: 1;
-  padding: 4px 20px 10px;
+.nudge-btn-primary {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--accent-btn-bg, var(--accent));
+  color: var(--accent-btn-text, #181512);
+  border: none;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+.nudge-btn-primary:active {
+  transform: scale(0.98);
+}
+.nudge-btn-secondary {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--ui-border);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+.nudge-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-page);
+}
+
+/* Top Sheet (上からスライドする絞り込みパネル - テーマ連動) */
+:root, [data-theme="ink"] {
+  --top-sheet-bg: #1f1a16;
+  --top-sheet-border: rgba(212, 167, 89, 0.35);
+}
+[data-theme="duolingo"] {
+  --top-sheet-bg: #202f36;
+  --top-sheet-border: #2c3c45;
+}
+[data-theme="navy"] {
+  --top-sheet-bg: #111a2e;
+  --top-sheet-border: rgba(56, 189, 248, 0.3);
+}
+[data-theme="light"] {
+  --top-sheet-bg: #f5f0e8;
+  --top-sheet-border: rgba(0, 0, 0, 0.15);
+}
+[data-theme="forest"] {
+  --top-sheet-bg: #11221c;
+  --top-sheet-border: rgba(16, 185, 129, 0.3);
+}
+[data-theme="nordic"] {
+  --top-sheet-bg: #1a1a1e;
+  --top-sheet-border: rgba(255, 255, 255, 0.15);
+}
+[data-theme="quizlet"] {
+  --top-sheet-bg: #17153b;
+  --top-sheet-border: #2d2b5c;
+}
+
+.top-sheet {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--top-sheet-bg) !important;
+  color: var(--text-page) !important;
+  border-bottom: 2px solid var(--top-sheet-border) !important;
+  border-radius: 0 0 24px 24px;
+  padding: max(16px, env(safe-area-inset-top, 16px)) 20px 22px;
+  transform: translateY(-100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 絞り込みトップシート内のセクション見出し */
+.filter-section-group {
+  margin-bottom: 6px;
+}
+.filter-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+
+.top-sheet.open {
+  transform: translateY(0);
+}
+.top-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ui-border);
+  margin-bottom: 4px;
+}
+.top-sheet-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-page);
+  letter-spacing: 0.2px;
+}
+.top-sheet-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  font-size: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.top-sheet-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* セグメントのコントラスト最適化 */
+.top-sheet .segments {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  margin: 0 0 6px;
+}
+.top-sheet .segment {
+  color: var(--text-muted);
+}
+.top-sheet .segment.active {
+  background: var(--accent);
+  color: #181512;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+[data-theme="duolingo"] .top-sheet .segment.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+[data-theme="light"] .top-sheet .segment.active {
+  background: var(--text-page);
+  color: var(--bg-page);
+}
+
+/* チップのコントラスト最適化 */
+.top-sheet .chip {
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  background: var(--ui-surface);
+}
+.top-sheet .chip.active {
+  background: var(--accent);
+  color: #181512;
+  border-color: var(--accent);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+[data-theme="duolingo"] .top-sheet .chip.active {
+  background: #58cc02;
+  color: #ffffff;
+  border-color: #46a302;
+}
+[data-theme="light"] .top-sheet .chip.active {
+  background: var(--text-page);
+  color: var(--bg-page);
+}
+
+/* トップシート下部のつまみバー */
+.top-sheet::after {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ui-border);
+  margin: 12px auto 0;
+  flex-shrink: 0;
+}
+
+/* 決定ボタン */
+.filter-apply-btn {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--accent-btn-bg, var(--accent));
+  color: var(--accent-btn-text, #181512);
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.filter-apply-btn:active {
+  transform: scale(0.98);
 }
 .filter-row {
   display: flex;
@@ -1461,23 +1763,321 @@ body {
     display: none;
   }
 }
+
+/* ==================== 設定画面・固定ダークチャコール ==================== */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.settings-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 0;
+  flex-shrink: 0;
+}
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(1.05);
+}
+.settings-btn:active {
+  transform: scale(0.95);
+}
+
+/* ボトムシートのダークチャコール固定モード（テーマによらず同一色） */
+.bottom-sheet.sheet-fixed-dark {
+  background: #181b21 !important;
+  color: #f0f3f6 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", Meiryo, sans-serif !important;
+  --sheet-bg: #181b21 !important;
+  --sheet-text: #f0f3f6 !important;
+  --text-card-muted: #9ba3af !important;
+}
+.bottom-sheet.sheet-fixed-dark::before {
+  background: rgba(255, 255, 255, 0.22) !important;
+}
+.bottom-sheet.sheet-fixed-dark .sheet-close {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #f0f3f6 !important;
+}
+.bottom-sheet.sheet-fixed-dark .sheet-close:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+/* 設定シート内部のレイアウト */
+.settings-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 12px;
+}
+.settings-section {
+  background: #21252d;
+  border: 1px solid #2d333e;
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+}
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.settings-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.settings-section-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f0f3f6;
+  letter-spacing: 0.2px;
+}
+.settings-desc {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  color: #9ba3af;
+  line-height: 1.5;
+}
+
+/* テーマ選択グリッド */
+.settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.settings-theme-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #303642;
+  background: #191c22;
+  color: #d1d5db;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+  text-align: left;
+}
+.settings-theme-card:hover {
+  background: #252a34;
+  border-color: #404856;
+}
+.settings-theme-card.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #60a5fa;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+.settings-theme-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.settings-theme-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-theme-check {
+  font-size: 12px;
+  font-weight: 800;
+  color: #60a5fa;
+  margin-left: auto;
+}
+
+/* データ管理メニューリスト */
+.settings-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.settings-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #303642;
+  background: #191c22;
+  color: #f0f3f6;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+.settings-menu-item:hover {
+  background: #252a34;
+  border-color: #404856;
+}
+.settings-menu-item:active {
+  transform: translateY(1px);
+}
+.settings-menu-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.settings-menu-item-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+.settings-menu-item-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f0f3f6;
+  margin-bottom: 2px;
+}
+.settings-menu-item-subtitle {
+  font-size: 11.5px;
+  color: #9ba3af;
+  line-height: 1.4;
+}
+.settings-menu-item-arrow {
+  font-size: 18px;
+  color: #6b7280;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+/* サブグループ（Obsidian連携など） */
+.settings-subgroup {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2d333e;
+}
+.settings-subgroup-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9ba3af;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.settings-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.settings-action-btn {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #303642;
+  background: #191c22;
+  color: #d1d5db;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: center;
+}
+.settings-action-btn:hover {
+  background: #252a34;
+  border-color: #404856;
+  color: #f0f3f6;
+}
+
+/* データステータス */
+.settings-data-status {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #191c22;
+  border: 1px solid #282e38;
+}
+.settings-status-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b949e;
+  margin-bottom: 4px;
+}
+.settings-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: #c9d1d9;
+}
+.settings-status-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+/* バックアップ画面の固定ダークチャコール適応 */
+.bottom-sheet.sheet-fixed-dark .backup-back {
+  color: #60a5fa !important;
+  font-weight: 600 !important;
+  padding: 4px 0 !important;
+  margin-bottom: 12px !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-table th {
+  color: #8b949e !important;
+  border-bottom: 1px solid #2d333e !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-table td {
+  border-bottom: 1px solid #2d333e !important;
+  color: #f0f3f6 !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-note {
+  color: #9ba3af !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-undo {
+  background: #21252d !important;
+  border: 1px solid #2d333e !important;
+  color: #d1d5db !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-btn {
+  border-color: #404856 !important;
+  color: #f0f3f6 !important;
+  background: #21252d !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-btn:hover {
+  background: #2a303a !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-btn.primary {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+  border-color: #3b82f6 !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-btn.primary:hover {
+  background: #2563eb !important;
+}
+.bottom-sheet.sheet-fixed-dark .backup-paste-area {
+  background: #191c22 !important;
+  color: #f0f3f6 !important;
+  border: 1px solid #303642 !important;
+}
+
 </style>
 </head>
 <body>
 <div id="app">
-  <!-- テーマ切替セレクター -->
-  <div class="theme-bar">
-    <span class="theme-bar-title">🎨 カラーテーマ:</span>
-    <div class="theme-pills">
-      <button class="theme-pill active" onclick="setAppTheme('ink')">和モダン</button>
-      <button class="theme-pill" onclick="setAppTheme('duolingo')">🦉 Duolingo</button>
-      <button class="theme-pill" onclick="setAppTheme('navy')">ネイビー</button>
-      <button class="theme-pill" onclick="setAppTheme('quizlet')">Quizlet</button>
-      <button class="theme-pill" onclick="setAppTheme('forest')">フォレスト</button>
-      <button class="theme-pill" onclick="setAppTheme('nordic')">チャコール</button>
-      <button class="theme-pill" onclick="setAppTheme('light')">セピア</button>
-    </div>
-  </div>
   <div class="header">
     <div class="title-wrap">
       <div class="eyebrow">TOEIC Drill</div>
@@ -1487,17 +2087,110 @@ body {
       <span class="duo-stat-item" title="連続正解数">🔥 <span id="duo-streak-count">0</span></span>
       <span class="duo-stat-item xp" title="スコア (XP)">💎 <span id="duo-xp-count">0</span></span>
     </div>
-    <button class="filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="filter-drawer">
-      絞り込み<span class="filter-count" id="filter-count">0</span><svg class="caret" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M1 1L5 5L9 1"/></svg>
-    </button>
+    <div class="header-actions">
+      <button class="filter-toggle" id="filter-toggle" aria-expanded="false" aria-controls="filter-drawer">
+        絞り込み<span class="filter-count" id="filter-count">0</span><svg class="caret" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;"><path d="M1 1L5 5L9 1"/></svg>
+      </button>
+      <button class="settings-btn" id="settings-btn" onclick="toggleSettings()" aria-label="設定" title="設定">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
   </div>
 
-  <div class="segments" id="app-type-segments" style="margin: 0 20px 8px;">
+  <div class="segments app-type-segments" id="app-type-segments" style="margin: 0 20px 8px;">
     <div class="segment active" data-app="vocab">単語ドリル</div>
     <div class="segment" data-app="grammar">文法ドリル (Part 5)</div>
   </div>
 
-  <div class="filters" id="filter-drawer">
+  <div class="segments mode-segments" id="mode-segments">
+    <div class="segment active" data-mode="e2j">英→日</div>
+    <div class="segment" data-mode="j2e">日→英</div>
+    <div class="segment" data-mode="flash">カード</div>
+    <div class="segment" data-mode="type">タイプ</div>
+  </div>
+
+  <div class="main-area">
+    <div id="quiz-container"></div>
+    <div id="choices-container" class="choices"></div>
+  </div>
+  <div id="duo-banner" class="duo-banner hide">
+    <div class="duo-banner-icon" id="duo-banner-icon">✓</div>
+    <div class="duo-banner-text">
+      <div class="duo-banner-title" id="duo-banner-title">正解！お見事！</div>
+      <div class="duo-banner-sub" id="duo-banner-sub">素晴らしい調子です！</div>
+    </div>
+  </div>
+  <div class="action-bar">
+    <button id="dont-know-btn" class="dont-know-btn">わからない</button>
+    <button id="next-btn" class="next-btn">次へ</button>
+  </div>
+
+  <div class="footer">
+    <div class="stats">
+      <span id="progress-text">0 / 0</span>
+      <span id="score-text">正答 0 / 0</span>
+      <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
+      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
+      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleSettings()">設定</span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+
+    <!-- 絞り込み促進オーバーレイモーダル -->
+  <div class="nudge-modal-overlay" id="filter-nudge-modal" onclick="if(event.target===this)dismissNudge()">
+    <div class="nudge-modal-card">
+      <div class="nudge-card-header">
+        <div class="nudge-card-title">
+          <span>🎯</span>
+          <span>範囲を絞って集中しませんか？</span>
+        </div>
+        <button class="nudge-card-close" onclick="dismissNudge()" title="閉じる" aria-label="閉じる">✕</button>
+      </div>
+      <div class="nudge-card-body">
+        現在の出題数は <b>300問以上</b> あります。<br><br>
+        一度にすべて解き続けるより、<br>
+        <b>100問ほどに絞って繰り返し周回する</b>のが<br>
+        定着への一番のおすすめです！<br><br>
+        「日々の単語」や「苦手＋未出題」などに<br>
+        絞り込んでみませんか？
+      </div>
+      <div class="nudge-card-actions">
+        <button class="nudge-btn-primary" onclick="openFilterSheetFromNudge()">🎯 絞り込みを設定する</button>
+        <button class="nudge-btn-secondary" onclick="dismissNudge()">このまま解く</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-overlay" id="sheet-overlay" onclick="handleOverlayClick()"></div>
+  <div class="top-sheet" id="filter-drawer">
+    <div class="top-sheet-header">
+      <div class="top-sheet-title">絞り込み・出題設定</div>
+      <button class="top-sheet-close" onclick="closeFilterSheet()" aria-label="閉じる">✕</button>
+    </div>
+
+    <!-- 単語/文法の切り替え -->
+    <div class="filter-section-group">
+      <div class="filter-section-label">学習対象</div>
+      <div class="segments app-type-segments" id="sheet-app-type-segments" style="margin-bottom: 4px;">
+        <div class="segment active" data-app="vocab">単語ドリル</div>
+        <div class="segment" data-app="grammar">文法ドリル (Part 5)</div>
+      </div>
+    </div>
+
+    <!-- 4つの答えかたの切り替え（単語ドリル時のみ表示） -->
+    <div class="filter-section-group" id="sheet-mode-group">
+      <div class="filter-section-label">出題モード</div>
+      <div class="segments mode-segments" id="sheet-mode-segments" style="margin-bottom: 4px;">
+        <div class="segment active" data-mode="e2j">英→日</div>
+        <div class="segment" data-mode="j2e">日→英</div>
+        <div class="segment" data-mode="flash">カード</div>
+        <div class="segment" data-mode="type">タイプ</div>
+      </div>
+    </div>
+
     <div id="vocab-filters">
       <div class="segments" id="source-segments" style="margin-bottom: 4px;">
         <div class="segment active" data-source="all">すべて</div>
@@ -1534,43 +2227,8 @@ body {
         <div class="segment" data-gweak="due">要復習<span id="grammar-due-badge" class="weak-badge" style="display:none">0</span></div>
       </div>
     </div>
+    <button class="filter-apply-btn" onclick="closeFilterSheet()">この条件で解く</button>
   </div>
-
-  <div class="segments" id="mode-segments">
-    <div class="segment active" data-mode="e2j">英→日</div>
-    <div class="segment" data-mode="j2e">日→英</div>
-    <div class="segment" data-mode="flash">カード</div>
-    <div class="segment" data-mode="type">タイプ</div>
-  </div>
-
-  <div class="main-area">
-    <div id="quiz-container"></div>
-    <div id="choices-container" class="choices"></div>
-  </div>
-  <div id="duo-banner" class="duo-banner hide">
-    <div class="duo-banner-icon" id="duo-banner-icon">✓</div>
-    <div class="duo-banner-text">
-      <div class="duo-banner-title" id="duo-banner-title">正解！お見事！</div>
-      <div class="duo-banner-sub" id="duo-banner-sub">素晴らしい調子です！</div>
-    </div>
-  </div>
-  <div class="action-bar">
-    <button id="dont-know-btn" class="dont-know-btn">わからない</button>
-    <button id="next-btn" class="next-btn">次へ</button>
-  </div>
-
-  <div class="footer">
-    <div class="stats">
-      <span id="progress-text">0 / 0</span>
-      <span id="score-text">正答 0 / 0</span>
-      <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
-      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
-      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleDataManager()">データ管理</span>
-    </div>
-    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-  </div>
-
-  <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet()"></div>
   <div class="bottom-sheet" id="bottom-sheet">
     <button class="sheet-close" onclick="closeSheet()" aria-label="閉じる">✕</button>
     <h2 style="margin-top:0;" id="sheet-title">苦手リスト</h2>
@@ -1906,7 +2564,7 @@ let state = {
   rangeFilter: null,
   dateFilter: [],
   posFilter: 'all',
-  weakFilter: 'all',
+  weakFilter: 'weak_unlearned',
   pool: [],
   currentIndex: 0,
   score: 0,
@@ -2144,11 +2802,13 @@ function applyGrammarFilters() {
   state.grammarAnsweredCount = 0;
   updateGrammarWeakBadge();
   updateFilterSummary();
+  checkFilterNudge();
   renderCurrentGrammar();
 }
 
 function renderCurrentGrammar() {
   resetActionBar();
+  checkFilterNudge();
   document.getElementById('choices-container').classList.remove('compact');
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
@@ -2360,10 +3020,12 @@ function renderGrammarWeakList() {
 function setApp(app) {
   state.app = app;
   const isGrammar = app === 'grammar';
-  document.querySelectorAll('#app-type-segments .segment').forEach(b => b.classList.toggle('active', b.dataset.app === app));
+  document.querySelectorAll('.app-type-segments .segment').forEach(b => b.classList.toggle('active', b.dataset.app === app));
   document.querySelector('.header .title').innerText = isGrammar ? '文法ドリル (Part 5)' : '単語ドリル';
   document.getElementById('rule-guide-link').style.display = isGrammar ? 'inline' : 'none';
-  document.getElementById('mode-segments').style.display = isGrammar ? 'none' : 'flex';
+  document.querySelectorAll('.mode-segments').forEach(el => el.style.display = isGrammar ? 'none' : 'flex');
+  const sheetModeGroup = document.getElementById('sheet-mode-group');
+  if (sheetModeGroup) sheetModeGroup.style.display = isGrammar ? 'none' : 'block';
   document.getElementById('vocab-filters').style.display = isGrammar ? 'none' : 'block';
   document.getElementById('grammar-filters').style.display = isGrammar ? 'block' : 'none';
   resetActionBar();
@@ -2394,12 +3056,13 @@ function syncFilterUI() {
   const mark = (selector, isActive) =>
     document.querySelectorAll(selector).forEach(b => b.classList.toggle('active', isActive(b.dataset)));
   const range = state.rangeFilter ? `${state.rangeFilter.start}-${state.rangeFilter.end}` : 'all';
+  mark('.app-type-segments .segment', d => d.app === state.app);
+  mark('.mode-segments .segment', d => d.mode === state.mode);
   mark('#source-segments .segment', d => d.source === state.sourceFilter);
   mark('#date-filters .chip', d => d.date === 'all' ? state.dateFilter.length === 0 : state.dateFilter.includes(d.date));
   mark('#pos-filters .chip', d => d.pos === state.posFilter);
   mark('#range-filters .chip', d => d.range === range);
   mark('#weak-segments .segment', d => d.weak === state.weakFilter);
-  mark('#mode-segments .segment', d => d.mode === state.mode);
   mark('#grammar-book-segments .segment', d => d.gbook === state.grammarBook);
   mark('#grammar-weak-segments .segment', d => d.gweak === state.grammarWeakFilter);
   renderGrammarChapterFilters();
@@ -2407,7 +3070,7 @@ function syncFilterUI() {
 }
 
 function initFilters() {
-  document.querySelectorAll('#app-type-segments .segment').forEach(btn => {
+  document.querySelectorAll('.app-type-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => setApp(e.currentTarget.dataset.app));
   });
 
@@ -2463,11 +3126,12 @@ function initFilters() {
     });
   });
 
-  document.querySelectorAll('#mode-segments .segment').forEach(btn => {
+  document.querySelectorAll('.mode-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
-      document.querySelectorAll('#mode-segments .segment').forEach(b => b.classList.remove('active'));
-      e.currentTarget.classList.add('active');
       state.mode = e.currentTarget.dataset.mode;
+      document.querySelectorAll('.mode-segments .segment').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === state.mode);
+      });
       updateWeakBadge();
       // 苦手・未学習で絞っているときはモードごとに出題範囲が変わるので出題し直す。「すべて」なら並びはそのまま
       if (state.weakFilter !== 'all') applyFilters();
@@ -2476,11 +3140,8 @@ function initFilters() {
   });
 
   const toggle = document.getElementById('filter-toggle');
-  const drawer = document.getElementById('filter-drawer');
   toggle.addEventListener('click', () => {
-    const open = drawer.classList.toggle('open');
-    toggle.classList.toggle('active', open);
-    toggle.setAttribute('aria-expanded', String(open));
+    toggleFilterSheet();
   });
 }
 
@@ -2575,6 +3236,7 @@ function applyFilters() {
   state.answeredCount = 0;
   updateWeakBadge();
   updateFilterSummary();
+  checkFilterNudge();
   renderCurrent();
 }
 
@@ -2651,8 +3313,86 @@ function buildOptions(word) {
   return shuffle(options);
 }
 
+
+function getCurrentPoolCount() {
+  return state.app === 'grammar'
+    ? (state.grammarPool ? state.grammarPool.length : 0)
+    : (state.pool ? state.pool.length : 0);
+}
+
+const NUDGE_DISMISSED_KEY = 'toeic_nudge_dismissed_condition';
+
+function getFilterStateKey() {
+  if (state.app === 'grammar') {
+    return `g_${state.grammarBook}_${state.grammarChapter}_${state.grammarRule || 'none'}_${state.grammarWeakFilter}`;
+  }
+  const dates = (state.dateFilter || []).slice().sort().join(',');
+  const range = state.rangeFilter ? `${state.rangeFilter.start}-${state.rangeFilter.end}` : 'none';
+  return `v_${state.sourceFilter}_${dates}_${state.posFilter}_${range}_${state.weakFilter}`;
+}
+
+function checkFilterNudge() {
+  const modal = document.getElementById('filter-nudge-modal');
+  const toggleBtn = document.getElementById('filter-toggle');
+  if (!modal) return;
+
+  const poolCount = getCurrentPoolCount();
+
+  // 300問未満なら非表示＆消灯
+  if (poolCount < 300) {
+    modal.classList.remove('open');
+    if (toggleBtn) toggleBtn.classList.remove('pulse-glow');
+    return;
+  }
+
+  // 「このまま解く」を押した条件と同じなら、条件を変えるまで一切出さない（localStorage記憶）
+  const currentKey = getFilterStateKey();
+  let dismissedCondition = null;
+  try {
+    dismissedCondition = localStorage.getItem(NUDGE_DISMISSED_KEY);
+  } catch (e) {}
+
+  if (dismissedCondition === currentKey) {
+    modal.classList.remove('open');
+    if (toggleBtn) toggleBtn.classList.remove('pulse-glow');
+    return;
+  }
+
+  // まだ閉じていない300問以上の条件なら、絞り込みボタンを発光
+  if (toggleBtn) toggleBtn.classList.add('pulse-glow');
+
+  // 1問目を解いた直後にモーダルで案内
+  const answered = state.app === 'grammar' ? (state.grammarAnsweredCount || 0) : (state.answeredCount || 0);
+  if (answered >= 1) {
+    const bodyEl = modal.querySelector('.nudge-card-body');
+    if (bodyEl) {
+      bodyEl.innerHTML = `現在の出題数は <b>${poolCount}問</b> あります。<br><br>一度にすべて解き続けるより、<br><b>100問ほどに絞って繰り返し周回する</b>のが<br>定着への一番のおすすめです！<br><br>「日々の単語」や「苦手＋未出題」などに<br>絞り込んでみませんか？`;
+    }
+    modal.classList.add('open');
+  }
+}
+
+function dismissNudge() {
+  const modal = document.getElementById('filter-nudge-modal');
+  const toggleBtn = document.getElementById('filter-toggle');
+  if (modal) modal.classList.remove('open');
+  if (toggleBtn) toggleBtn.classList.remove('pulse-glow');
+  try {
+    localStorage.setItem(NUDGE_DISMISSED_KEY, getFilterStateKey());
+  } catch (e) {}
+}
+
+function openFilterSheetFromNudge() {
+  const modal = document.getElementById('filter-nudge-modal');
+  const toggleBtn = document.getElementById('filter-toggle');
+  if (modal) modal.classList.remove('open');
+  if (toggleBtn) toggleBtn.classList.remove('pulse-glow');
+  openFilterSheet();
+}
+
 function renderCurrent() {
   resetActionBar();
+  checkFilterNudge();
   document.getElementById('choices-container').classList.remove('compact');
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
@@ -2927,7 +3667,19 @@ function restoreSettings() {
     ? { start: range.start, end: range.end } : null;
   state.dateFilter = Array.isArray(saved.dateFilter) ? saved.dateFilter.filter(d => DATES.includes(d)) : [];
   state.posFilter = pick(saved.posFilter, ['all', '名詞', '動詞', '形容詞', '副詞', '句・表現'], 'all');
-  state.weakFilter = pick(saved.weakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
+  state.weakFilter = pick(saved.weakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'weak_unlearned');
+
+  // 既存ユーザー向けマイグレーション: 過去バージョンで 'all' のままだったユーザーも初回一度だけ 'weak_unlearned' に引き上げる
+  const DEFAULT_UNLEARNED_KEY = 'toeic_default_unlearned_migrated_v2';
+  try {
+    if (!localStorage.getItem(DEFAULT_UNLEARNED_KEY)) {
+      if (state.weakFilter === 'all') {
+        state.weakFilter = 'weak_unlearned';
+      }
+      localStorage.setItem(DEFAULT_UNLEARNED_KEY, 'true');
+      saveSettings();
+    }
+  } catch(e) {}
   state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai'], 'all');
   state.grammarChapter = pick(saved.grammarChapter, getGrammarChaptersList().map(c => c.ch), 'all');
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
@@ -2993,16 +3745,66 @@ function isSheetOpen() {
   return document.getElementById('bottom-sheet').classList.contains('open');
 }
 
+let backupSource = 'settings';
+
 function closeSheet() {
-  document.getElementById('bottom-sheet').classList.remove('open');
+  const sheet = document.getElementById('bottom-sheet');
+  sheet.classList.remove('open');
+  sheet.classList.remove('sheet-fixed-dark');
   document.getElementById('sheet-overlay').classList.remove('open');
 }
 
-function openSheet(title, render) {
+function openFilterSheet() {
+  closeSheet();
+  const drawer = document.getElementById('filter-drawer');
+  const toggle = document.getElementById('filter-toggle');
+  if (drawer) drawer.classList.add('open');
+  if (toggle) {
+    toggle.classList.add('active');
+    toggle.setAttribute('aria-expanded', 'true');
+  }
+  document.getElementById('sheet-overlay').classList.add('open');
+}
+
+function closeFilterSheet() {
+  const drawer = document.getElementById('filter-drawer');
+  const toggle = document.getElementById('filter-toggle');
+  if (drawer) drawer.classList.remove('open');
+  if (toggle) {
+    toggle.classList.remove('active');
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+  const bottomSheet = document.getElementById('bottom-sheet');
+  if (!bottomSheet || !bottomSheet.classList.contains('open')) {
+    document.getElementById('sheet-overlay').classList.remove('open');
+  }
+}
+
+function toggleFilterSheet() {
+  const drawer = document.getElementById('filter-drawer');
+  if (drawer && drawer.classList.contains('open')) {
+    closeFilterSheet();
+  } else {
+    openFilterSheet();
+  }
+}
+
+function handleOverlayClick() {
+  closeSheet();
+  closeFilterSheet();
+}
+
+function openSheet(title, render, isFixedTheme = false) {
+  closeFilterSheet();
   document.getElementById('sheet-title').innerText = title;
   activeSheetRender = render;
-  render();
   const sheet = document.getElementById('bottom-sheet');
+  if (isFixedTheme) {
+    sheet.classList.add('sheet-fixed-dark');
+  } else {
+    sheet.classList.remove('sheet-fixed-dark');
+  }
+  render();
   sheet.scrollTop = 0;
   sheet.classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
@@ -3011,18 +3813,134 @@ function openSheet(title, render) {
 function toggleWeakList() {
   if (document.getElementById('bottom-sheet').classList.contains('open')) return closeSheet();
   state.weakListMode = state.mode; // 単語の苦手リストは、まず今のモードの記録を見せる
-  openSheet('苦手リスト', renderWeakList);
+  openSheet('苦手リスト', renderWeakList, false);
 }
 
 function toggleRuleGuide() {
   if (isSheetOpen() && activeSheetRender === renderRuleGuide) return closeSheet();
-  openSheet('金の文法 章ガイド', renderRuleGuide);
+  openSheet('金の文法 章ガイド', renderRuleGuide, false);
+}
+
+function toggleSettings() {
+  if (isSheetOpen() && activeSheetRender === renderSettingsSheet) return closeSheet();
+  openSheet('設定', renderSettingsSheet, true);
 }
 
 function toggleDataManager() {
-  if (isSheetOpen() && activeSheetRender === renderBackupSheet) return closeSheet();
-  backupView = { step: 'home' };
-  openSheet('学習記録のバックアップ', renderBackupSheet);
+  toggleSettings();
+}
+
+function getWeakWordCount() {
+  if (!state.weakByMode) return 0;
+  const set = new Set();
+  Object.values(state.weakByMode).forEach(dict => {
+    if (dict && typeof dict === 'object') {
+      Object.keys(dict).forEach(k => set.add(k));
+    }
+  });
+  return set.size;
+}
+
+function getWeakGrammarCount() {
+  if (!state.grammarWeakData) return 0;
+  return Object.keys(state.grammarWeakData).length;
+}
+
+function handleSettingThemeChange(theme) {
+  setAppTheme(theme);
+  if (isSheetOpen() && activeSheetRender === renderSettingsSheet) {
+    renderSettingsSheet();
+  }
+}
+
+function openBackupFromSettings() {
+  backupSource = 'settings';
+  backupView = { step: 'home', restoreMode: 'merge' };
+  openSheet('学習記録のバックアップ', renderBackupSheet, true);
+}
+
+function renderSettingsSheet() {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'ink';
+  const wordCount = getWeakWordCount();
+  const grammarCount = getWeakGrammarCount();
+
+  const themes = [
+    { id: 'ink', name: '和モダン', color: '#d4a759', bg: '#181512' },
+    { id: 'duolingo', name: 'Duolingo', icon: '🦉', color: '#58cc02', bg: '#131f24' },
+    { id: 'navy', name: 'ネイビー', color: '#3b82f6', bg: '#0b1329' },
+    { id: 'quizlet', name: 'Quizlet', color: '#4255ff', bg: '#0a092d' },
+    { id: 'forest', name: 'フォレスト', color: '#10b981', bg: '#0a1713' },
+    { id: 'nordic', name: 'チャコール', color: '#a1a1aa', bg: '#18181b' },
+    { id: 'light', name: 'セピア', color: '#d97706', bg: '#f6f3ed' }
+  ];
+
+  let html = `
+    <div class="settings-wrap">
+      <!-- カラーテーマ設定 -->
+      <section class="settings-section">
+        <div class="settings-section-header">
+          <span class="settings-icon">🎨</span>
+          <h3 class="settings-section-title">カラーテーマ</h3>
+        </div>
+        <p class="settings-desc">ドリルの配色・アクセントカラーを選択します。</p>
+        <div class="settings-theme-grid">
+          ${themes.map(t => `
+            <button type="button" 
+                    class="settings-theme-card ${currentTheme === t.id ? 'active' : ''}" 
+                    onclick="handleSettingThemeChange('${t.id}')">
+              <span class="settings-theme-dot" style="background: ${t.color}; box-shadow: 0 0 0 2px ${t.bg};"></span>
+              <span class="settings-theme-name">${t.icon ? t.icon + ' ' : ''}${t.name}</span>
+              ${currentTheme === t.id ? '<span class="settings-theme-check">✓</span>' : ''}
+            </button>
+          `).join('')}
+        </div>
+      </section>
+
+      <!-- データ管理設定 -->
+      <section class="settings-section">
+        <div class="settings-section-header">
+          <span class="settings-icon">💾</span>
+          <h3 class="settings-section-title">データ管理</h3>
+        </div>
+        <p class="settings-desc">学習記録のバックアップ・復元や外部連携を行います。</p>
+
+        <div class="settings-menu-list">
+          <button type="button" class="settings-menu-item" onclick="openBackupFromSettings()">
+            <div class="settings-menu-item-left">
+              <div class="settings-menu-item-icon">💾</div>
+              <div>
+                <div class="settings-menu-item-title">学習記録のバックアップ・復元</div>
+                <div class="settings-menu-item-subtitle">JSONファイルの書き出し、端末間の引き継ぎ・復元</div>
+              </div>
+            </div>
+            <span class="settings-menu-item-arrow">›</span>
+          </button>
+        </div>
+
+        <div class="settings-subgroup">
+          <div class="settings-subgroup-title">Obsidian 連携</div>
+          <div class="settings-actions-row">
+            <button type="button" class="settings-action-btn" onclick="exportObsidianGrammarSync()">
+              📤 苦手データ出力
+            </button>
+            <button type="button" class="settings-action-btn" onclick="importObsidianGrammarSync()">
+              📥 同期読込
+            </button>
+          </div>
+        </div>
+
+        <div class="settings-data-status">
+          <div class="settings-status-title">現在の学習データ</div>
+          <div class="settings-status-row">
+            <span>記録された苦手データ</span>
+            <span class="settings-status-badge">単語 ${wordCount}件 / 文法 ${grammarCount}件</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  `;
+
+  document.getElementById('weak-list-content').innerHTML = html;
 }
 
 // ==================== 金のルール・章ガイド ====================
@@ -3924,7 +4842,8 @@ function backupUndoHtml() {
 
 function renderBackupSheet() {
   const v = backupView;
-  let html = '<button class="backup-back" data-backup="back">‹ 苦手リストに戻る</button>';
+  let backLabel = backupSource === 'weak' ? '‹ 苦手リストに戻る' : '‹ 設定に戻る';
+  let html = `<button class="backup-back" data-backup="back">${backLabel}</button>`;
   if (v.step === 'confirm') html += backupConfirmHtml(v);
   else if (v.step === 'undo') html += backupUndoHtml();
   else html += backupHomeHtml(v);
@@ -3951,7 +4870,7 @@ async function onBackupFileChosen(e) {
 }
 
 function backupEntryHtml() {
-  return '<button class="backup-open-btn" data-backup="open">💾 学習記録のバックアップ・復元</button>';
+  return '<button class="backup-open-btn" data-backup="open" onclick="backupSource=\'weak\'">💾 学習記録のバックアップ・復元</button>';
 }
 
 async function copyBackup() {
@@ -3993,9 +4912,13 @@ function handleBackupAction(action) {
   switch (action) {
     case 'open':
       backupView = { step: 'home', restoreMode: 'merge' };
-      return openSheet('学習記録のバックアップ', renderBackupSheet);
+      return openSheet('学習記録のバックアップ', renderBackupSheet, true);
     case 'back':
-      return openSheet('苦手リスト', renderWeakList);
+      if (backupSource === 'weak') {
+        return openSheet('苦手リスト', renderWeakList, false);
+      } else {
+        return openSheet('設定', renderSettingsSheet, true);
+      }
     case 'export':
       downloadBackup();
       backupView = { step: 'home', success: '書き出しました。ダウンロードしたファイル（iPhone は「ファイル」アプリ）を保管してください。' };
@@ -4050,6 +4973,16 @@ document.addEventListener('keydown', e => {
   // 修飾キー（Command, Ctrl, Alt）が押されている時はブラウザ操作を優先
   if (e.ctrlKey || e.metaKey || e.altKey) return;
 
+  if (document.getElementById('filter-nudge-modal') && document.getElementById('filter-nudge-modal').classList.contains('open')) {
+    if (e.key === 'Escape') {
+      dismissNudge();
+      return;
+    }
+  }
+  if (document.getElementById('filter-drawer') && document.getElementById('filter-drawer').classList.contains('open')) {
+    if (e.key === 'Escape') closeFilterSheet();
+    return;
+  }
   if (document.getElementById('bottom-sheet').classList.contains('open')) {
     if (e.key === 'Escape') closeSheet();
     return;
