@@ -14,6 +14,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- Google Identity Services (Google Drive連携) -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 /* === 洗練されたカラーテーマシステム === */
 :root, [data-theme="ink"] {
@@ -982,6 +984,20 @@ body {
 }
 .filters .segments { margin: 0; }
 #mode-segments { margin: 2px 20px 8px; }
+#grammar-book-segments {
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#grammar-book-segments::-webkit-scrollbar {
+  display: none;
+}
+#grammar-book-segments .segment {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
 
 .segment {
   flex: 1;
@@ -1230,6 +1246,41 @@ body {
   display: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* 前の問題に戻るボタン。回答済みの直前の問題があるときだけ左端に出す */
+.back-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--ui-border);
+  font-family: inherit;
+  padding: 13px 14px;
+  min-height: 46px;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: none;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.back-btn:active {
+  background: var(--ui-surface);
+  color: var(--text-page);
+  transform: scale(0.98);
+}
+/* 見直し中の問題に付ける、回答結果のラベル */
+.review-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--text-card-muted);
+}
+.review-badge.ok { background: rgba(46, 160, 67, 0.15); color: #1f7a33; }
+.review-badge.ng { background: rgba(220, 53, 69, 0.14); color: #b02a37; }
 .dont-know-btn:active { 
   background: var(--ui-surface); 
   color: var(--text-page); 
@@ -1477,6 +1528,16 @@ body {
   color: #1e40af;
   border: 1px solid rgba(59, 130, 246, 0.35);
 }
+.badge-polaris {
+  background: rgba(124, 58, 237, 0.14);
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+}
+.badge-toplevel {
+  background: rgba(5, 150, 105, 0.14);
+  color: #059669;
+  border: 1px solid rgba(5, 150, 105, 0.35);
+}
 .grammar-rule-card {
   margin: 12px 0 14px 0;
   padding: 12px 15px;
@@ -1708,6 +1769,65 @@ body {
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 11.5px;
   box-sizing: border-box;
+}
+
+/* Google Drive Card */
+.gdrive-card {
+  background: rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 14px;
+  padding: 14px 15px;
+  margin: 12px 0 16px;
+}
+.gdrive-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.gdrive-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--sheet-text);
+}
+.gdrive-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2.5px 8px;
+  border-radius: 12px;
+}
+.gdrive-badge.linked {
+  background: rgba(16,185,129,0.15);
+  color: var(--correct);
+}
+.gdrive-badge.unlinked {
+  background: rgba(0,0,0,0.06);
+  color: var(--text-card-muted);
+}
+.gdrive-desc {
+  font-size: 12px;
+  color: var(--text-card-muted);
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.gdrive-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  font-size: 13px;
+  color: var(--sheet-text);
+}
+.gdrive-sync-msg {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-card-muted);
+  margin-top: 4px;
+  word-break: break-all;
 }
 
 /* Toast */
@@ -2073,6 +2193,31 @@ body {
   color: #f0f3f6 !important;
   border: 1px solid #303642 !important;
 }
+.bottom-sheet.sheet-fixed-dark .gdrive-card {
+  background: #21252d !important;
+  border: 1px solid #2d333e !important;
+}
+.bottom-sheet.sheet-fixed-dark .gdrive-title,
+.bottom-sheet.sheet-fixed-dark .gdrive-row {
+  color: #f0f3f6 !important;
+}
+.bottom-sheet.sheet-fixed-dark .gdrive-desc {
+  color: #9ba3af !important;
+}
+.bottom-sheet.sheet-fixed-dark .gdrive-row {
+  border-top: 1px solid #2d333e !important;
+}
+.bottom-sheet.sheet-fixed-dark .gdrive-badge.linked {
+  background: rgba(59,130,246,0.2) !important;
+  color: #60a5fa !important;
+}
+.bottom-sheet.sheet-fixed-dark .gdrive-badge.unlinked {
+  background: #2a303a !important;
+  color: #8b949e !important;
+}
+.bottom-sheet.sheet-fixed-dark .gdrive-sync-msg {
+  color: #8b949e !important;
+}
 
 </style>
 </head>
@@ -2124,6 +2269,7 @@ body {
     </div>
   </div>
   <div class="action-bar">
+    <button id="back-btn" class="back-btn" onclick="reviewBack()" aria-label="前の問題に戻る">← 前へ</button>
     <button id="dont-know-btn" class="dont-know-btn">わからない</button>
     <button id="next-btn" class="next-btn">次へ</button>
   </div>
@@ -2216,13 +2362,16 @@ body {
     </div>
     <div id="grammar-filters" style="display:none;">
       <div class="segments" id="grammar-book-segments" style="margin-bottom: 6px;">
-        <div class="segment active" data-gbook="all">すべて <span style="font-size:10px;opacity:0.8;">(301)</span></div>
+        <div class="segment active" data-gbook="all">すべて <span style="font-size:10px;opacity:0.8;">(1155)</span></div>
         <div class="segment" data-gbook="kin">👑 金の文法 <span style="font-size:10px;opacity:0.8;">(160)</span></div>
         <div class="segment" data-gbook="sekai">📖 世界一 <span style="font-size:10px;opacity:0.8;">(141)</span></div>
+        <div class="segment" data-gbook="polaris2">🧭 ポラリス2 <span style="font-size:10px;opacity:0.8;">(334)</span></div>
+        <div class="segment" data-gbook="toplevel">🎓 トップレベル <span style="font-size:10px;opacity:0.8;">(520)</span></div>
       </div>
       <div class="filter-row" id="grammar-chapter-filters"></div>
       <div class="segments" id="grammar-weak-segments" style="margin-top: 4px;">
         <div class="segment active" data-gweak="all">すべて</div>
+        <div class="segment" data-gweak="weak_unlearned">苦手+未</div>
         <div class="segment" data-gweak="weak_only">苦手のみ<span id="grammar-weak-badge" class="weak-badge" style="display:none">0</span></div>
         <div class="segment" data-gweak="due">要復習<span id="grammar-due-badge" class="weak-badge" style="display:none">0</span></div>
       </div>
@@ -2357,6 +2506,9 @@ function loadJSON(key, fallback) {
 function saveJSON(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    if (typeof scheduleGoogleDriveAutoSync === 'function') {
+      scheduleGoogleDriveAutoSync(key);
+    }
   } catch (e) {
     // 保存できなくても学習は続けられるので無視する
   }
@@ -2452,6 +2604,45 @@ const LEGACY_SEEN_WORDS_KEY = 'toeic_seen_words';
 // 問題ごとの正誤カウント { [key]: { a: 解答数, c: 正解数 } }
 const WORD_STATS_KEY = 'toeic_word_stats';
 const GRAMMAR_STATS_KEY = 'toeic_grammar_stats';
+
+// 文法で出題済み（回答した）問題番号の配列
+const GRAMMAR_SEEN_KEY = 'toeic_seen_grammar';
+
+function isGrammarId(v) {
+  return Number.isInteger(v) && v > 0 && v <= 999999999; // isGrammarKey と同じ 9 桁まで
+}
+
+// 渡したオブジェクト（成績・苦手など）のキーから、問題番号として読めるものを重複なしで集める
+function grammarIdsFrom(...maps) {
+  const ids = new Set();
+  maps.forEach(m => {
+    if (!isPlainObject(m)) return;
+    Object.keys(m).forEach(k => {
+      if (isGrammarKey(k)) ids.add(Number(k));
+    });
+  });
+  return [...ids];
+}
+
+// 保存が無いとき（初回）だけ、通算正誤カウントと苦手リストにある問題を出題済みとして引き継ぐ。
+// 保存が壊れているときは空で始め、上書きはしない
+function loadGrammarSeen() {
+  let saved; // 配列ならその中身、null なら保存なし、undefined なら読めない・壊れている（loadJSON は fallback が null だと配列を捨てるので使わない）
+  try {
+    saved = JSON.parse(localStorage.getItem(GRAMMAR_SEEN_KEY));
+  } catch (e) {
+    saved = undefined;
+  }
+  if (Array.isArray(saved)) return new Set(saved.filter(isGrammarId));
+  if (saved !== null) return new Set();
+  const seeded = new Set(grammarIdsFrom(state.grammarStats, state.grammarWeakData));
+  saveJSON(GRAMMAR_SEEN_KEY, [...seeded]);
+  return seeded;
+}
+
+function saveGrammarSeen() {
+  saveJSON(GRAMMAR_SEEN_KEY, [...state.grammarSeen]);
+}
 
 function loadStatsData(key) {
   const data = loadJSON(key, {});
@@ -2574,6 +2765,7 @@ let state = {
   wordStats: loadStatsData(WORD_STATS_KEY),
   currentOptions: [],
   answered: false,
+  wordLog: {}, // 今回答えた単語問題の結果（出題順の番号 → 見直し用の記録）
 
   // Grammar state
   grammarBook: 'all',
@@ -2588,10 +2780,15 @@ let state = {
   grammarWeakData: loadWeakData('toeic_weak_grammar', isGrammarKey),
   grammarStats: loadStatsData(GRAMMAR_STATS_KEY),
   grammarAnswered: false,
+  grammarLog: {}, // 今回答えた文法問題の結果（出題順の番号 → 見直し用の記録）
+
+  reviewIndex: null, // 「前へ」で見直し中の問題の番号。null なら今の問題を出している
 
   weakSort: 'new', // 苦手リストの並び順
   weakListMode: 'e2j' // 単語の苦手リストで表示しているモード
 };
+// 初期値の作成に grammarStats と grammarWeakData を使うので、state ができたあとで読み込む
+state.grammarSeen = loadGrammarSeen();
 
 // 今のモード（または指定したモード）の単語の苦手・学習済み
 function wordWeak(mode = state.mode) {
@@ -2689,8 +2886,24 @@ function updateGrammarWeakBadge() {
   setBadge('grammar-due-badge', weak.filter(ex => isDue(state.grammarWeakData[ex.id])).length);
 }
 
-function getGrammarChaptersList() {
-  const book = state.grammarBook || 'all';
+function getBookBadge(b) {
+  if (b === 'kin') return '<span class="grammar-book-badge badge-kin">👑 金の文法</span>';
+  if (b === 'polaris2') return '<span class="grammar-book-badge badge-polaris">🧭 ポラリス2</span>';
+  if (b === 'toplevel') return '<span class="grammar-book-badge badge-toplevel">🎓 トップレベル</span>';
+  return '<span class="grammar-book-badge badge-sekai">📖 世界一</span>';
+}
+
+function getChapterLabel(b, ch, chTitle) {
+  const prefix = b === 'polaris2' ? `Unit ${ch}` : (b === 'toplevel' ? `Lecture ${ch}` : `第${ch}章`);
+  return chTitle ? `${prefix} ${chTitle}` : prefix;
+}
+
+function grammarChoiceLabel(idx) {
+  return ['A', 'B', 'C', 'D', 'E'][idx] || String.fromCharCode(65 + idx);
+}
+
+function getGrammarChaptersList(b) {
+  const book = b || state.grammarBook || 'all';
   const pool = book === 'all' ? RAW_GRAMMAR : RAW_GRAMMAR.filter(g => (g.b || 'sekai') === book);
   
   if (book === 'kin') {
@@ -2715,12 +2928,35 @@ function getGrammarChaptersList() {
       }
     });
     return [{ ch: 'all', title: `世界一 全14章 (${pool.length}問)` }, ...sekaiChaps];
+  } else if (book === 'polaris2') {
+    const polarisChaps = [];
+    const seen = new Set();
+    RAW_GRAMMAR.filter(g => g.b === 'polaris2').forEach(g => {
+      if (!seen.has(g.ch)) {
+        seen.add(g.ch);
+        const count = RAW_GRAMMAR.filter(x => x.b === 'polaris2' && x.ch === g.ch).length;
+        polarisChaps.push({ ch: g.ch, title: `Unit ${g.ch} ${g.ch_title} (${count}問)` });
+      }
+    });
+    return [{ ch: 'all', title: `ポラリス2 全6Unit (${pool.length}問)` }, ...polarisChaps];
+  } else if (book === 'toplevel') {
+    const toplevelChaps = [];
+    const seen = new Set();
+    RAW_GRAMMAR.filter(g => g.b === 'toplevel').forEach(g => {
+      if (!seen.has(g.ch)) {
+        seen.add(g.ch);
+        const count = RAW_GRAMMAR.filter(x => x.b === 'toplevel' && x.ch === g.ch).length;
+        toplevelChaps.push({ ch: g.ch, title: `Lecture ${g.ch} ${g.ch_title} (${count}問)` });
+      }
+    });
+    return [{ ch: 'all', title: `トップレベル 全24Lecture (${pool.length}問)` }, ...toplevelChaps];
   } else {
     return [
       { ch: 'all', title: `全問 (${pool.length}問)` }
     ];
   }
 }
+const getGrammarChapters = getGrammarChaptersList;
 
 function renderGrammarChapterFilters() {
   const gcf = document.getElementById('grammar-chapter-filters');
@@ -2792,11 +3028,13 @@ function applyGrammarFilters() {
     if (!grammarMatchesBaseFilters(ex)) return false;
     const entry = state.grammarWeakData[ex.id];
     if (state.grammarWeakFilter === 'weak_only' && !entry) return false;
+    if (state.grammarWeakFilter === 'weak_unlearned' && !entry && state.grammarSeen.has(ex.id)) return false;
     if (state.grammarWeakFilter === 'due' && !(entry && isDue(entry))) return false;
     return true;
   });
 
   state.grammarPool = shuffle(filtered);
+  resetReview();
   state.currentGrammarIndex = 0;
   state.grammarScore = 0;
   state.grammarAnsweredCount = 0;
@@ -2813,6 +3051,7 @@ function renderCurrentGrammar() {
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
   const nextBtn = document.getElementById('next-btn');
+  const review = activeReview(state.grammarLog);
 
   if (state.grammarPool.length === 0) {
     container.innerHTML = `<div class="card"><div class="meaning-display">条件に合う文法問題がありません</div></div>`;
@@ -2822,7 +3061,7 @@ function renderCurrentGrammar() {
     return;
   }
 
-  if (state.currentGrammarIndex >= state.grammarPool.length) {
+  if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
     container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div></div>`;
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
@@ -2830,8 +3069,8 @@ function renderCurrentGrammar() {
     return;
   }
 
-  const ex = state.grammarPool[state.currentGrammarIndex];
-  state.grammarAnswered = false;
+  const ex = state.grammarPool[review ? state.reviewIndex : state.currentGrammarIndex];
+  if (!review) state.grammarAnswered = false; // 見直し中は今の問題の回答状況に触れない
   choicesDiv.innerHTML = '';
   nextBtn.style.display = 'none';
 
@@ -2839,16 +3078,14 @@ function renderCurrentGrammar() {
   const formattedQ = ex.q.replace(/-{3,}/g, '<span style="color:var(--seal);font-weight:bold;text-decoration:underline;">_______</span>');
 
   const isKin = ex.b === 'kin';
-  const bookBadgeHtml = isKin 
-    ? '<span class="grammar-book-badge badge-kin">👑 金の文法</span>'
-    : '<span class="grammar-book-badge badge-sekai">📖 世界一</span>';
+  const bookBadgeHtml = getBookBadge(ex.b);
 
   const ruleHtml = (ex.rule && ex.rule.number) ? `
     <div class="grammar-rule-card">
       <div class="grammar-rule-header">
-        <span class="grammar-rule-icon">👑</span>
-        <span class="grammar-rule-badge-text">金のルール ${ex.rule.number}</span>
-        ${ex.rule.category && ex.rule.category !== `第${ex.ch}章 ${ex.ch_title}` ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
+        <span class="grammar-rule-icon">${isKin ? '👑' : (ex.b === 'polaris2' ? '🧭' : (ex.b === 'toplevel' ? '🎓' : '📌'))}</span>
+        <span class="grammar-rule-badge-text">${isKin ? '金のルール ' + ex.rule.number : (ex.b === 'polaris2' ? 'Unit ' + ex.ch + ' ポイント' : (ex.b === 'toplevel' ? 'Lecture ' + ex.ch + ' ポイント' : 'ルール ' + ex.rule.number))}</span>
+        ${ex.rule.category && ex.rule.category !== `第${ex.ch}章 ${ex.ch_title}` && ex.rule.category !== ex.ch_title ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
       </div>
       <div class="grammar-rule-title">${ex.rule.title}</div>
     </div>
@@ -2874,9 +3111,9 @@ function renderCurrentGrammar() {
       </div>
       <div class="grammar-question">${formattedQ}</div>
       <div class="grammar-exp-container" id="grammar-exp-box" style="display:none;">
-        <div class="grammar-correct-ans">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+        <div class="grammar-correct-ans">正解: (${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}</div>
         <div class="grammar-your-ans" id="grammar-your-ans" style="display:none;"></div>
-        <div class="grammar-theme-revealed">第${ex.ch}章 ${ex.ch_title} ・${ex.th_title}</div>
+        <div class="grammar-theme-revealed">${getChapterLabel(ex.b, ex.ch, ex.ch_title)} ・${ex.th_title}</div>
         ${ruleHtml}
         ${phaseHtml}
         <div class="grammar-exp-text">${ex.exp}</div>
@@ -2892,16 +3129,24 @@ function renderCurrentGrammar() {
     </div>
   `;
 
-  const labels = ['A', 'B', 'C', 'D'];
+  const labels = ['A', 'B', 'C', 'D', 'E'];
   ex.c.forEach((choice, idx) => {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
-    btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-label">${labels[idx]}</span><span class="choice-text">${choice}</span>`;
-    btn.onclick = () => handleGrammarAnswer(idx, btn);
+    btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-label">${labels[idx] || String.fromCharCode(65 + idx)}</span><span class="choice-text">${choice}</span>`;
+    if (!review) btn.onclick = () => handleGrammarAnswer(idx, btn);
+    if (review && idx === review.sel && !review.ok) btn.classList.add('wrong');
     choicesDiv.appendChild(btn);
   });
-  setDontKnowVisible(true);
-  document.getElementById('dont-know-btn').onclick = handleGrammarDontKnow;
+  if (review) {
+    if (review.sel !== null && !review.ok) showGrammarYourAnswer(ex, review.sel);
+    markGrammarAnswer(ex);
+    addReviewBadge(review.sel === null ? 'わからない' : (review.ok ? '正解' : '不正解'), review.ok ? 'ok' : 'ng');
+    showNextButton(reviewNext);
+  } else {
+    setDontKnowVisible(true);
+    document.getElementById('dont-know-btn').onclick = handleGrammarDontKnow;
+  }
 
   updateFooter();
 }
@@ -2911,20 +3156,25 @@ function handleGrammarAnswer(selectedIdx, btn) {
   const ex = state.grammarPool[state.currentGrammarIndex];
   const isCorrect = selectedIdx === ex.a;
   playDuoSound(isCorrect);
-  showDuoBanner(isCorrect, `(${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}`);
+  showDuoBanner(isCorrect, `(${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}`);
 
   if (!isCorrect) {
     btn.classList.add('wrong');
     shakeCard();
-    const yours = document.getElementById('grammar-your-ans');
-    yours.textContent = `あなたの回答: (${['A','B','C','D'][selectedIdx]}) ${ex.c[selectedIdx]}`;
-    yours.style.display = 'block';
+    showGrammarYourAnswer(ex, selectedIdx);
     recordWeakGrammar(ex, false);
   } else {
     state.grammarScore++;
     recordWeakGrammar(ex, true);
   }
+  state.grammarLog[state.currentGrammarIndex] = { ok: isCorrect, sel: selectedIdx };
   revealGrammarAnswer(ex);
+}
+
+function showGrammarYourAnswer(ex, selectedIdx) {
+  const yours = document.getElementById('grammar-your-ans');
+  yours.textContent = `あなたの回答: (${grammarChoiceLabel(selectedIdx)}) ${ex.c[selectedIdx]}`;
+  yours.style.display = 'block';
 }
 
 // 「わからない」: 正解と解説を見せて苦手に登録。スコアは増やさず、赤表示や揺れは出さない
@@ -2932,7 +3182,8 @@ function handleGrammarDontKnow() {
   if (state.grammarAnswered) return;
   const ex = state.grammarPool[state.currentGrammarIndex];
   playDuoSound(false);
-  showDuoBanner(false, `(${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}`);
+  showDuoBanner(false, `(${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}`);
+  state.grammarLog[state.currentGrammarIndex] = { ok: false, sel: null };
   recordWeakGrammar(ex, false);
   revealGrammarAnswer(ex);
 }
@@ -2940,7 +3191,18 @@ function handleGrammarDontKnow() {
 function revealGrammarAnswer(ex) {
   state.grammarAnswered = true;
   setDontKnowVisible(false);
+  markGrammarAnswer(ex);
 
+  showNextButton(() => {
+    hideDuoBanner();
+    state.currentGrammarIndex++;
+    renderCurrentGrammar();
+  });
+  updateFooter();
+}
+
+// 正解の選択肢に印を付け、解説を開く。回答直後と見直しで共通
+function markGrammarAnswer(ex) {
   const choicesDiv = document.getElementById('choices-container');
   choicesDiv.querySelectorAll('.choice-btn').forEach((b, i) => {
     if (i === ex.a) b.classList.add('correct');
@@ -2952,13 +3214,6 @@ function revealGrammarAnswer(ex) {
 
   const expBox = document.getElementById('grammar-exp-box');
   if (expBox) expBox.style.display = 'block';
-
-  showNextButton(() => {
-    hideDuoBanner();
-    state.currentGrammarIndex++;
-    renderCurrentGrammar();
-  });
-  updateFooter();
 }
 
 function recordWeakGrammar(ex, isCorrect) {
@@ -2971,6 +3226,10 @@ function recordWeakGrammar(ex, isCorrect) {
   }
   updateWeakEntry(state.grammarWeakData, ex.id, isCorrect);
   saveGrammarWeakData();
+  if (!state.grammarSeen.has(ex.id)) {
+    state.grammarSeen.add(ex.id);
+    saveGrammarSeen();
+  }
 }
 
 function obsidianSyncBarHtml() {
@@ -2991,7 +3250,7 @@ function renderGrammarWeakList() {
     container.innerHTML = obsidianSyncBarHtml() + '<div style="color:var(--muted);text-align:center;padding:20px;">文法の苦手問題はありません</div>';
     return;
   }
-  const bookOrder = ex => (ex.b === 'kin' ? 0 : 1);
+  const bookOrder = ex => ({ kin: 0, sekai: 1, polaris2: 2, toplevel: 3 }[ex.b || 'sekai'] ?? 99);
   sortWeakItems(items, (a, b) => bookOrder(a.ex) - bookOrder(b.ex) || a.ex.ch - b.ex.ch || a.ex.id - b.ex.id);
 
   let html = obsidianSyncBarHtml() + weakListHeader(items, '本・章順');
@@ -3000,15 +3259,23 @@ function renderGrammarWeakList() {
     html += `
       <div class="weak-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
-          <span style="font-size:11px;color:var(--muted);font-weight:bold;">
-            ${ex.b === 'kin' ? '<span style="color:#b45309;">👑 金の文法</span>' : '<span style="color:#1d4ed8;">📖 世界一</span>'} 第${ex.ch}章 ${ex.ch_title}
-            ${stText ? `<span style="margin-left:6px;font-weight:normal;">（${stText}）</span>` : ''}
+          <span style="font-size:11px;color:var(--muted);font-weight:bold;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${getBookBadge(ex.b)} ${getChapterLabel(ex.b, ex.ch, ex.ch_title)}
+            ${stText ? `<span style="font-weight:normal;">（${stText}）</span>` : ''}
           </span>
           <button class="del-btn" data-remove-weak="${key}">削除</button>
         </div>
-        ${ex.rule ? `<div style="font-size:11px;color:#b45309;font-weight:bold;background:rgba(234,179,8,0.15);padding:2px 6px;border-radius:4px;border:1px solid rgba(234,179,8,0.4);">👑 金のルール ${ex.rule.number}: ${ex.rule.title}</div>` : ''}
+        ${ex.rule ? (
+          ex.b === 'kin'
+            ? `<div style="font-size:11px;color:#b45309;font-weight:bold;background:rgba(234,179,8,0.15);padding:2px 6px;border-radius:4px;border:1px solid rgba(234,179,8,0.4);">👑 金のルール ${ex.rule.number}: ${ex.rule.title}</div>`
+            : (ex.b === 'polaris2'
+                ? `<div style="font-size:11px;color:#7c3aed;font-weight:bold;background:rgba(124,58,237,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(124,58,237,0.35);">🧭 ${ex.rule.title}</div>`
+                : (ex.b === 'toplevel'
+                    ? `<div style="font-size:11px;color:#059669;font-weight:bold;background:rgba(5,150,105,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(5,150,105,0.35);">🎓 ${ex.rule.title}</div>`
+                    : `<div style="font-size:11px;color:var(--muted);font-weight:bold;padding:2px 6px;">${ex.rule.title}</div>`))
+        ) : ''}
         <div style="font-size:13px;font-weight:600;color:var(--ink);">${ex.q}</div>
-        <div style="font-size:12px;color:var(--jade);">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+        <div style="font-size:12px;color:var(--jade);">正解: (${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}</div>
         ${dueLabel(entry)}
       </div>
     `;
@@ -3129,6 +3396,7 @@ function initFilters() {
   document.querySelectorAll('.mode-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
       state.mode = e.currentTarget.dataset.mode;
+      resetReview(); // 見直しの記録はモードごとの出題内容なので、モードを変えたら消す
       document.querySelectorAll('.mode-segments .segment').forEach(b => {
         b.classList.toggle('active', b.dataset.mode === state.mode);
       });
@@ -3231,6 +3499,7 @@ function applyFilters() {
   });
   
   state.pool = shuffle(dedupeWords(filtered));
+  resetReview();
   state.currentIndex = 0;
   state.score = 0;
   state.answeredCount = 0;
@@ -3266,6 +3535,62 @@ function nextWord() {
   hideDuoBanner();
   state.currentIndex++;
   renderCurrent();
+}
+
+// ==================== 前の問題の見直し ====================
+// 「前へ」で回答済みの問題を、結果と解説つきで見直す。見直しでは正答数・苦手・保存位置を一切変えない
+
+function reviewContext() {
+  return state.app === 'grammar'
+    ? { log: state.grammarLog, cur: 'currentGrammarIndex', render: renderCurrentGrammar }
+    : { log: state.wordLog, cur: 'currentIndex', render: renderCurrent };
+}
+
+// 出題し直したときなど、見直しの記録が今の問題と合わなくなるときに消す
+function resetReview() {
+  state.reviewIndex = null;
+  state.wordLog = {};
+  state.grammarLog = {};
+}
+
+// 見直し中ならその記録を返す。記録が無ければ見直しをやめる
+function activeReview(log) {
+  if (state.reviewIndex === null) return null;
+  const entry = log[state.reviewIndex];
+  if (!entry) state.reviewIndex = null;
+  return entry || null;
+}
+
+function reviewBack() {
+  const c = reviewContext();
+  const from = state.reviewIndex === null ? state[c.cur] : state.reviewIndex;
+  if (!c.log[from - 1]) return;
+  hideDuoBanner();
+  state.reviewIndex = from - 1;
+  c.render();
+}
+
+// 見直しの「次へ」。今の問題まで戻ってきたら、回答済みなら次の問題へ、未回答ならそのまま続きから解く
+function reviewNext() {
+  const c = reviewContext();
+  const i = state.reviewIndex;
+  hideDuoBanner();
+  state.reviewIndex = null;
+  if (i === state[c.cur]) state[c.cur]++;
+  else if (c.log[i + 1]) state.reviewIndex = i + 1;
+  c.render();
+}
+
+function updateBackButton() {
+  const c = reviewContext();
+  const from = state.reviewIndex === null ? state[c.cur] : state.reviewIndex;
+  document.getElementById('back-btn').style.display = c.log[from - 1] ? 'block' : 'none';
+}
+
+// 見直し中の問題カードの先頭に「正解・不正解」などのラベルを付ける
+function addReviewBadge(label, kind) {
+  const card = document.querySelector('#quiz-container .card');
+  if (card) card.insertAdjacentHTML('afterbegin', `<div class="review-badge ${kind}">見直し ・ ${label}</div>`);
 }
 
 // 不正解のときにカードを揺らす。揺らしたカードそのものを戻すので、0.4秒以内に次へ進んでも問題ない
@@ -3396,6 +3721,7 @@ function renderCurrent() {
   document.getElementById('choices-container').classList.remove('compact');
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
+  const review = activeReview(state.wordLog);
 
   if (state.pool.length === 0) {
     container.innerHTML = `<div class="card"><div class="meaning-display">条件に合う単語がありません</div></div>`;
@@ -3404,15 +3730,15 @@ function renderCurrent() {
     return;
   }
 
-  if (state.currentIndex >= state.pool.length) {
+  if (!review && state.currentIndex >= state.pool.length) {
     container.innerHTML = `<div class="card"><div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div></div>`;
     choicesDiv.innerHTML = '';
     updateFooter();
     return;
   }
 
-  const word = state.pool[state.currentIndex];
-  state.answered = false;
+  const word = state.pool[review ? state.reviewIndex : state.currentIndex];
+  if (!review) state.answered = false; // 見直し中は今の問題の回答状況に触れない
   choicesDiv.innerHTML = '';
 
   if (state.mode === 'e2j' || state.mode === 'j2e') {
@@ -3424,18 +3750,27 @@ function renderCurrent() {
       </div>
     `;
 
-    const options = buildOptions(word);
-    state.currentOptions = options;
+    const options = review ? review.opts : buildOptions(word);
+    if (!review) state.currentOptions = options;
 
     options.forEach((opt, idx) => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
       btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-text">${state.mode === 'e2j' ? opt.m : opt.w}</span>`;
-      btn.onclick = () => handleAnswer(opt, btn);
+      if (!review) btn.onclick = () => handleAnswer(opt, btn);
+      if (review) {
+        if (opt.w === word.w) btn.classList.add('correct');
+        else if (idx === review.sel) btn.classList.add('wrong');
+      }
       choicesDiv.appendChild(btn);
     });
-    setDontKnowVisible(true);
-    document.getElementById('dont-know-btn').onclick = handleDontKnow;
+    if (review) {
+      addReviewBadge(review.dk ? 'わからない' : (review.ok ? '正解' : '不正解'), review.ok ? 'ok' : 'ng');
+      showAnswerDetails();
+    } else {
+      setDontKnowVisible(true);
+      document.getElementById('dont-know-btn').onclick = handleDontKnow;
+    }
   } else if (state.mode === 'flash') {
     container.innerHTML = `
       <div class="card flash-mode" id="flash-card">
@@ -3452,9 +3787,18 @@ function renderCurrent() {
         </div>
       </div>
     `;
-    document.getElementById('flash-card').onclick = flipCard;
-    document.getElementById('next-btn').innerText = 'めくる';
-    showNextButton(flipCard);
+    if (review) {
+      // 見直しでは答えの面を先に出し、カードはタップでめくり返せるだけにする
+      const flash = document.getElementById('flash-card');
+      flash.classList.add('flipped');
+      flash.onclick = () => flash.classList.toggle('flipped');
+      addReviewBadge(review.ok ? '覚えた' : 'まだ', review.ok ? 'ok' : 'ng');
+      showNextButton(reviewNext);
+    } else {
+      document.getElementById('flash-card').onclick = flipCard;
+      document.getElementById('next-btn').innerText = 'めくる';
+      showNextButton(flipCard);
+    }
   } else if (state.mode === 'type') {
     container.innerHTML = `
       <div class="card" id="main-card">
@@ -3469,7 +3813,7 @@ function renderCurrent() {
       </div>
     `;
     const input = document.getElementById('type-input');
-    input.focus();
+    if (!review) input.focus();
     input.addEventListener('keydown', e => {
       // 日本語入力の変換確定の Enter では答え合わせしない
       if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || state.answered) return;
@@ -3478,8 +3822,15 @@ function renderCurrent() {
       handleTypeAnswer(input.value);
     });
     document.getElementById('type-check-btn').onclick = () => handleTypeAnswer(input.value);
-    setDontKnowVisible(true);
-    document.getElementById('dont-know-btn').onclick = handleTypeDontKnow;
+    if (review) {
+      input.value = review.typed;
+      showTypeResult(word, review.ok, review.typed);
+      addReviewBadge(review.dk ? 'わからない' : (review.ok ? '正解' : '不正解'), review.ok ? 'ok' : 'ng');
+      showAnswerDetails();
+    } else {
+      setDontKnowVisible(true);
+      document.getElementById('dont-know-btn').onclick = handleTypeDontKnow;
+    }
   }
 
   updateFooter();
@@ -3516,6 +3867,12 @@ function answerChoice(isCorrect, selectedBtn) {
     selectedBtn.classList.add('wrong');
     shakeCard();
   }
+  state.wordLog[state.currentIndex] = {
+    ok: isCorrect,
+    dk: !selectedBtn,
+    sel: selectedBtn ? [...document.querySelectorAll('#choices-container .choice-btn')].indexOf(selectedBtn) : -1,
+    opts: state.currentOptions,
+  };
   recordWeak(word, isCorrect);
   showAnswerDetails();
 }
@@ -3524,7 +3881,7 @@ function answerChoice(isCorrect, selectedBtn) {
 function showAnswerDetails() {
   revealPos();
   document.getElementById('example-box').style.display = 'block';
-  showNextButton(nextWord);
+  showNextButton(state.reviewIndex === null ? nextWord : reviewNext);
   updateFooter();
 }
 
@@ -3547,6 +3904,7 @@ function gradeFlash(known) {
   state.answered = true;
   playDuoSound(known);
   if (known) state.score++;
+  state.wordLog[state.currentIndex] = { ok: known };
   recordWeak(state.pool[state.currentIndex], known);
   nextWord();
 }
@@ -3584,7 +3942,13 @@ function revealTypeAnswer(word, isCorrect, typed) {
   setDontKnowVisible(false);
   playDuoSound(isCorrect);
   showDuoBanner(isCorrect, `${word.w} : ${word.m}`);
+  state.wordLog[state.currentIndex] = { ok: isCorrect, dk: !typed, typed };
+  showTypeResult(word, isCorrect, typed);
+  showAnswerDetails();
+}
 
+// タイプ回答の結果（入力欄を固めて、あなたの回答と正解を出す）。回答直後と見直しで共通
+function showTypeResult(word, isCorrect, typed) {
   const input = document.getElementById('type-input');
   input.disabled = true;
   input.blur();
@@ -3597,8 +3961,6 @@ function revealTypeAnswer(word, isCorrect, typed) {
     : `${typed ? `<div><span class="type-result-label">あなた</span><span class="type-result-yours">${escapeHtml(typed)}</span></div>` : ''}
        <div><span class="type-result-label">正解</span><span class="type-result-answer">${escapeHtml(word.w)}</span></div>`;
   result.style.display = 'block';
-
-  showAnswerDetails();
 }
 
 function recordWeak(word, isCorrect) {
@@ -3625,12 +3987,15 @@ function updateFooter() {
   const index = isGrammar ? state.currentGrammarIndex : state.currentIndex;
   const score = isGrammar ? state.grammarScore : state.score;
   const answered = isGrammar ? state.grammarAnsweredCount : state.answeredCount;
-  document.getElementById('progress-text').innerText = pool.length > 0 ? `${Math.min(index + 1, pool.length)} / ${pool.length}` : '0 / 0';
+  const shown = state.reviewIndex === null ? index : state.reviewIndex; // 見直し中は見ている問題の番号を出す
+  document.getElementById('progress-text').innerText = pool.length > 0 ? `${Math.min(shown + 1, pool.length)} / ${pool.length}` : '0 / 0';
   const rate = answered > 0 ? `（${Math.round(score / answered * 100)}%）` : '';
   document.getElementById('score-text').innerText = `正答 ${score} / ${answered}${rate}`;
   // 進捗バーは「回答済み（次へ進んだ）問題数 / プール全体」
   const done = Math.min(index, pool.length);
   document.getElementById('progress-fill').style.width = pool.length > 0 ? `${done / pool.length * 100}%` : '0';
+
+  updateBackButton();
 
   // 表示が変わるたびに呼ばれるので、ここで設定と進み具合を保存しておく
   saveSettings();
@@ -3680,10 +4045,10 @@ function restoreSettings() {
       saveSettings();
     }
   } catch(e) {}
-  state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai'], 'all');
+  state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai', 'polaris2', 'toplevel'], 'all');
   state.grammarChapter = pick(saved.grammarChapter, getGrammarChaptersList().map(c => c.ch), 'all');
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
-  state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_only', 'due'], 'all');
+  state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
 }
 
@@ -3731,6 +4096,7 @@ function restoreSession(app) {
   if (pool.length === 0 || pool.some(x => !x) || index < 0 || index >= pool.length) return false;
   const score = Number.isInteger(saved.score) ? saved.score : 0;
   const answered = Number.isInteger(saved.answered) ? saved.answered : 0;
+  resetReview();
   if (app === 'grammar') {
     Object.assign(state, { grammarPool: pool, currentGrammarIndex: index, grammarScore: score, grammarAnsweredCount: answered });
   } else {
@@ -3910,7 +4276,7 @@ function renderSettingsSheet() {
               <div class="settings-menu-item-icon">💾</div>
               <div>
                 <div class="settings-menu-item-title">学習記録のバックアップ・復元</div>
-                <div class="settings-menu-item-subtitle">JSONファイルの書き出し、端末間の引き継ぎ・復元</div>
+                <div class="settings-menu-item-subtitle">${(typeof isGoogleDriveLinked === 'function' && isGoogleDriveLinked()) ? '☁️ Google ドライブ自動同期中' : 'JSON書き出し・Google ドライブ自動同期'}</div>
               </div>
             </div>
             <span class="settings-menu-item-arrow">›</span>
@@ -4241,8 +4607,8 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む
-const BACKUP_FORMAT = 3;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む
+const BACKUP_FORMAT = 4;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。
@@ -4277,6 +4643,18 @@ const BACKUP_MIGRATIONS = {
       } : d
     };
   },
+  // 文法の出題済みは無かったので、成績と苦手リストにある問題から作る
+  3: backup => {
+    const d = backup.data;
+    return {
+      ...backup,
+      format: 4,
+      data: isPlainObject(d) ? {
+        ...d,
+        seenGrammar: Array.isArray(d.seenGrammar) ? d.seenGrammar : seedGrammarSeenFromRaw(d.grammarStats, d.weakGrammar),
+      } : d
+    };
+  },
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // ファイルの中の名前 → この端末の保存先
@@ -4286,6 +4664,7 @@ const RECORD_KEYS = {
   seenWords: SEEN_WORDS_KEY,
   wordStats: WORD_STATS_KEY,
   grammarStats: GRAMMAR_STATS_KEY,
+  seenGrammar: GRAMMAR_SEEN_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
 };
@@ -4307,6 +4686,419 @@ function formatDateTime(ms) {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ---- レコードの合算・統合（マージ）ヘルパー ----
+
+function mergeWeakByMode(cur, inc) {
+  const out = {};
+  VOCAB_MODES.forEach(m => {
+    out[m] = { ...(cur[m] || {}) };
+    Object.entries(inc[m] || {}).forEach(([k, entry]) => {
+      const c = out[m][k];
+      if (!c) {
+        out[m][k] = entry;
+      } else if (entry.streak > c.streak || (entry.streak === c.streak && entry.due > c.due)) {
+        out[m][k] = entry;
+      }
+    });
+  });
+  return out;
+}
+
+function mergeSeenByMode(cur, inc) {
+  const out = {};
+  VOCAB_MODES.forEach(m => {
+    const curList = cur[m] ? [...cur[m]] : [];
+    const incList = inc[m] || [];
+    out[m] = [...new Set([...curList, ...incList])];
+  });
+  return out;
+}
+
+function mergeSeenGrammar(cur, inc) {
+  return [...new Set([...(cur || []), ...(inc || [])])];
+}
+
+function mergeStatsMap(cur, inc) {
+  const out = { ...(cur || {}) };
+  Object.entries(inc || {}).forEach(([k, st]) => {
+    const c = out[k];
+    if (!c || st.a > c.a || (st.a === c.a && st.c > c.c)) {
+      out[k] = { a: st.a, c: st.c };
+    }
+  });
+  return out;
+}
+
+function getCurrentLocalRecords() {
+  return {
+    weakWords: state.weakByMode,
+    weakGrammar: state.grammarWeakData,
+    seenWords: seenSnapshot(),
+    wordStats: state.wordStats,
+    grammarStats: state.grammarStats,
+    seenGrammar: [...state.grammarSeen],
+    settings: loadJSON(SETTINGS_KEY, {}),
+    session: loadJSON(SESSION_KEY, {}),
+  };
+}
+
+function mergeBackupRecords(localRec, remoteRec) {
+  const mergedWeakWords = mergeWeakByMode(localRec.weakWords || {}, remoteRec.weakWords || {});
+  const mergedSeenWords = mergeSeenByMode(localRec.seenWords || {}, remoteRec.seenWords || {});
+  
+  const mergedWeakGrammar = { ...(localRec.weakGrammar || {}) };
+  Object.entries(remoteRec.weakGrammar || {}).forEach(([k, inc]) => {
+    const cur = mergedWeakGrammar[k];
+    if (!cur || inc.streak > cur.streak || (inc.streak === cur.streak && inc.due > cur.due)) {
+      mergedWeakGrammar[k] = inc;
+    }
+  });
+
+  const mergedWordStats = mergeStatsMap(localRec.wordStats || {}, remoteRec.wordStats || {});
+  const mergedGrammarStats = mergeStatsMap(localRec.grammarStats || {}, remoteRec.grammarStats || {});
+  const mergedSeenGrammar = mergeSeenGrammar(localRec.seenGrammar || [], remoteRec.seenGrammar || []);
+
+  return {
+    ...remoteRec,
+    weakWords: mergedWeakWords,
+    weakGrammar: mergedWeakGrammar,
+    seenWords: mergedSeenWords,
+    wordStats: mergedWordStats,
+    grammarStats: mergedGrammarStats,
+    seenGrammar: mergedSeenGrammar,
+    settings: localRec.settings || remoteRec.settings || {},
+    session: localRec.session || remoteRec.session || {},
+  };
+}
+
+function applyMergedRecordsToLocal(mergedRecords) {
+  const rawByKey = {};
+  Object.entries(RECORD_KEYS).forEach(([name, key]) => {
+    if (mergedRecords[name] !== undefined) {
+      rawByKey[key] = JSON.stringify(mergedRecords[name]);
+    }
+  });
+  replaceRecords(rawByKey, false, 'クラウド自動同期');
+  reloadRecordsFromStorage();
+}
+
+// ==================== Google ドライブ自動バックアップ (AppData) ====================
+const GOOGLE_CLIENT_ID = '739368898331-c517aujpdukivk4uang69hcm8go3p6ca.apps.googleusercontent.com';
+const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+const GDRIVE_LINKED_KEY = 'toeic_gdrive_linked';
+const GDRIVE_AUTOSYNC_KEY = 'toeic_gdrive_autosync';
+const GDRIVE_LAST_SYNC_KEY = 'toeic_gdrive_last_sync';
+const GDRIVE_LAST_MOD_KEY = 'toeic_gdrive_last_remote_mod';
+const GDRIVE_BACKUP_FILENAME = 'toeic-drill-backup.json';
+
+let gdriveTokenClient = null;
+let gdriveAccessToken = null;
+let gdriveTokenExpiresAt = 0;
+let gdriveSyncTimer = null;
+let gdriveIsSyncing = false;
+let gdriveLastSyncMsg = '';
+let gdriveAuthPendingCallback = null;
+
+function isGoogleDriveLinked() {
+  try {
+    return localStorage.getItem(GDRIVE_LINKED_KEY) === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+function isGoogleDriveAutoSyncEnabled() {
+  try {
+    return isGoogleDriveLinked() && localStorage.getItem(GDRIVE_AUTOSYNC_KEY) !== '0';
+  } catch (e) {
+    return false;
+  }
+}
+
+function toggleGoogleDriveAutoSync(enabled) {
+  try {
+    localStorage.setItem(GDRIVE_AUTOSYNC_KEY, enabled ? '1' : '0');
+  } catch (e) {}
+  refreshBackupSheet();
+}
+
+function initGoogleDriveClient() {
+  if (gdriveTokenClient) return true;
+  if (!window.google || !google.accounts || !google.accounts.oauth2) return false;
+  try {
+    gdriveTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GDRIVE_SCOPE,
+      callback: (resp) => {
+        if (resp.error) {
+          console.warn('[GDrive] Auth error:', resp);
+          gdriveLastSyncMsg = '認証エラー: ' + (resp.error_description || resp.error);
+          refreshBackupSheet();
+          if (gdriveAuthPendingCallback) {
+            const cb = gdriveAuthPendingCallback;
+            gdriveAuthPendingCallback = null;
+            cb(null);
+          }
+          return;
+        }
+        gdriveAccessToken = resp.access_token;
+        const expiresIn = parseInt(resp.expires_in, 10) || 3600;
+        gdriveTokenExpiresAt = Date.now() + (expiresIn - 120) * 1000;
+        try {
+          localStorage.setItem(GDRIVE_LINKED_KEY, '1');
+          if (localStorage.getItem(GDRIVE_AUTOSYNC_KEY) === null) {
+            localStorage.setItem(GDRIVE_AUTOSYNC_KEY, '1');
+          }
+        } catch (e) {}
+        gdriveLastSyncMsg = '';
+        refreshBackupSheet();
+        if (gdriveAuthPendingCallback) {
+          const cb = gdriveAuthPendingCallback;
+          gdriveAuthPendingCallback = null;
+          cb(gdriveAccessToken);
+        }
+      }
+    });
+    return true;
+  } catch (e) {
+    console.error('[GDrive] init error:', e);
+    return false;
+  }
+}
+
+function getGoogleAccessToken(interactive = false) {
+  return new Promise((resolve) => {
+    if (gdriveAccessToken && Date.now() < gdriveTokenExpiresAt) {
+      return resolve(gdriveAccessToken);
+    }
+    if (!initGoogleDriveClient()) {
+      return resolve(null);
+    }
+    gdriveAuthPendingCallback = resolve;
+    try {
+      gdriveTokenClient.requestAccessToken({ prompt: interactive ? '' : 'none' });
+    } catch (e) {
+      console.warn('[GDrive] requestAccessToken failed:', e);
+      gdriveAuthPendingCallback = null;
+      resolve(null);
+    }
+  });
+}
+
+function unlinkGoogleDrive() {
+  try {
+    localStorage.removeItem(GDRIVE_LINKED_KEY);
+    localStorage.removeItem(GDRIVE_LAST_SYNC_KEY);
+    localStorage.removeItem(GDRIVE_LAST_MOD_KEY);
+  } catch (e) {}
+  const tokenToRevoke = gdriveAccessToken;
+  gdriveAccessToken = null;
+  gdriveTokenExpiresAt = 0;
+  gdriveLastSyncMsg = '';
+  if (tokenToRevoke && window.google && google.accounts && google.accounts.oauth2) {
+    try {
+      google.accounts.oauth2.revoke(tokenToRevoke, () => {});
+    } catch (e) {}
+  }
+  showToast('Google ドライブとの連携を解除しました');
+  refreshBackupSheet();
+}
+
+async function findGoogleDriveBackupFile(token) {
+  const query = encodeURIComponent(`name = '${GDRIVE_BACKUP_FILENAME}' and trashed = false`);
+  const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime,size)&pageSize=1`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    throw new Error(`ファイル検索に失敗しました (${res.status})`);
+  }
+  const data = await res.json();
+  return (data.files && data.files.length > 0) ? data.files[0] : null;
+}
+
+// クラウドとローカルの双方向マージ同期（合算保存・反映）
+async function syncWithGoogleDrive({ interactive = false, silent = false } = {}) {
+  if (gdriveIsSyncing) return false;
+  const token = await getGoogleAccessToken(interactive);
+  if (!token) {
+    if (!silent) showToast('Google連携のログインが必要です');
+    return false;
+  }
+
+  gdriveIsSyncing = true;
+  if (!silent) showToast('☁️ Google ドライブと同期・合算中...');
+  try {
+    const existingFile = await findGoogleDriveBackupFile(token);
+
+    if (existingFile) {
+      // 1. クラウド側の最新バックアップを取得
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFile.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(`クラウドからの取得に失敗しました (${res.status})`);
+      const remoteText = await res.text();
+      const remoteParsed = parseBackup(remoteText);
+
+      // 2. 手元データとクラウドデータを合算（マージ）
+      if (remoteParsed.ok) {
+        const localRec = getCurrentLocalRecords();
+        const mergedRecords = mergeBackupRecords(localRec, remoteParsed.records);
+        // 3. 合算結果を手元（メモリ・ストレージ）に反映
+        applyMergedRecordsToLocal(mergedRecords);
+      } else {
+        console.warn('[GDrive] remote parse warning:', remoteParsed.error);
+      }
+
+      // 4. 合算された完全な最新データをクラウドへ上書き保存 (PATCH)
+      const mergedBackupData = buildBackup();
+      const mergedBackupJson = JSON.stringify(mergedBackupData, null, 2);
+
+      const patchRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: mergedBackupJson
+      });
+      if (!patchRes.ok) throw new Error(`クラウドへの保存に失敗しました (${patchRes.status})`);
+      const savedFile = await patchRes.json();
+      if (savedFile.modifiedTime) {
+        localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime);
+      }
+    } else {
+      // 初回：クラウドにファイルが無いので新規作成 (POST)
+      const backupData = buildBackup();
+      const backupJson = JSON.stringify(backupData, null, 2);
+      const metadata = {
+        name: GDRIVE_BACKUP_FILENAME,
+        parents: ['appDataFolder']
+      };
+      const boundary = '-------toeic_drill_gdrive_boundary';
+      const delimiter = `\r\n--${boundary}\r\n`;
+      const closeDelim = `\r\n--${boundary}--`;
+      const body = delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) +
+        delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        backupJson +
+        closeDelim;
+
+      const postRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': `multipart/related; boundary="${boundary}"`
+        },
+        body: body
+      });
+      if (!postRes.ok) throw new Error(`クラウドへの新規保存に失敗しました (${postRes.status})`);
+      const savedFile = await postRes.json();
+      if (savedFile.modifiedTime) {
+        localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime);
+      }
+    }
+
+    const now = Date.now();
+    try {
+      localStorage.setItem(GDRIVE_LAST_SYNC_KEY, String(now));
+    } catch (e) {}
+    markExported();
+    gdriveLastSyncMsg = '正常に同期・合算されました (' + formatDateTime(now) + ')';
+    if (!silent) showToast('✅ Google ドライブと最新の学習記録を同期・合算しました');
+    refreshBackupSheet();
+    return true;
+  } catch (err) {
+    console.error('[GDrive] sync error:', err);
+    gdriveLastSyncMsg = '同期エラー: ' + err.message;
+    if (!silent) showToast('⚠️ Google ドライブ同期失敗: ' + err.message);
+    refreshBackupSheet();
+    return false;
+  } finally {
+    gdriveIsSyncing = false;
+  }
+}
+
+// 互換性のため別名も定義
+const saveToGoogleDrive = syncWithGoogleDrive;
+
+async function loadFromGoogleDrive({ interactive = false } = {}) {
+  const token = await getGoogleAccessToken(interactive);
+  if (!token) {
+    showToast('Google連携のログインが必要です');
+    return null;
+  }
+  showToast('☁️ ドライブから記録を取得中...');
+  try {
+    const file = await findGoogleDriveBackupFile(token);
+    if (!file) {
+      showToast('Google ドライブ内にバックアップが見つかりませんでした');
+      return null;
+    }
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error(`ダウンロードに失敗しました (${res.status})`);
+    const backupText = await res.text();
+    const result = parseBackup(backupText);
+    if (!result.ok) {
+      showToast('データの解析に失敗しました: ' + result.error);
+      return null;
+    }
+    backupView = {
+      step: 'confirm',
+      pending: result,
+      fileName: 'Google ドライブ (AppData)',
+      restoreMode: 'merge'
+    };
+    refreshBackupSheet();
+    return result;
+  } catch (err) {
+    console.error('[GDrive] load error:', err);
+    showToast('⚠️ ドライブからの取得に失敗: ' + err.message);
+    return null;
+  }
+}
+
+function scheduleGoogleDriveAutoSync(key) {
+  if (!isGoogleDriveAutoSyncEnabled()) return;
+  if (typeof RECORD_STORAGE_KEYS !== 'undefined' && !RECORD_STORAGE_KEYS.includes(key)) return;
+  if (key === SETTINGS_KEY) return;
+
+  if (gdriveSyncTimer) clearTimeout(gdriveSyncTimer);
+  gdriveSyncTimer = setTimeout(() => {
+    if (gdriveAccessToken && Date.now() < gdriveTokenExpiresAt) {
+      syncWithGoogleDrive({ interactive: false, silent: true });
+    }
+  }, 4000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && gdriveSyncTimer) {
+    clearTimeout(gdriveSyncTimer);
+    gdriveSyncTimer = null;
+    if (isGoogleDriveAutoSyncEnabled() && gdriveAccessToken && Date.now() < gdriveTokenExpiresAt) {
+      syncWithGoogleDrive({ interactive: false, silent: true });
+    }
+  }
+});
+
+async function checkGoogleDriveOnStartup() {
+  if (!isGoogleDriveLinked()) return;
+  setTimeout(async () => {
+    if (!initGoogleDriveClient()) return;
+    const token = await getGoogleAccessToken(false);
+    if (!token) return;
+    try {
+      await syncWithGoogleDrive({ interactive: false, silent: true });
+    } catch (e) {
+      console.warn('[GDrive] startup sync error:', e);
+    }
+  }, 2000);
+}
+
 // ---- 書き出し ----
 
 function buildBackup() {
@@ -4321,6 +5113,7 @@ function buildBackup() {
       seenWords: seenSnapshot(),
       wordStats: state.wordStats,
       grammarStats: state.grammarStats,
+      seenGrammar: [...state.grammarSeen],
       settings: settingsSnapshot(),
       session: sessionSnapshot(),
     },
@@ -4388,6 +5181,19 @@ function clampImportedTimes(data) {
   return data;
 }
 
+// バックアップ・取り消し用の記録の成績と苦手リストから、出題済みの初期値を作る。
+// 端末側（loadGrammarSeen）と同じく、形の正しくない記録は除いてから数える
+function seedGrammarSeenFromRaw(stats, weak) {
+  return grammarIdsFrom(sanitizeStatsMap(stats).data, isPlainObject(weak) ? sanitizeWeakData(weak, isGrammarKey).data : {});
+}
+
+// 文法の出題済み（問題番号の配列）から、番号として正しいものだけを重複なしで残す
+function sanitizeSeenGrammar(raw) {
+  if (!Array.isArray(raw)) return { data: [], invalid: 0 };
+  const valid = raw.filter(isGrammarId);
+  return { data: [...new Set(valid)], invalid: raw.length - valid.length }; // 重複は不正に数えない（単語側と同じ）
+}
+
 function sanitizeStatsMap(raw) {
   const data = {};
   let invalid = 0;
@@ -4430,6 +5236,7 @@ function parseBackup(text) {
         seenWords: Array.isArray(rawData.seenWords) ? copyToAllModes(rawData.seenWords) : {},
         wordStats: rawData.wordStats || {},
         grammarStats: rawData.grammarStats || {},
+        seenGrammar: seedGrammarSeenFromRaw(rawData.grammarStats, rawData.weakGrammar),
         settings: rawData.settings,
         session: rawData.session,
       }
@@ -4453,6 +5260,7 @@ function parseBackup(text) {
   if (!isPlainObject(d.weakWords) || !isPlainObject(d.weakGrammar) || !isPlainObject(d.seenWords)) {
     return fail('苦手リストか学習済みの単語の記録が欠けているか、形が正しくありません。');
   }
+  if (!Array.isArray(d.seenGrammar)) return fail('文法の出題済みの記録が欠けているか、形が正しくありません。');
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
 
@@ -4461,6 +5269,7 @@ function parseBackup(text) {
   const seen = sanitizeSeenByMode(d.seenWords);
   const wordStats = sanitizeStatsMap(d.wordStats);
   const grammarStats = sanitizeStatsMap(d.grammarStats);
+  const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -4475,13 +5284,14 @@ function parseBackup(text) {
       seenWords: seen.data,
       wordStats: wordStats.data,
       grammarStats: grammarStats.data,
+      seenGrammar: seenGrammar.data,
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + invalidBeforeMigration,
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
-    unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
+    unknownGrammar: [...new Set([...Object.keys(grammar.data).map(Number), ...seenGrammar.data])].filter(id => !GRAMMAR_BY_ID.has(id)).length,
   };
 }
 
@@ -4544,6 +5354,7 @@ function reloadRecordsFromStorage() {
   state.seenByMode = loadSeenByMode();
   state.wordStats = loadStatsData(WORD_STATS_KEY);
   state.grammarStats = loadStatsData(GRAMMAR_STATS_KEY);
+  state.grammarSeen = loadGrammarSeen();
   restoreSettings();
   syncFilterUI();
   setApp(state.app);
@@ -4556,43 +5367,6 @@ function reloadRecordsFromStorage() {
   }
 }
 
-function mergeWeakByMode(cur, inc) {
-  const out = {};
-  VOCAB_MODES.forEach(m => {
-    out[m] = { ...(cur[m] || {}) };
-    Object.entries(inc[m] || {}).forEach(([k, entry]) => {
-      const c = out[m][k];
-      if (!c) {
-        out[m][k] = entry;
-      } else if (entry.streak > c.streak || (entry.streak === c.streak && entry.due > c.due)) {
-        out[m][k] = entry;
-      }
-    });
-  });
-  return out;
-}
-
-function mergeSeenByMode(cur, inc) {
-  const out = {};
-  VOCAB_MODES.forEach(m => {
-    const curList = cur[m] ? [...cur[m]] : [];
-    const incList = inc[m] || [];
-    out[m] = [...new Set([...curList, ...incList])];
-  });
-  return out;
-}
-
-function mergeStatsMap(cur, inc) {
-  const out = { ...(cur || {}) };
-  Object.entries(inc || {}).forEach(([k, st]) => {
-    const c = out[k];
-    if (!c || st.a > c.a || (st.a === c.a && st.c > c.c)) {
-      out[k] = { a: st.a, c: st.c };
-    }
-  });
-  return out;
-}
-
 function runRestore() {
   const pending = backupView.pending;
   if (!pending) return;
@@ -4600,41 +5374,9 @@ function runRestore() {
   if (preExport && preExport.checked) downloadBackup();
 
   const isOverwrite = backupView.restoreMode === 'overwrite';
-  let targetRecords;
-
-  if (isOverwrite) {
-    targetRecords = pending.records;
-  } else {
-    // 統合モード: 既存の記録とファイルの内容を合わせる
-    const curWeakByMode = state.weakByMode;
-    const curSeenByMode = seenSnapshot();
-    const curWeakGrammar = state.grammarWeakData;
-    const curWordStats = state.wordStats;
-    const curGrammarStats = state.grammarStats;
-
-    const mergedWeakWords = mergeWeakByMode(curWeakByMode, pending.records.weakWords || {});
-    const mergedSeenWords = mergeSeenByMode(curSeenByMode, pending.records.seenWords || {});
-    const mergedWeakGrammar = { ...curWeakGrammar };
-    Object.entries(pending.records.weakGrammar || {}).forEach(([k, inc]) => {
-      const cur = mergedWeakGrammar[k];
-      if (!cur || inc.streak > cur.streak || (inc.streak === cur.streak && inc.due > cur.due)) {
-        mergedWeakGrammar[k] = inc;
-      }
-    });
-    const mergedWordStats = mergeStatsMap(curWordStats, pending.records.wordStats || {});
-    const mergedGrammarStats = mergeStatsMap(curGrammarStats, pending.records.grammarStats || {});
-
-    targetRecords = {
-      ...pending.records,
-      weakWords: mergedWeakWords,
-      weakGrammar: mergedWeakGrammar,
-      seenWords: mergedSeenWords,
-      wordStats: mergedWordStats,
-      grammarStats: mergedGrammarStats,
-      settings: pending.records.settings || loadJSON(SETTINGS_KEY, {}),
-      session: pending.records.session || loadJSON(SESSION_KEY, {}),
-    };
-  }
+  const targetRecords = isOverwrite
+    ? pending.records
+    : mergeBackupRecords(getCurrentLocalRecords(), pending.records);
 
   const rawByKey = {};
   Object.entries(RECORD_KEYS).forEach(([name, key]) => {
@@ -4655,7 +5397,9 @@ function runRestore() {
 function loadUndo() {
   const undo = loadJSON(BACKUP_UNDO_KEY, {});
   if (!Number.isFinite(undo.savedAt) || !isPlainObject(undo.records)) return null;
-  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string');
+  // 文法の出題済みを足す前に残した記録には、このキーが無い（復元前に保存が無かったのと同じ扱いにする）
+  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string'
+    || (k === GRAMMAR_SEEN_KEY && undo.records[k] === undefined));
   return valid ? undo : null;
 }
 
@@ -4666,7 +5410,7 @@ function runUndo() {
     return renderBackupSheet();
   }
   try {
-    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k]])), false, '取り消し');
+    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k] === undefined ? null : undo.records[k]])), false, '取り消し');
   } catch (e) {
     backupView = { step: 'home', error: e.message };
     return renderBackupSheet();
@@ -4699,6 +5443,7 @@ function currentCounts() {
     wordsDue: Object.fromEntries(VOCAB_MODES.map(m => [m, dueCount(state.weakByMode[m])])),
     grammar: Object.keys(state.grammarWeakData).length,
     grammarDue: dueCount(state.grammarWeakData),
+    grammarSeen: state.grammarSeen.size,
     wordStats: summarizeStats(state.wordStats),
     grammarStats: summarizeStats(state.grammarStats),
   };
@@ -4718,9 +5463,14 @@ function countsFromRaw(records) {
   const seen = parse(records[RECORD_KEYS.seenWords]);
   const wordStats = parse(records[RECORD_KEYS.wordStats]);
   const grammarStats = parse(records[RECORD_KEYS.grammarStats]);
+  const grammarSeen = parse(records[RECORD_KEYS.seenGrammar]);
   return {
     ...wordCounts(isPlainObject(words) ? words : {}, isPlainObject(seen) ? seen : {}),
     grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
+    // 出題済みの記録が無い取り消し用の記録は、取り消したあと成績と苦手リストから作り直される
+    grammarSeen: records[RECORD_KEYS.seenGrammar] == null
+      ? seedGrammarSeenFromRaw(grammarStats, grammar).length
+      : (Array.isArray(grammarSeen) ? grammarSeen.length : 0),
     wordStats: summarizeStats(isPlainObject(wordStats) ? wordStats : {}),
     grammarStats: summarizeStats(isPlainObject(grammarStats) ? grammarStats : {}),
   };
@@ -4732,6 +5482,7 @@ function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
       <tr><th></th><th>${leftLabel}</th><th>${rightLabel}</th></tr>
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${left.words[m]}件</td><td>${right.words[m]}件</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${left.grammar}件</td><td>${right.grammar}件</td></tr>
+      <tr><td>出題済みの文法</td><td>${left.grammarSeen}問</td><td>${right.grammarSeen}問</td></tr>
       <tr><td>学習済みの単語</td><td>${left.seen}語</td><td>${right.seen}語</td></tr>
       <tr><td>単語 累計解答数</td><td>${left.wordStats ? `${left.wordStats.totalA}問 (${left.wordStats.rate}%)` : '—'}</td><td>${right.wordStats ? `${right.wordStats.totalA}問 (${right.wordStats.rate}%)` : '—'}</td></tr>
       <tr><td>文法 累計解答数</td><td>${left.grammarStats ? `${left.grammarStats.totalA}問 (${left.grammarStats.rate}%)` : '—'}</td><td>${right.grammarStats ? `${right.grammarStats.totalA}問 (${right.grammarStats.rate}%)` : '—'}</td></tr>
@@ -4743,9 +5494,53 @@ function backupHomeHtml(v) {
   const c = currentCounts();
   const meta = loadJSON(BACKUP_META_KEY, {});
   const undo = loadUndo();
+  const isLinked = isGoogleDriveLinked();
+  const autoSync = isGoogleDriveAutoSyncEnabled();
+  const lastSync = parseInt(localStorage.getItem(GDRIVE_LAST_SYNC_KEY) || '0', 10);
+
   return `
     ${v.success ? `<div class="backup-msg ok">${escapeHtml(v.success)}</div>` : ''}
     ${v.error ? `<div class="backup-msg ng">${escapeHtml(v.error)}</div>` : ''}
+
+    <!-- Google ドライブ自動保存 -->
+    <div class="gdrive-card">
+      <div class="gdrive-header">
+        <div class="gdrive-title">
+          <span>☁️ Google ドライブ自動保存</span>
+        </div>
+        <span class="gdrive-badge ${isLinked ? 'linked' : 'unlinked'}">
+          ${isLinked ? '● 連携中' : '未連携'}
+        </span>
+      </div>
+      ${!isLinked ? `
+        <div class="gdrive-desc">
+          Google ドライブのアプリ専用領域に学習記録を自動バックアップします。別端末の記録とも自動で合算・同期されます。
+        </div>
+        <button class="backup-btn primary" data-backup="gdrive-login" style="width:100%;text-align:center;">
+          🔑 Google アカウントで連携
+        </button>
+      ` : `
+        <div class="gdrive-desc">
+          ${lastSync > 0 ? `最終同期: ${formatDateTime(lastSync)}` : 'まだ同期されていません'}
+          ${gdriveLastSyncMsg ? `<div class="gdrive-sync-msg">${escapeHtml(gdriveLastSyncMsg)}</div>` : ''}
+        </div>
+        <div class="gdrive-row">
+          <span>学習時に自動で同期・合算</span>
+          <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="gdrive-auto-toggle" ${autoSync ? 'checked' : ''} onchange="toggleGoogleDriveAutoSync(this.checked)">
+            <span style="font-size:12px;font-weight:600;">${autoSync ? 'ON' : 'OFF'}</span>
+          </label>
+        </div>
+        <div class="backup-actions" style="margin: 10px 0 4px;">
+          <button class="backup-btn primary" data-backup="gdrive-sync">☁️ 今すぐ同期（合算保存）</button>
+          <button class="backup-btn" data-backup="gdrive-restore">📥 ドライブから復元…</button>
+        </div>
+        <div style="text-align:right; margin-top:8px;">
+          <button class="backup-back" data-backup="gdrive-unlink" style="color:var(--wrong);font-size:11.5px;margin:0;">連携を解除する</button>
+        </div>
+      `}
+    </div>
+
     <div class="guide-label">この端末の学習記録・通算成績</div>
     <div style="background:rgba(255,255,255,0.4);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6;">
       📘 <strong>単語ドリル通算:</strong> ${c.wordStats.totalA.toLocaleString()}問解答（正答率 ${c.wordStats.rate}%・学習済み ${c.seen}語）<br>
@@ -4754,6 +5549,7 @@ function backupHomeHtml(v) {
     <table class="backup-table">
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${c.words[m]}件（要復習 ${c.wordsDue[m]}件）</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${c.grammar}件（要復習 ${c.grammarDue}件）</td></tr>
+      <tr><td>出題済みの文法</td><td>${c.grammarSeen}問</td></tr>
       <tr><td>学習済みの単語</td><td>${c.seen}語</td></tr>
     </table>
     <div class="backup-note">最後に書き出した日時: ${Number.isFinite(meta.lastExportAt) ? formatDateTime(meta.lastExportAt) : 'まだ書き出していません'}</div>
@@ -4776,7 +5572,7 @@ function backupHomeHtml(v) {
         <button class="backup-btn small" data-backup="undo">直前の復元を取り消す</button>
       </div>` : ''}
     <div class="backup-help" style="margin-top:14px;">
-      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・通算の正誤カウント・設定・出題の続きを1つのファイルに保存します。
+      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・出題済みの文法・通算の正誤カウント・設定・出題の続きを1つのファイルに保存します。
       別の端末やブラウザで復元すると、同じ記録で続けられます（統合と上書きを選べます）。
       記録はこの端末の中にしか無いので、ときどき書き出しておくと安心です。
     </div>`;
@@ -4794,6 +5590,7 @@ function backupConfirmHtml(v) {
   const fileCounts = {
     ...wordCounts(r.weakWords, r.seenWords),
     grammar: Object.keys(r.weakGrammar).length,
+    grammarSeen: r.seenGrammar.length,
     wordStats: summarizeStats(r.wordStats),
     grammarStats: summarizeStats(r.grammarStats),
   };
@@ -4919,6 +5716,17 @@ function handleBackupAction(action) {
       } else {
         return openSheet('設定', renderSettingsSheet, true);
       }
+    case 'gdrive-login':
+      return saveToGoogleDrive({ interactive: true });
+    case 'gdrive-sync':
+      return saveToGoogleDrive({ interactive: true });
+    case 'gdrive-restore':
+      return loadFromGoogleDrive({ interactive: true });
+    case 'gdrive-unlink':
+      if (confirm('Google ドライブとの連携を解除しますか？\n（ドライブ内のバックアップデータは削除されません）')) {
+        unlinkGoogleDrive();
+      }
+      return;
     case 'export':
       downloadBackup();
       backupView = { step: 'home', success: '書き出しました。ダウンロードしたファイル（iPhone は「ファイル」アプリ）を保管してください。' };
@@ -4961,7 +5769,7 @@ function showToast(message) {
 }
 
 // ==================== キーボード操作（PC 向け） ====================
-// 1〜4 (テンキー・全角・A〜D): 選択肢 / 0: わからない / Enter・スペース: 次へ
+// 1〜5 (テンキー・全角・A〜E): 選択肢 / 0: わからない / Enter・スペース: 次へ
 // カードモード: スペース: めくる / Enter: めくる・覚えた / 1・←: まだ / 2・→: 覚えた
 // Esc: 下から出るシートを閉じる
 
@@ -4999,7 +5807,7 @@ document.addEventListener('keydown', e => {
   };
 
   // 全角数字やテンキー対応のための正規化
-  const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '０': '0' };
+  const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '５': '5', '０': '0' };
   const rawKey = fullToHalf[e.key] || e.key;
 
   // 単語カードモード
@@ -5010,16 +5818,16 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // 選択肢インデックス判定（1〜4, テンキー1〜4, A〜Dキー）
+  // 選択肢インデックス判定（1〜5, テンキー1〜5, A〜Eキー）
   let choiceIdx = -1;
-  if (/^[1-4]$/.test(rawKey)) {
+  if (/^[1-5]$/.test(rawKey)) {
     choiceIdx = Number(rawKey) - 1;
-  } else if (/^Digit[1-4]$/.test(e.code)) {
+  } else if (/^Digit[1-5]$/.test(e.code)) {
     choiceIdx = Number(e.code.replace('Digit', '')) - 1;
-  } else if (/^Numpad[1-4]$/.test(e.code)) {
+  } else if (/^Numpad[1-5]$/.test(e.code)) {
     choiceIdx = Number(e.code.replace('Numpad', '')) - 1;
-  } else if (/^[a-dA-D]$/.test(rawKey)) {
-    const map = { a: 0, b: 1, c: 2, d: 3, A: 0, B: 1, C: 2, D: 3 };
+  } else if (/^[a-eA-E]$/.test(rawKey)) {
+    const map = { a: 0, b: 1, c: 2, d: 3, e: 4, A: 0, B: 1, C: 2, D: 3, E: 4 };
     choiceIdx = map[rawKey];
   }
 
@@ -5047,6 +5855,7 @@ restoreSettings();
 initFilters();
 syncFilterUI();
 setApp(state.app);
+checkGoogleDriveOnStartup();
 
 // 別のタブで復元・取り消しをしたら、古い記録で上書きしないよう読み込み直す
 window.addEventListener('storage', e => {
