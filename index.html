@@ -4504,6 +4504,7 @@ const RECORD_KEYS = {
   seenWords: SEEN_WORDS_KEY,
   wordStats: WORD_STATS_KEY,
   grammarStats: GRAMMAR_STATS_KEY,
+  seenGrammar: GRAMMAR_SEEN_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
 };
@@ -4774,6 +4775,7 @@ function reloadRecordsFromStorage() {
   state.seenByMode = loadSeenByMode();
   state.wordStats = loadStatsData(WORD_STATS_KEY);
   state.grammarStats = loadStatsData(GRAMMAR_STATS_KEY);
+  state.grammarSeen = loadGrammarSeen();
   restoreSettings();
   syncFilterUI();
   setApp(state.app);
@@ -4810,6 +4812,10 @@ function mergeSeenByMode(cur, inc) {
     out[m] = [...new Set([...curList, ...incList])];
   });
   return out;
+}
+
+function mergeSeenGrammar(cur, inc) {
+  return [...new Set([...cur, ...inc])];
 }
 
 function mergeStatsMap(cur, inc) {
@@ -4853,6 +4859,7 @@ function runRestore() {
     });
     const mergedWordStats = mergeStatsMap(curWordStats, pending.records.wordStats || {});
     const mergedGrammarStats = mergeStatsMap(curGrammarStats, pending.records.grammarStats || {});
+    const mergedSeenGrammar = mergeSeenGrammar([...state.grammarSeen], pending.records.seenGrammar || []);
 
     targetRecords = {
       ...pending.records,
@@ -4861,6 +4868,7 @@ function runRestore() {
       seenWords: mergedSeenWords,
       wordStats: mergedWordStats,
       grammarStats: mergedGrammarStats,
+      seenGrammar: mergedSeenGrammar,
       settings: pending.records.settings || loadJSON(SETTINGS_KEY, {}),
       session: pending.records.session || loadJSON(SESSION_KEY, {}),
     };
@@ -4885,7 +4893,9 @@ function runRestore() {
 function loadUndo() {
   const undo = loadJSON(BACKUP_UNDO_KEY, {});
   if (!Number.isFinite(undo.savedAt) || !isPlainObject(undo.records)) return null;
-  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string');
+  // 文法の出題済みを足す前に残した記録には、このキーが無い（復元前に保存が無かったのと同じ扱いにする）
+  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string'
+    || (k === GRAMMAR_SEEN_KEY && undo.records[k] === undefined));
   return valid ? undo : null;
 }
 
@@ -4896,7 +4906,7 @@ function runUndo() {
     return renderBackupSheet();
   }
   try {
-    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k]])), false, '取り消し');
+    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k] === undefined ? null : undo.records[k]])), false, '取り消し');
   } catch (e) {
     backupView = { step: 'home', error: e.message };
     return renderBackupSheet();
@@ -4929,6 +4939,7 @@ function currentCounts() {
     wordsDue: Object.fromEntries(VOCAB_MODES.map(m => [m, dueCount(state.weakByMode[m])])),
     grammar: Object.keys(state.grammarWeakData).length,
     grammarDue: dueCount(state.grammarWeakData),
+    grammarSeen: state.grammarSeen.size,
     wordStats: summarizeStats(state.wordStats),
     grammarStats: summarizeStats(state.grammarStats),
   };
@@ -4948,9 +4959,11 @@ function countsFromRaw(records) {
   const seen = parse(records[RECORD_KEYS.seenWords]);
   const wordStats = parse(records[RECORD_KEYS.wordStats]);
   const grammarStats = parse(records[RECORD_KEYS.grammarStats]);
+  const grammarSeen = parse(records[RECORD_KEYS.seenGrammar]);
   return {
     ...wordCounts(isPlainObject(words) ? words : {}, isPlainObject(seen) ? seen : {}),
     grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
+    grammarSeen: Array.isArray(grammarSeen) ? grammarSeen.length : 0,
     wordStats: summarizeStats(isPlainObject(wordStats) ? wordStats : {}),
     grammarStats: summarizeStats(isPlainObject(grammarStats) ? grammarStats : {}),
   };
@@ -4962,6 +4975,7 @@ function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
       <tr><th></th><th>${leftLabel}</th><th>${rightLabel}</th></tr>
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${left.words[m]}件</td><td>${right.words[m]}件</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${left.grammar}件</td><td>${right.grammar}件</td></tr>
+      <tr><td>出題済みの文法</td><td>${left.grammarSeen}問</td><td>${right.grammarSeen}問</td></tr>
       <tr><td>学習済みの単語</td><td>${left.seen}語</td><td>${right.seen}語</td></tr>
       <tr><td>単語 累計解答数</td><td>${left.wordStats ? `${left.wordStats.totalA}問 (${left.wordStats.rate}%)` : '—'}</td><td>${right.wordStats ? `${right.wordStats.totalA}問 (${right.wordStats.rate}%)` : '—'}</td></tr>
       <tr><td>文法 累計解答数</td><td>${left.grammarStats ? `${left.grammarStats.totalA}問 (${left.grammarStats.rate}%)` : '—'}</td><td>${right.grammarStats ? `${right.grammarStats.totalA}問 (${right.grammarStats.rate}%)` : '—'}</td></tr>
@@ -5024,6 +5038,7 @@ function backupConfirmHtml(v) {
   const fileCounts = {
     ...wordCounts(r.weakWords, r.seenWords),
     grammar: Object.keys(r.weakGrammar).length,
+    grammarSeen: r.seenGrammar.length,
     wordStats: summarizeStats(r.wordStats),
     grammarStats: summarizeStats(r.grammarStats),
   };

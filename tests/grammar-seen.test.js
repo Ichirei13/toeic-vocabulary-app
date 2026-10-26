@@ -242,6 +242,88 @@ test('v5_rejected', () => withPage({}, async page => {
   assert(/新しいバージョン/.test(r.error), r.error);
 }));
 
+// ==================== Task 4: 復元・取り消し・件数の表示 ====================
+
+// 復元を実行する。text は版4/版3のバックアップ本文、mode は 'merge' か 'overwrite'
+async function restoreText(page, text, mode) {
+  await page.evaluate(([t, m]) => {
+    backupView = { step: 'confirm', pending: parseBackup(t), restoreMode: m, fileName: 'test' };
+    runRestore();
+  }, [text, mode]);
+}
+const seenNow = page => page.evaluate(() => [...state.grammarSeen]);
+const seenSaved = page => page.evaluate(() => JSON.parse(localStorage.getItem('toeic_seen_grammar')));
+const setSeen = (page, ids) => page.evaluate(i => { state.grammarSeen = new Set(i); saveGrammarSeen(); }, ids);
+
+test('merge_union', () => withPage({}, async page => {
+  const r = await page.evaluate(() => mergeSeenGrammar([1, 2], [2, 3]));
+  assert.deepStrictEqual(sortedNums(r), [1, 2, 3]);
+}));
+
+test('restore_merge', () => withPage({}, async page => {
+  await setSeen(page, [1]);
+  await restoreText(page, backupText(4, { seenGrammar: [2] }), 'merge');
+  assert.deepStrictEqual(sortedNums(await seenNow(page)), [1, 2]);
+  assert.deepStrictEqual(sortedNums(await seenSaved(page)), [1, 2]);
+}));
+
+test('restore_overwrite', () => withPage({}, async page => {
+  await setSeen(page, [1]);
+  await restoreText(page, backupText(4, { seenGrammar: [2] }), 'overwrite');
+  assert.deepStrictEqual(sortedNums(await seenNow(page)), [2]);
+  // ファイルが空の記録なら空のまま。成績があっても初期値を作り直さない
+  await page.evaluate(() => { state.grammarStats = { 5: { a: 1, c: 1 } }; saveJSON(GRAMMAR_STATS_KEY, state.grammarStats); });
+  await restoreText(page, backupText(4, { seenGrammar: [] }), 'overwrite');
+  assert.deepStrictEqual(await seenNow(page), []);
+  assert.strictEqual(await page.evaluate(() => localStorage.getItem('toeic_seen_grammar')), '[]');
+}));
+
+test('restore_v3_file', () => withPage({}, async page => {
+  const v3 = backupText(3, { weakGrammar: WEAK9, grammarStats: STATS5 });
+  await setSeen(page, [1]);
+  await restoreText(page, v3, 'merge');
+  assert.deepStrictEqual(sortedNums(await seenNow(page)), [1, 5, 9]);
+  await restoreText(page, v3, 'overwrite');
+  assert.deepStrictEqual(sortedNums(await seenNow(page)), [5, 9]);
+}));
+
+test('undo_restores_absent_key', () => withPage({ toeic_grammar_stats: JSON.stringify(STATS5) }, async page => {
+  await page.evaluate(() => localStorage.removeItem('toeic_seen_grammar'));
+  await restoreText(page, backupText(4, { seenGrammar: [2] }), 'overwrite');
+  assert.deepStrictEqual(await seenNow(page), [2]);
+  await page.evaluate(() => runUndo());
+  // 復元前は保存が無かったので、読み込み時に成績から初期値が作り直される
+  assert.deepStrictEqual(sortedNums(await seenNow(page)), [5]);
+  assert.deepStrictEqual(sortedNums(await seenSaved(page)), [5]);
+}));
+
+test('undo_legacy_record_without_seen_key', () => withPage({ toeic_grammar_stats: JSON.stringify(STATS5) }, async page => {
+  // この機能より前に残した取り消し用の記録には、出題済みのキーが無い
+  await page.evaluate(() => {
+    const records = Object.fromEntries(RECORD_STORAGE_KEYS.filter(k => k !== GRAMMAR_SEEN_KEY).map(k => [k, null]));
+    records[GRAMMAR_STATS_KEY] = JSON.stringify({ 5: { a: 1, c: 1 } });
+    localStorage.setItem('toeic_backup_undo', JSON.stringify({ savedAt: Date.now(), records }));
+    state.grammarSeen = new Set([2]);
+    saveGrammarSeen();
+    runUndo();
+  });
+  assert.notStrictEqual(await page.evaluate(() => localStorage.getItem('toeic_seen_grammar')), 'undefined');
+  assert.deepStrictEqual(sortedNums(await seenNow(page)), [5]);
+}));
+
+test('counts_and_table', () => withPage({}, async page => {
+  await setSeen(page, [1, 2, 3]);
+  const r = await page.evaluate(() => ({
+    now: currentCounts().grammarSeen,
+    missing: countsFromRaw({}).grammarSeen,
+    corrupt: countsFromRaw({ toeic_seen_grammar: '{{' }).grammarSeen,
+    raw: countsFromRaw({ toeic_seen_grammar: '[4,5]' }).grammarSeen,
+    html: backupConfirmHtml({ pending: parseBackup(JSON.stringify(buildBackup())), fileName: 'x', restoreMode: 'merge' }),
+  }));
+  assert.deepStrictEqual([r.now, r.missing, r.corrupt, r.raw], [3, 0, 0, 2]);
+  assert(/出題済みの文法<\/td><td>3問<\/td><td>3問/.test(r.html), 'table row with both counts');
+}));
+
 // ==================== 実行 ====================
 
 (async () => {
