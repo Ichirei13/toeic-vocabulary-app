@@ -2259,6 +2259,7 @@ body {
       <div class="filter-row" id="grammar-chapter-filters"></div>
       <div class="segments" id="grammar-weak-segments" style="margin-top: 4px;">
         <div class="segment active" data-gweak="all">すべて</div>
+        <div class="segment" data-gweak="weak_unlearned">苦手+未</div>
         <div class="segment" data-gweak="weak_only">苦手のみ<span id="grammar-weak-badge" class="weak-badge" style="display:none">0</span></div>
         <div class="segment" data-gweak="due">要復習<span id="grammar-due-badge" class="weak-badge" style="display:none">0</span></div>
       </div>
@@ -2872,6 +2873,7 @@ function applyGrammarFilters() {
     if (!grammarMatchesBaseFilters(ex)) return false;
     const entry = state.grammarWeakData[ex.id];
     if (state.grammarWeakFilter === 'weak_only' && !entry) return false;
+    if (state.grammarWeakFilter === 'weak_unlearned' && !entry && state.grammarSeen.has(ex.id)) return false;
     if (state.grammarWeakFilter === 'due' && !(entry && isDue(entry))) return false;
     return true;
   });
@@ -3885,7 +3887,7 @@ function restoreSettings() {
   state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai'], 'all');
   state.grammarChapter = pick(saved.grammarChapter, getGrammarChaptersList().map(c => c.ch), 'all');
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
-  state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_only', 'due'], 'all');
+  state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
 }
 

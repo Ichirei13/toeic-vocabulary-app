@@ -116,6 +116,56 @@ test('record_on_dont_know', () => withPage({}, async page => {
   assert(saved.includes(id));
 }));
 
+// ==================== Task 2: 「苦手+未」の絞り込み ====================
+
+// localStorage を書き換えて読み込み直す(withPage の初期設定は再読み込みでは入れ直さない)
+async function setStorageAndReload(page, items) {
+  await page.evaluate(it => Object.entries(it).forEach(([k, v]) => localStorage.setItem(k, v)), items);
+  await page.reload();
+}
+
+const allGrammarIds = page => page.evaluate(() => RAW_GRAMMAR.map(g => g.id));
+
+test('filter_weak_unlearned_pool', () => withPage({}, async page => {
+  const all = await allGrammarIds(page);
+  const [a, b, c] = all;
+  await setStorageAndReload(page, {
+    toeic_seen_grammar: JSON.stringify([a, b, c]),
+    toeic_weak_grammar: JSON.stringify({ [b]: JSON.parse(WEAK_ENTRY) }),
+  });
+  await openGrammar(page);
+  await page.evaluate(() => { state.grammarWeakFilter = 'weak_unlearned'; applyGrammarFilters(); });
+  const pool = await page.evaluate(() => state.grammarPool.map(g => g.id));
+  assert.deepStrictEqual(sortedNums(pool), sortedNums(all.filter(i => i !== a && i !== c)));
+}));
+
+test('filter_segment_click', () => withPage({}, async page => {
+  await openGrammar(page);
+  await page.click('#filter-toggle');
+  const order = await page.$$eval('#grammar-weak-segments .segment', els => els.map(e => e.dataset.gweak));
+  assert.deepStrictEqual(order, ['all', 'weak_unlearned', 'weak_only', 'due']);
+  await page.click('#grammar-weak-segments [data-gweak="weak_unlearned"]');
+  assert.strictEqual(await page.evaluate(() => state.grammarWeakFilter), 'weak_unlearned');
+  assert(await page.$eval('#grammar-weak-segments [data-gweak="weak_unlearned"]', e => e.classList.contains('active')));
+}));
+
+test('filter_empty_pool', () => withPage({}, async page => {
+  const all = await allGrammarIds(page);
+  await setStorageAndReload(page, { toeic_seen_grammar: JSON.stringify(all), toeic_weak_grammar: '{}' });
+  await openGrammar(page);
+  await page.evaluate(() => { state.grammarWeakFilter = 'weak_unlearned'; applyGrammarFilters(); });
+  assert(/条件に合う文法問題がありません/.test(await page.innerText('#quiz-container')));
+}));
+
+test('filter_persists', () => withPage({}, async page => {
+  await openGrammar(page);
+  await page.evaluate(() => { state.grammarWeakFilter = 'weak_unlearned'; applyGrammarFilters(); });
+  await page.reload();
+  assert.strictEqual(await page.evaluate(() => state.grammarWeakFilter), 'weak_unlearned');
+  await setStorageAndReload(page, { toeic_settings: JSON.stringify({ app: 'grammar', grammarWeakFilter: 'bogus' }) });
+  assert.strictEqual(await page.evaluate(() => state.grammarWeakFilter), 'all');
+}));
+
 // ==================== 実行 ====================
 
 (async () => {
