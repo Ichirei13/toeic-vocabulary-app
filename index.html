@@ -2489,6 +2489,44 @@ const LEGACY_SEEN_WORDS_KEY = 'toeic_seen_words';
 const WORD_STATS_KEY = 'toeic_word_stats';
 const GRAMMAR_STATS_KEY = 'toeic_grammar_stats';
 
+// 文法で出題済み（回答した）問題番号の配列
+const GRAMMAR_SEEN_KEY = 'toeic_seen_grammar';
+
+function isGrammarId(v) {
+  return Number.isInteger(v) && v > 0;
+}
+
+// 渡したオブジェクト（成績・苦手など）のキーから、問題番号として読めるものを重複なしで集める
+function grammarIdsFrom(...maps) {
+  const ids = new Set();
+  maps.forEach(m => {
+    Object.keys(m || {}).forEach(k => {
+      if (isGrammarKey(k)) ids.add(Number(k));
+    });
+  });
+  return [...ids];
+}
+
+// 保存が無いとき（初回）だけ、通算正誤カウントと苦手リストにある問題を出題済みとして引き継ぐ。
+// 保存が壊れているときは空で始め、上書きはしない
+function loadGrammarSeen() {
+  let saved; // 配列ならその中身、null なら保存なし、undefined なら読めない・壊れている（loadJSON は fallback が null だと配列を捨てるので使わない）
+  try {
+    saved = JSON.parse(localStorage.getItem(GRAMMAR_SEEN_KEY));
+  } catch (e) {
+    saved = undefined;
+  }
+  if (Array.isArray(saved)) return new Set(saved.filter(isGrammarId));
+  if (saved !== null) return new Set();
+  const seeded = new Set(grammarIdsFrom(state.grammarStats, state.grammarWeakData));
+  saveJSON(GRAMMAR_SEEN_KEY, [...seeded]);
+  return seeded;
+}
+
+function saveGrammarSeen() {
+  saveJSON(GRAMMAR_SEEN_KEY, [...state.grammarSeen]);
+}
+
 function loadStatsData(key) {
   const data = loadJSON(key, {});
   Object.keys(data).forEach(k => {
@@ -2632,6 +2670,8 @@ let state = {
   weakSort: 'new', // 苦手リストの並び順
   weakListMode: 'e2j' // 単語の苦手リストで表示しているモード
 };
+// 初期値の作成に grammarStats と grammarWeakData を使うので、state ができたあとで読み込む
+state.grammarSeen = loadGrammarSeen();
 
 // 今のモード（または指定したモード）の単語の苦手・学習済み
 function wordWeak(mode = state.mode) {
@@ -3031,6 +3071,10 @@ function recordWeakGrammar(ex, isCorrect) {
   }
   updateWeakEntry(state.grammarWeakData, ex.id, isCorrect);
   saveGrammarWeakData();
+  if (!state.grammarSeen.has(ex.id)) {
+    state.grammarSeen.add(ex.id);
+    saveGrammarSeen();
+  }
 }
 
 function obsidianSyncBarHtml() {
