@@ -2259,6 +2259,7 @@ body {
       <div class="filter-row" id="grammar-chapter-filters"></div>
       <div class="segments" id="grammar-weak-segments" style="margin-top: 4px;">
         <div class="segment active" data-gweak="all">すべて</div>
+        <div class="segment" data-gweak="weak_unlearned">苦手+未</div>
         <div class="segment" data-gweak="weak_only">苦手のみ<span id="grammar-weak-badge" class="weak-badge" style="display:none">0</span></div>
         <div class="segment" data-gweak="due">要復習<span id="grammar-due-badge" class="weak-badge" style="display:none">0</span></div>
       </div>
@@ -2489,6 +2490,45 @@ const LEGACY_SEEN_WORDS_KEY = 'toeic_seen_words';
 const WORD_STATS_KEY = 'toeic_word_stats';
 const GRAMMAR_STATS_KEY = 'toeic_grammar_stats';
 
+// 文法で出題済み（回答した）問題番号の配列
+const GRAMMAR_SEEN_KEY = 'toeic_seen_grammar';
+
+function isGrammarId(v) {
+  return Number.isInteger(v) && v > 0;
+}
+
+// 渡したオブジェクト（成績・苦手など）のキーから、問題番号として読めるものを重複なしで集める
+function grammarIdsFrom(...maps) {
+  const ids = new Set();
+  maps.forEach(m => {
+    if (!isPlainObject(m)) return;
+    Object.keys(m).forEach(k => {
+      if (isGrammarKey(k)) ids.add(Number(k));
+    });
+  });
+  return [...ids];
+}
+
+// 保存が無いとき（初回）だけ、通算正誤カウントと苦手リストにある問題を出題済みとして引き継ぐ。
+// 保存が壊れているときは空で始め、上書きはしない
+function loadGrammarSeen() {
+  let saved; // 配列ならその中身、null なら保存なし、undefined なら読めない・壊れている（loadJSON は fallback が null だと配列を捨てるので使わない）
+  try {
+    saved = JSON.parse(localStorage.getItem(GRAMMAR_SEEN_KEY));
+  } catch (e) {
+    saved = undefined;
+  }
+  if (Array.isArray(saved)) return new Set(saved.filter(isGrammarId));
+  if (saved !== null) return new Set();
+  const seeded = new Set(grammarIdsFrom(state.grammarStats, state.grammarWeakData));
+  saveJSON(GRAMMAR_SEEN_KEY, [...seeded]);
+  return seeded;
+}
+
+function saveGrammarSeen() {
+  saveJSON(GRAMMAR_SEEN_KEY, [...state.grammarSeen]);
+}
+
 function loadStatsData(key) {
   const data = loadJSON(key, {});
   Object.keys(data).forEach(k => {
@@ -2632,6 +2672,8 @@ let state = {
   weakSort: 'new', // 苦手リストの並び順
   weakListMode: 'e2j' // 単語の苦手リストで表示しているモード
 };
+// 初期値の作成に grammarStats と grammarWeakData を使うので、state ができたあとで読み込む
+state.grammarSeen = loadGrammarSeen();
 
 // 今のモード（または指定したモード）の単語の苦手・学習済み
 function wordWeak(mode = state.mode) {
@@ -2832,6 +2874,7 @@ function applyGrammarFilters() {
     if (!grammarMatchesBaseFilters(ex)) return false;
     const entry = state.grammarWeakData[ex.id];
     if (state.grammarWeakFilter === 'weak_only' && !entry) return false;
+    if (state.grammarWeakFilter === 'weak_unlearned' && !entry && state.grammarSeen.has(ex.id)) return false;
     if (state.grammarWeakFilter === 'due' && !(entry && isDue(entry))) return false;
     return true;
   });
@@ -3031,6 +3074,10 @@ function recordWeakGrammar(ex, isCorrect) {
   }
   updateWeakEntry(state.grammarWeakData, ex.id, isCorrect);
   saveGrammarWeakData();
+  if (!state.grammarSeen.has(ex.id)) {
+    state.grammarSeen.add(ex.id);
+    saveGrammarSeen();
+  }
 }
 
 function obsidianSyncBarHtml() {
@@ -3841,7 +3888,7 @@ function restoreSettings() {
   state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai'], 'all');
   state.grammarChapter = pick(saved.grammarChapter, getGrammarChaptersList().map(c => c.ch), 'all');
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
-  state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_only', 'due'], 'all');
+  state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
 }
 
@@ -4400,8 +4447,8 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む
-const BACKUP_FORMAT = 3;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む
+const BACKUP_FORMAT = 4;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。
@@ -4436,6 +4483,18 @@ const BACKUP_MIGRATIONS = {
       } : d
     };
   },
+  // 文法の出題済みは無かったので、成績と苦手リストにある問題から作る
+  3: backup => {
+    const d = backup.data;
+    return {
+      ...backup,
+      format: 4,
+      data: isPlainObject(d) ? {
+        ...d,
+        seenGrammar: Array.isArray(d.seenGrammar) ? d.seenGrammar : grammarIdsFrom(d.grammarStats, d.weakGrammar),
+      } : d
+    };
+  },
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // ファイルの中の名前 → この端末の保存先
@@ -4445,6 +4504,7 @@ const RECORD_KEYS = {
   seenWords: SEEN_WORDS_KEY,
   wordStats: WORD_STATS_KEY,
   grammarStats: GRAMMAR_STATS_KEY,
+  seenGrammar: GRAMMAR_SEEN_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
 };
@@ -4480,6 +4540,7 @@ function buildBackup() {
       seenWords: seenSnapshot(),
       wordStats: state.wordStats,
       grammarStats: state.grammarStats,
+      seenGrammar: [...state.grammarSeen],
       settings: settingsSnapshot(),
       session: sessionSnapshot(),
     },
@@ -4547,6 +4608,13 @@ function clampImportedTimes(data) {
   return data;
 }
 
+// 文法の出題済み（問題番号の配列）から、番号として正しいものだけを重複なしで残す
+function sanitizeSeenGrammar(raw) {
+  if (!Array.isArray(raw)) return { data: [], invalid: 0 };
+  const data = [...new Set(raw.filter(isGrammarId))];
+  return { data, invalid: raw.length - data.length };
+}
+
 function sanitizeStatsMap(raw) {
   const data = {};
   let invalid = 0;
@@ -4589,6 +4657,7 @@ function parseBackup(text) {
         seenWords: Array.isArray(rawData.seenWords) ? copyToAllModes(rawData.seenWords) : {},
         wordStats: rawData.wordStats || {},
         grammarStats: rawData.grammarStats || {},
+        seenGrammar: grammarIdsFrom(rawData.grammarStats, rawData.weakGrammar),
         settings: rawData.settings,
         session: rawData.session,
       }
@@ -4612,6 +4681,7 @@ function parseBackup(text) {
   if (!isPlainObject(d.weakWords) || !isPlainObject(d.weakGrammar) || !isPlainObject(d.seenWords)) {
     return fail('苦手リストか学習済みの単語の記録が欠けているか、形が正しくありません。');
   }
+  if (!Array.isArray(d.seenGrammar)) return fail('文法の出題済みの記録が欠けているか、形が正しくありません。');
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
 
@@ -4620,6 +4690,7 @@ function parseBackup(text) {
   const seen = sanitizeSeenByMode(d.seenWords);
   const wordStats = sanitizeStatsMap(d.wordStats);
   const grammarStats = sanitizeStatsMap(d.grammarStats);
+  const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -4634,10 +4705,11 @@ function parseBackup(text) {
       seenWords: seen.data,
       wordStats: wordStats.data,
       grammarStats: grammarStats.data,
+      seenGrammar: seenGrammar.data,
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + invalidBeforeMigration,
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
@@ -4703,6 +4775,7 @@ function reloadRecordsFromStorage() {
   state.seenByMode = loadSeenByMode();
   state.wordStats = loadStatsData(WORD_STATS_KEY);
   state.grammarStats = loadStatsData(GRAMMAR_STATS_KEY);
+  state.grammarSeen = loadGrammarSeen();
   restoreSettings();
   syncFilterUI();
   setApp(state.app);
@@ -4739,6 +4812,10 @@ function mergeSeenByMode(cur, inc) {
     out[m] = [...new Set([...curList, ...incList])];
   });
   return out;
+}
+
+function mergeSeenGrammar(cur, inc) {
+  return [...new Set([...cur, ...inc])];
 }
 
 function mergeStatsMap(cur, inc) {
@@ -4782,6 +4859,7 @@ function runRestore() {
     });
     const mergedWordStats = mergeStatsMap(curWordStats, pending.records.wordStats || {});
     const mergedGrammarStats = mergeStatsMap(curGrammarStats, pending.records.grammarStats || {});
+    const mergedSeenGrammar = mergeSeenGrammar([...state.grammarSeen], pending.records.seenGrammar || []);
 
     targetRecords = {
       ...pending.records,
@@ -4790,6 +4868,7 @@ function runRestore() {
       seenWords: mergedSeenWords,
       wordStats: mergedWordStats,
       grammarStats: mergedGrammarStats,
+      seenGrammar: mergedSeenGrammar,
       settings: pending.records.settings || loadJSON(SETTINGS_KEY, {}),
       session: pending.records.session || loadJSON(SESSION_KEY, {}),
     };
@@ -4814,7 +4893,9 @@ function runRestore() {
 function loadUndo() {
   const undo = loadJSON(BACKUP_UNDO_KEY, {});
   if (!Number.isFinite(undo.savedAt) || !isPlainObject(undo.records)) return null;
-  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string');
+  // 文法の出題済みを足す前に残した記録には、このキーが無い（復元前に保存が無かったのと同じ扱いにする）
+  const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string'
+    || (k === GRAMMAR_SEEN_KEY && undo.records[k] === undefined));
   return valid ? undo : null;
 }
 
@@ -4825,7 +4906,7 @@ function runUndo() {
     return renderBackupSheet();
   }
   try {
-    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k]])), false, '取り消し');
+    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k] === undefined ? null : undo.records[k]])), false, '取り消し');
   } catch (e) {
     backupView = { step: 'home', error: e.message };
     return renderBackupSheet();
@@ -4858,6 +4939,7 @@ function currentCounts() {
     wordsDue: Object.fromEntries(VOCAB_MODES.map(m => [m, dueCount(state.weakByMode[m])])),
     grammar: Object.keys(state.grammarWeakData).length,
     grammarDue: dueCount(state.grammarWeakData),
+    grammarSeen: state.grammarSeen.size,
     wordStats: summarizeStats(state.wordStats),
     grammarStats: summarizeStats(state.grammarStats),
   };
@@ -4877,9 +4959,11 @@ function countsFromRaw(records) {
   const seen = parse(records[RECORD_KEYS.seenWords]);
   const wordStats = parse(records[RECORD_KEYS.wordStats]);
   const grammarStats = parse(records[RECORD_KEYS.grammarStats]);
+  const grammarSeen = parse(records[RECORD_KEYS.seenGrammar]);
   return {
     ...wordCounts(isPlainObject(words) ? words : {}, isPlainObject(seen) ? seen : {}),
     grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
+    grammarSeen: Array.isArray(grammarSeen) ? grammarSeen.length : 0,
     wordStats: summarizeStats(isPlainObject(wordStats) ? wordStats : {}),
     grammarStats: summarizeStats(isPlainObject(grammarStats) ? grammarStats : {}),
   };
@@ -4891,6 +4975,7 @@ function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
       <tr><th></th><th>${leftLabel}</th><th>${rightLabel}</th></tr>
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${left.words[m]}件</td><td>${right.words[m]}件</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${left.grammar}件</td><td>${right.grammar}件</td></tr>
+      <tr><td>出題済みの文法</td><td>${left.grammarSeen}問</td><td>${right.grammarSeen}問</td></tr>
       <tr><td>学習済みの単語</td><td>${left.seen}語</td><td>${right.seen}語</td></tr>
       <tr><td>単語 累計解答数</td><td>${left.wordStats ? `${left.wordStats.totalA}問 (${left.wordStats.rate}%)` : '—'}</td><td>${right.wordStats ? `${right.wordStats.totalA}問 (${right.wordStats.rate}%)` : '—'}</td></tr>
       <tr><td>文法 累計解答数</td><td>${left.grammarStats ? `${left.grammarStats.totalA}問 (${left.grammarStats.rate}%)` : '—'}</td><td>${right.grammarStats ? `${right.grammarStats.totalA}問 (${right.grammarStats.rate}%)` : '—'}</td></tr>
@@ -4953,6 +5038,7 @@ function backupConfirmHtml(v) {
   const fileCounts = {
     ...wordCounts(r.weakWords, r.seenWords),
     grammar: Object.keys(r.weakGrammar).length,
+    grammarSeen: r.seenGrammar.length,
     wordStats: summarizeStats(r.wordStats),
     grammarStats: summarizeStats(r.grammarStats),
   };
