@@ -4615,6 +4615,102 @@ function formatDateTime(ms) {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ---- レコードの合算・統合（マージ）ヘルパー ----
+
+function mergeWeakByMode(cur, inc) {
+  const out = {};
+  VOCAB_MODES.forEach(m => {
+    out[m] = { ...(cur[m] || {}) };
+    Object.entries(inc[m] || {}).forEach(([k, entry]) => {
+      const c = out[m][k];
+      if (!c) {
+        out[m][k] = entry;
+      } else if (entry.streak > c.streak || (entry.streak === c.streak && entry.due > c.due)) {
+        out[m][k] = entry;
+      }
+    });
+  });
+  return out;
+}
+
+function mergeSeenByMode(cur, inc) {
+  const out = {};
+  VOCAB_MODES.forEach(m => {
+    const curList = cur[m] ? [...cur[m]] : [];
+    const incList = inc[m] || [];
+    out[m] = [...new Set([...curList, ...incList])];
+  });
+  return out;
+}
+
+function mergeSeenGrammar(cur, inc) {
+  return [...new Set([...(cur || []), ...(inc || [])])];
+}
+
+function mergeStatsMap(cur, inc) {
+  const out = { ...(cur || {}) };
+  Object.entries(inc || {}).forEach(([k, st]) => {
+    const c = out[k];
+    if (!c || st.a > c.a || (st.a === c.a && st.c > c.c)) {
+      out[k] = { a: st.a, c: st.c };
+    }
+  });
+  return out;
+}
+
+function getCurrentLocalRecords() {
+  return {
+    weakWords: state.weakByMode,
+    weakGrammar: state.grammarWeakData,
+    seenWords: seenSnapshot(),
+    wordStats: state.wordStats,
+    grammarStats: state.grammarStats,
+    seenGrammar: [...state.grammarSeen],
+    settings: loadJSON(SETTINGS_KEY, {}),
+    session: loadJSON(SESSION_KEY, {}),
+  };
+}
+
+function mergeBackupRecords(localRec, remoteRec) {
+  const mergedWeakWords = mergeWeakByMode(localRec.weakWords || {}, remoteRec.weakWords || {});
+  const mergedSeenWords = mergeSeenByMode(localRec.seenWords || {}, remoteRec.seenWords || {});
+  
+  const mergedWeakGrammar = { ...(localRec.weakGrammar || {}) };
+  Object.entries(remoteRec.weakGrammar || {}).forEach(([k, inc]) => {
+    const cur = mergedWeakGrammar[k];
+    if (!cur || inc.streak > cur.streak || (inc.streak === cur.streak && inc.due > cur.due)) {
+      mergedWeakGrammar[k] = inc;
+    }
+  });
+
+  const mergedWordStats = mergeStatsMap(localRec.wordStats || {}, remoteRec.wordStats || {});
+  const mergedGrammarStats = mergeStatsMap(localRec.grammarStats || {}, remoteRec.grammarStats || {});
+  const mergedSeenGrammar = mergeSeenGrammar(localRec.seenGrammar || [], remoteRec.seenGrammar || []);
+
+  return {
+    ...remoteRec,
+    weakWords: mergedWeakWords,
+    weakGrammar: mergedWeakGrammar,
+    seenWords: mergedSeenWords,
+    wordStats: mergedWordStats,
+    grammarStats: mergedGrammarStats,
+    seenGrammar: mergedSeenGrammar,
+    settings: localRec.settings || remoteRec.settings || {},
+    session: localRec.session || remoteRec.session || {},
+  };
+}
+
+function applyMergedRecordsToLocal(mergedRecords) {
+  const rawByKey = {};
+  Object.entries(RECORD_KEYS).forEach(([name, key]) => {
+    if (mergedRecords[name] !== undefined) {
+      rawByKey[key] = JSON.stringify(mergedRecords[name]);
+    }
+  });
+  replaceRecords(rawByKey, false, 'クラウド自動同期');
+  reloadRecordsFromStorage();
+}
+
 // ==================== Google ドライブ自動バックアップ (AppData) ====================
 const GOOGLE_CLIENT_ID = '739368898331-c517aujpdukivk4uang69hcm8go3p6ca.apps.googleusercontent.com';
 const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
@@ -4750,7 +4846,8 @@ async function findGoogleDriveBackupFile(token) {
   return (data.files && data.files.length > 0) ? data.files[0] : null;
 }
 
-async function saveToGoogleDrive({ interactive = false, silent = false } = {}) {
+// クラウドとローカルの双方向マージ同期（合算保存・反映）
+async function syncWithGoogleDrive({ interactive = false, silent = false } = {}) {
   if (gdriveIsSyncing) return false;
   const token = await getGoogleAccessToken(interactive);
   if (!token) {
@@ -4759,23 +4856,50 @@ async function saveToGoogleDrive({ interactive = false, silent = false } = {}) {
   }
 
   gdriveIsSyncing = true;
-  if (!silent) showToast('☁️ Google ドライブに保存中...');
+  if (!silent) showToast('☁️ Google ドライブと同期・合算中...');
   try {
     const existingFile = await findGoogleDriveBackupFile(token);
-    const backupData = buildBackup();
-    const backupJson = JSON.stringify(backupData, null, 2);
 
-    let res;
     if (existingFile) {
-      res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
+      // 1. クラウド側の最新バックアップを取得
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFile.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error(`クラウドからの取得に失敗しました (${res.status})`);
+      const remoteText = await res.text();
+      const remoteParsed = parseBackup(remoteText);
+
+      // 2. 手元データとクラウドデータを合算（マージ）
+      if (remoteParsed.ok) {
+        const localRec = getCurrentLocalRecords();
+        const mergedRecords = mergeBackupRecords(localRec, remoteParsed.records);
+        // 3. 合算結果を手元（メモリ・ストレージ）に反映
+        applyMergedRecordsToLocal(mergedRecords);
+      } else {
+        console.warn('[GDrive] remote parse warning:', remoteParsed.error);
+      }
+
+      // 4. 合算された完全な最新データをクラウドへ上書き保存 (PATCH)
+      const mergedBackupData = buildBackup();
+      const mergedBackupJson = JSON.stringify(mergedBackupData, null, 2);
+
+      const patchRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json; charset=UTF-8'
         },
-        body: backupJson
+        body: mergedBackupJson
       });
+      if (!patchRes.ok) throw new Error(`クラウドへの保存に失敗しました (${patchRes.status})`);
+      const savedFile = await patchRes.json();
+      if (savedFile.modifiedTime) {
+        localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime);
+      }
     } else {
+      // 初回：クラウドにファイルが無いので新規作成 (POST)
+      const backupData = buildBackup();
+      const backupJson = JSON.stringify(backupData, null, 2);
       const metadata = {
         name: GDRIVE_BACKUP_FILENAME,
         parents: ['appDataFolder']
@@ -4791,7 +4915,7 @@ async function saveToGoogleDrive({ interactive = false, silent = false } = {}) {
         backupJson +
         closeDelim;
 
-      res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      const postRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -4799,35 +4923,35 @@ async function saveToGoogleDrive({ interactive = false, silent = false } = {}) {
         },
         body: body
       });
-    }
-
-    if (!res.ok) {
-      throw new Error(`保存に失敗しました (${res.status})`);
-    }
-
-    const savedFile = await res.json();
-    const now = Date.now();
-    try {
-      localStorage.setItem(GDRIVE_LAST_SYNC_KEY, String(now));
+      if (!postRes.ok) throw new Error(`クラウドへの新規保存に失敗しました (${postRes.status})`);
+      const savedFile = await postRes.json();
       if (savedFile.modifiedTime) {
         localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime);
       }
+    }
+
+    const now = Date.now();
+    try {
+      localStorage.setItem(GDRIVE_LAST_SYNC_KEY, String(now));
     } catch (e) {}
     markExported();
-    gdriveLastSyncMsg = '正常に保存されました (' + formatDateTime(now) + ')';
-    if (!silent) showToast('✅ Google ドライブに保存しました');
+    gdriveLastSyncMsg = '正常に同期・合算されました (' + formatDateTime(now) + ')';
+    if (!silent) showToast('✅ Google ドライブと最新の学習記録を同期・合算しました');
     refreshBackupSheet();
     return true;
   } catch (err) {
-    console.error('[GDrive] save error:', err);
-    gdriveLastSyncMsg = '保存エラー: ' + err.message;
-    if (!silent) showToast('⚠️ Google ドライブ保存失敗: ' + err.message);
+    console.error('[GDrive] sync error:', err);
+    gdriveLastSyncMsg = '同期エラー: ' + err.message;
+    if (!silent) showToast('⚠️ Google ドライブ同期失敗: ' + err.message);
     refreshBackupSheet();
     return false;
   } finally {
     gdriveIsSyncing = false;
   }
 }
+
+// 互換性のため別名も定義
+const saveToGoogleDrive = syncWithGoogleDrive;
 
 async function loadFromGoogleDrive({ interactive = false } = {}) {
   const token = await getGoogleAccessToken(interactive);
@@ -4875,7 +4999,7 @@ function scheduleGoogleDriveAutoSync(key) {
   if (gdriveSyncTimer) clearTimeout(gdriveSyncTimer);
   gdriveSyncTimer = setTimeout(() => {
     if (gdriveAccessToken && Date.now() < gdriveTokenExpiresAt) {
-      saveToGoogleDrive({ interactive: false, silent: true });
+      syncWithGoogleDrive({ interactive: false, silent: true });
     }
   }, 4000);
 }
@@ -4885,7 +5009,7 @@ document.addEventListener('visibilitychange', () => {
     clearTimeout(gdriveSyncTimer);
     gdriveSyncTimer = null;
     if (isGoogleDriveAutoSyncEnabled() && gdriveAccessToken && Date.now() < gdriveTokenExpiresAt) {
-      saveToGoogleDrive({ interactive: false, silent: true });
+      syncWithGoogleDrive({ interactive: false, silent: true });
     }
   }
 });
@@ -4897,17 +5021,11 @@ async function checkGoogleDriveOnStartup() {
     const token = await getGoogleAccessToken(false);
     if (!token) return;
     try {
-      const file = await findGoogleDriveBackupFile(token);
-      if (!file || !file.modifiedTime) return;
-      const lastLocalSync = parseInt(localStorage.getItem(GDRIVE_LAST_SYNC_KEY) || '0', 10);
-      const remoteTime = new Date(file.modifiedTime).getTime();
-      if (remoteTime > lastLocalSync + 60000) {
-        showToast('☁️ Google ドライブに新しい記録があります。設定から復元・同期できます。');
-      }
+      await syncWithGoogleDrive({ interactive: false, silent: true });
     } catch (e) {
-      console.warn('[GDrive] startup check error:', e);
+      console.warn('[GDrive] startup sync error:', e);
     }
-  }, 2500);
+  }, 2000);
 }
 
 // ---- 書き出し ----
@@ -5178,47 +5296,6 @@ function reloadRecordsFromStorage() {
   }
 }
 
-function mergeWeakByMode(cur, inc) {
-  const out = {};
-  VOCAB_MODES.forEach(m => {
-    out[m] = { ...(cur[m] || {}) };
-    Object.entries(inc[m] || {}).forEach(([k, entry]) => {
-      const c = out[m][k];
-      if (!c) {
-        out[m][k] = entry;
-      } else if (entry.streak > c.streak || (entry.streak === c.streak && entry.due > c.due)) {
-        out[m][k] = entry;
-      }
-    });
-  });
-  return out;
-}
-
-function mergeSeenByMode(cur, inc) {
-  const out = {};
-  VOCAB_MODES.forEach(m => {
-    const curList = cur[m] ? [...cur[m]] : [];
-    const incList = inc[m] || [];
-    out[m] = [...new Set([...curList, ...incList])];
-  });
-  return out;
-}
-
-function mergeSeenGrammar(cur, inc) {
-  return [...new Set([...cur, ...inc])];
-}
-
-function mergeStatsMap(cur, inc) {
-  const out = { ...(cur || {}) };
-  Object.entries(inc || {}).forEach(([k, st]) => {
-    const c = out[k];
-    if (!c || st.a > c.a || (st.a === c.a && st.c > c.c)) {
-      out[k] = { a: st.a, c: st.c };
-    }
-  });
-  return out;
-}
-
 function runRestore() {
   const pending = backupView.pending;
   if (!pending) return;
@@ -5226,43 +5303,9 @@ function runRestore() {
   if (preExport && preExport.checked) downloadBackup();
 
   const isOverwrite = backupView.restoreMode === 'overwrite';
-  let targetRecords;
-
-  if (isOverwrite) {
-    targetRecords = pending.records;
-  } else {
-    // 統合モード: 既存の記録とファイルの内容を合わせる
-    const curWeakByMode = state.weakByMode;
-    const curSeenByMode = seenSnapshot();
-    const curWeakGrammar = state.grammarWeakData;
-    const curWordStats = state.wordStats;
-    const curGrammarStats = state.grammarStats;
-
-    const mergedWeakWords = mergeWeakByMode(curWeakByMode, pending.records.weakWords || {});
-    const mergedSeenWords = mergeSeenByMode(curSeenByMode, pending.records.seenWords || {});
-    const mergedWeakGrammar = { ...curWeakGrammar };
-    Object.entries(pending.records.weakGrammar || {}).forEach(([k, inc]) => {
-      const cur = mergedWeakGrammar[k];
-      if (!cur || inc.streak > cur.streak || (inc.streak === cur.streak && inc.due > cur.due)) {
-        mergedWeakGrammar[k] = inc;
-      }
-    });
-    const mergedWordStats = mergeStatsMap(curWordStats, pending.records.wordStats || {});
-    const mergedGrammarStats = mergeStatsMap(curGrammarStats, pending.records.grammarStats || {});
-    const mergedSeenGrammar = mergeSeenGrammar([...state.grammarSeen], pending.records.seenGrammar || []);
-
-    targetRecords = {
-      ...pending.records,
-      weakWords: mergedWeakWords,
-      weakGrammar: mergedWeakGrammar,
-      seenWords: mergedSeenWords,
-      wordStats: mergedWordStats,
-      grammarStats: mergedGrammarStats,
-      seenGrammar: mergedSeenGrammar,
-      settings: pending.records.settings || loadJSON(SETTINGS_KEY, {}),
-      session: pending.records.session || loadJSON(SESSION_KEY, {}),
-    };
-  }
+  const targetRecords = isOverwrite
+    ? pending.records
+    : mergeBackupRecords(getCurrentLocalRecords(), pending.records);
 
   const rawByKey = {};
   Object.entries(RECORD_KEYS).forEach(([name, key]) => {
@@ -5400,7 +5443,7 @@ function backupHomeHtml(v) {
       </div>
       ${!isLinked ? `
         <div class="gdrive-desc">
-          Google ドライブのアプリ専用領域に学習記録を自動バックアップします。他の端末とも自動で進捗が同期されます。
+          Google ドライブのアプリ専用領域に学習記録を自動バックアップします。別端末の記録とも自動で合算・同期されます。
         </div>
         <button class="backup-btn primary" data-backup="gdrive-login" style="width:100%;text-align:center;">
           🔑 Google アカウントで連携
@@ -5411,14 +5454,14 @@ function backupHomeHtml(v) {
           ${gdriveLastSyncMsg ? `<div class="gdrive-sync-msg">${escapeHtml(gdriveLastSyncMsg)}</div>` : ''}
         </div>
         <div class="gdrive-row">
-          <span>学習時に自動バックアップ</span>
+          <span>学習時に自動で同期・合算</span>
           <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
             <input type="checkbox" id="gdrive-auto-toggle" ${autoSync ? 'checked' : ''} onchange="toggleGoogleDriveAutoSync(this.checked)">
             <span style="font-size:12px;font-weight:600;">${autoSync ? 'ON' : 'OFF'}</span>
           </label>
         </div>
         <div class="backup-actions" style="margin: 10px 0 4px;">
-          <button class="backup-btn primary" data-backup="gdrive-sync">☁️ 今すぐドライブに保存</button>
+          <button class="backup-btn primary" data-backup="gdrive-sync">☁️ 今すぐ同期（合算保存）</button>
           <button class="backup-btn" data-backup="gdrive-restore">📥 ドライブから復元…</button>
         </div>
         <div style="text-align:right; margin-top:8px;">
