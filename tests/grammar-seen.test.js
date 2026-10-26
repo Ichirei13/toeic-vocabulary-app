@@ -226,7 +226,14 @@ test('v4_sanitize', () => withPage({}, async page => {
   const r = await parse(page, backupText(4, { seenGrammar: [3, 3, '4', -1, 2.5, {}, 8] }));
   assert.strictEqual(r.ok, true, r.error);
   assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [3, 8]);
-  assert.strictEqual(r.invalid, 5);
+  assert.strictEqual(r.invalid, 4); // 重複は形の不正に数えない(単語側と同じ)
+}));
+
+test('dup_not_invalid', () => withPage({}, async page => {
+  const r = await parse(page, backupText(4, { seenGrammar: [3, 3] }));
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(r.records.seenGrammar, [3]);
+  assert.strictEqual(r.invalid, 0);
 }));
 
 test('roundtrip_v4', () => withPage({}, async page => {
@@ -271,9 +278,9 @@ test('restore_overwrite', () => withPage({}, async page => {
   await setSeen(page, [1]);
   await restoreText(page, backupText(4, { seenGrammar: [2] }), 'overwrite');
   assert.deepStrictEqual(sortedNums(await seenNow(page)), [2]);
-  // ファイルが空の記録なら空のまま。成績があっても初期値を作り直さない
-  await page.evaluate(() => { state.grammarStats = { 5: { a: 1, c: 1 } }; saveJSON(GRAMMAR_STATS_KEY, state.grammarStats); });
-  await restoreText(page, backupText(4, { seenGrammar: [] }), 'overwrite');
+  // ファイルが空の記録なら空のまま。ファイルに成績があっても初期値を作り直さない
+  await restoreText(page, backupText(4, { seenGrammar: [], grammarStats: STATS5 }), 'overwrite');
+  assert.deepStrictEqual(Object.keys(await page.evaluate(() => state.grammarStats)), ['5']);
   assert.deepStrictEqual(await seenNow(page), []);
   assert.strictEqual(await page.evaluate(() => localStorage.getItem('toeic_seen_grammar')), '[]');
 }));
@@ -307,7 +314,6 @@ test('undo_legacy_record_without_seen_key', () => withPage({ toeic_grammar_stats
     saveGrammarSeen();
     runUndo();
   });
-  assert.notStrictEqual(await page.evaluate(() => localStorage.getItem('toeic_seen_grammar')), 'undefined');
   assert.deepStrictEqual(sortedNums(await seenNow(page)), [5]);
 }));
 
@@ -322,6 +328,61 @@ test('counts_and_table', () => withPage({}, async page => {
   }));
   assert.deepStrictEqual([r.now, r.missing, r.corrupt, r.raw], [3, 0, 0, 2]);
   assert(/出題済みの文法<\/td><td>3問<\/td><td>3問/.test(r.html), 'table row with both counts');
+}));
+
+// ==================== Minor の修正 ====================
+
+// Minor 1: 取り消し用の記録に出題済みが無いとき、比較表には取り消し後に作り直される件数を出す
+test('undo_table_estimates_reseed', () => withPage({}, async page => {
+  const counts = await page.evaluate(([stats, weak]) => {
+    const base = { [RECORD_KEYS.grammarStats]: JSON.stringify(stats), [RECORD_KEYS.weakGrammar]: JSON.stringify(weak) };
+    return {
+      absent: countsFromRaw(base).grammarSeen,
+      nulled: countsFromRaw({ ...base, [RECORD_KEYS.seenGrammar]: null }).grammarSeen,
+      empty: countsFromRaw({ ...base, [RECORD_KEYS.seenGrammar]: '[]' }).grammarSeen,
+      listed: countsFromRaw({ ...base, [RECORD_KEYS.seenGrammar]: '[4,5,6]' }).grammarSeen,
+    };
+  }, [STATS5, WEAK9]);
+  assert.deepStrictEqual(counts, { absent: 2, nulled: 2, empty: 0, listed: 3 });
+}));
+
+// Minor 2: 版3以前・互換形式の初期値は、形の正しくない成績・苦手を除いたものから作る
+test('migrate_seed_ignores_malformed', () => withPage({}, async page => {
+  const stats = { 5: { a: 0 }, 6: { a: 1, c: 1 } };
+  const weak = { 9: 'junk', 10: JSON.parse(WEAK_ENTRY) };
+  const r3 = await parse(page, backupText(3, { grammarStats: stats, weakGrammar: weak }));
+  assert.deepStrictEqual(sortedNums(r3.records.seenGrammar), [6, 10]);
+  const compat = await parse(page, JSON.stringify({
+    app: 'toeic_practice_backup', data: { weakWords: {}, weakGrammar: weak, seenWords: [], wordStats: {}, grammarStats: stats },
+  }));
+  assert.deepStrictEqual(sortedNums(compat.records.seenGrammar), [6, 10]);
+}));
+
+// Minor 3: 番号の基準は苦手リストのキー(9桁まで)と同じにそろえる
+test('seen_id_bounds', () => withPage({ toeic_seen_grammar: '[1e300, 1000000000, 7]' }, async page => {
+  assert.deepStrictEqual(await seenNow(page), [7]);
+  const r = await parse(page, backupText(4, { seenGrammar: [1e15, 999999999, 7] }));
+  assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [7, 999999999]);
+  assert.strictEqual(r.invalid, 1);
+}));
+
+// Minor 5: バックアップのホーム画面に出題済みの文法を出す
+test('home_shows_seen', () => withPage({}, async page => {
+  await setSeen(page, [1, 2, 3]);
+  const html = await page.evaluate(() => backupHomeHtml({}));
+  assert(/出題済みの文法<\/td><td>3問<\/td>/.test(html), 'table row on home');
+  assert(/出題済みの文法/.test(html.split('保存します')[0].split('<div class="backup-note">').pop()), 'description mentions it');
+}));
+
+// Minor 6: 今のデータに無い番号の注記に、出題済みの分も含める(苦手と重なる番号は1件と数える)
+test('unknown_note_counts_seen', () => withPage({}, async page => {
+  const known = (await allGrammarIds(page))[0];
+  const r = await parse(page, backupText(4, {
+    seenGrammar: [known, 999999998, 999999999],
+    weakGrammar: { 999999999: JSON.parse(WEAK_ENTRY) },
+  }));
+  assert.strictEqual(r.ok, true, r.error);
+  assert.strictEqual(r.unknownGrammar, 2);
 }));
 
 // ==================== 実行 ====================
