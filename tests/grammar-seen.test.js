@@ -166,6 +166,82 @@ test('filter_persists', () => withPage({}, async page => {
   assert.strictEqual(await page.evaluate(() => state.grammarWeakFilter), 'all');
 }));
 
+// ==================== Task 3: バックアップ(版4) ====================
+
+// 版 format のバックアップファイルの中身を作る。data の項目は overrides で足す・消す(undefined で消す)
+function backupText(format, overrides = {}, extra = {}) {
+  const data = { weakWords: {}, weakGrammar: {}, seenWords: {}, wordStats: {}, grammarStats: {}, ...overrides };
+  Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
+  return JSON.stringify({ app: 'toeic-drill', format, exportedAt: '2026-10-26T00:00:00Z', data, ...extra });
+}
+const parse = (page, text) => page.evaluate(t => JSON.parse(JSON.stringify(parseBackup(t))), text);
+const WEAK9 = { 9: JSON.parse(WEAK_ENTRY) };
+const STATS5 = { 5: { a: 1, c: 1 } };
+
+test('build_has_seen_grammar', () => withPage({}, async page => {
+  const b = await page.evaluate(() => { state.grammarSeen = new Set([4, 7]); return buildBackup(); });
+  assert.strictEqual(b.format, 4);
+  assert.deepStrictEqual(sortedNums(b.data.seenGrammar), [4, 7]);
+}));
+
+test('migrate_v3', () => withPage({}, async page => {
+  const r = await parse(page, backupText(3, { weakGrammar: WEAK9, grammarStats: STATS5 }));
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [5, 9]);
+}));
+
+test('migrate_v3_partial', () => withPage({}, async page => {
+  const variants = [
+    { weakGrammar: WEAK9, grammarStats: undefined },
+    { weakGrammar: {}, grammarStats: STATS5 },
+    { weakGrammar: {}, grammarStats: {} },
+  ];
+  for (const v of variants) {
+    const r = await parse(page, backupText(3, v));
+    assert.strictEqual(r.ok, true, `${JSON.stringify(v)}: ${r.error}`);
+  }
+  const r = await parse(page, backupText(3, { weakGrammar: WEAK9, grammarStats: undefined }));
+  assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [9]);
+}));
+
+test('compat_toeic_practice_backup', () => withPage({}, async page => {
+  const text = JSON.stringify({
+    app: 'toeic_practice_backup',
+    data: { weakWords: {}, weakGrammar: WEAK9, seenWords: [], wordStats: {}, grammarStats: STATS5 },
+  });
+  const r = await parse(page, text);
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [5, 9]);
+}));
+
+test('v4_requires_array', () => withPage({}, async page => {
+  for (const seenGrammar of [undefined, 'x', { a: 1 }]) {
+    const r = await parse(page, backupText(4, { seenGrammar }));
+    assert.strictEqual(r.ok, false, `seenGrammar=${JSON.stringify(seenGrammar)} should be rejected`);
+    assert(/文法の出題済み/.test(r.error), r.error);
+  }
+}));
+
+test('v4_sanitize', () => withPage({}, async page => {
+  const r = await parse(page, backupText(4, { seenGrammar: [3, 3, '4', -1, 2.5, {}, 8] }));
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [3, 8]);
+  assert.strictEqual(r.invalid, 5);
+}));
+
+test('roundtrip_v4', () => withPage({}, async page => {
+  const text = await page.evaluate(() => { state.grammarSeen = new Set([2, 11, 40]); return JSON.stringify(buildBackup()); });
+  const r = await parse(page, text);
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [2, 11, 40]);
+}));
+
+test('v5_rejected', () => withPage({}, async page => {
+  const r = await parse(page, backupText(5, { seenGrammar: [] }));
+  assert.strictEqual(r.ok, false);
+  assert(/新しいバージョン/.test(r.error), r.error);
+}));
+
 // ==================== 実行 ====================
 
 (async () => {

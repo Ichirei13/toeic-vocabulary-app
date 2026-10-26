@@ -2501,7 +2501,8 @@ function isGrammarId(v) {
 function grammarIdsFrom(...maps) {
   const ids = new Set();
   maps.forEach(m => {
-    Object.keys(m || {}).forEach(k => {
+    if (!isPlainObject(m)) return;
+    Object.keys(m).forEach(k => {
       if (isGrammarKey(k)) ids.add(Number(k));
     });
   });
@@ -4446,8 +4447,8 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む
-const BACKUP_FORMAT = 3;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む
+const BACKUP_FORMAT = 4;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。
@@ -4479,6 +4480,18 @@ const BACKUP_MIGRATIONS = {
         ...d,
         wordStats: isPlainObject(d.wordStats) ? d.wordStats : {},
         grammarStats: isPlainObject(d.grammarStats) ? d.grammarStats : {},
+      } : d
+    };
+  },
+  // 文法の出題済みは無かったので、成績と苦手リストにある問題から作る
+  3: backup => {
+    const d = backup.data;
+    return {
+      ...backup,
+      format: 4,
+      data: isPlainObject(d) ? {
+        ...d,
+        seenGrammar: Array.isArray(d.seenGrammar) ? d.seenGrammar : grammarIdsFrom(d.grammarStats, d.weakGrammar),
       } : d
     };
   },
@@ -4526,6 +4539,7 @@ function buildBackup() {
       seenWords: seenSnapshot(),
       wordStats: state.wordStats,
       grammarStats: state.grammarStats,
+      seenGrammar: [...state.grammarSeen],
       settings: settingsSnapshot(),
       session: sessionSnapshot(),
     },
@@ -4593,6 +4607,13 @@ function clampImportedTimes(data) {
   return data;
 }
 
+// 文法の出題済み（問題番号の配列）から、番号として正しいものだけを重複なしで残す
+function sanitizeSeenGrammar(raw) {
+  if (!Array.isArray(raw)) return { data: [], invalid: 0 };
+  const data = [...new Set(raw.filter(isGrammarId))];
+  return { data, invalid: raw.length - data.length };
+}
+
 function sanitizeStatsMap(raw) {
   const data = {};
   let invalid = 0;
@@ -4635,6 +4656,7 @@ function parseBackup(text) {
         seenWords: Array.isArray(rawData.seenWords) ? copyToAllModes(rawData.seenWords) : {},
         wordStats: rawData.wordStats || {},
         grammarStats: rawData.grammarStats || {},
+        seenGrammar: grammarIdsFrom(rawData.grammarStats, rawData.weakGrammar),
         settings: rawData.settings,
         session: rawData.session,
       }
@@ -4658,6 +4680,7 @@ function parseBackup(text) {
   if (!isPlainObject(d.weakWords) || !isPlainObject(d.weakGrammar) || !isPlainObject(d.seenWords)) {
     return fail('苦手リストか学習済みの単語の記録が欠けているか、形が正しくありません。');
   }
+  if (!Array.isArray(d.seenGrammar)) return fail('文法の出題済みの記録が欠けているか、形が正しくありません。');
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
 
@@ -4666,6 +4689,7 @@ function parseBackup(text) {
   const seen = sanitizeSeenByMode(d.seenWords);
   const wordStats = sanitizeStatsMap(d.wordStats);
   const grammarStats = sanitizeStatsMap(d.grammarStats);
+  const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -4680,10 +4704,11 @@ function parseBackup(text) {
       seenWords: seen.data,
       wordStats: wordStats.data,
       grammarStats: grammarStats.data,
+      seenGrammar: seenGrammar.data,
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + invalidBeforeMigration,
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
