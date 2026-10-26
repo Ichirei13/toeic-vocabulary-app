@@ -18,7 +18,7 @@
 - 保存キー: `GRAMMAR_SEEN_KEY = 'toeic_seen_grammar'`。値は問題番号(正の整数)の配列。モード別にはしない。
 - `state.grammarSeen`: `Set<number>`。`state` の定義で `grammarStats` と `grammarWeakData` のあとに読み込む。
 - `loadGrammarSeen()`:
-  - 保存値が配列なら、正の整数だけを残して返す。データに無い番号も、苦手リストと同様に残す。
+  - 保存値が配列なら、問題番号として正しい値(1〜999999999 の整数。苦手リストのキーと同じ 9 桁まで)だけを残して返す。データに無い番号も、苦手リストと同様に残す。
   - 保存値が無い(`null`)なら、**初期値を作る**。`grammarStats` と `grammarWeakData` のキーのうち正の整数として読めるものを集めて保存し、返す。
   - 壊れた値(配列でも `null` でもない)は空として扱い、初期値は作らない。保存はしない。
 - `saveGrammarSeen()`: `saveJSON` で配列にして保存する。
@@ -35,11 +35,11 @@
 ## バックアップ
 - `BACKUP_FORMAT` を 3 → 4 に上げる。コメントの版の説明に「版4: 文法の出題済みを含む」を足す。
 - `buildBackup`: `data.seenGrammar` に `[...state.grammarSeen]` を入れる。
-- `BACKUP_MIGRATIONS[3]`: 版3のファイルを版4に直す。`data.seenGrammar` が無ければ、`data.grammarStats` と `data.weakGrammar` のキーから作った配列を入れる。`data` が壊れているときは `format` だけ変えて、あとの検証に任せる(`2` の変換と同じ作法)。
+- `BACKUP_MIGRATIONS[3]`: 版3のファイルを版4に直す。`data.seenGrammar` が無ければ、`data.grammarStats` と `data.weakGrammar` のうち**形の正しい記録のキー**から作った配列を入れる(端末側の初期値と同じ基準。`seedGrammarSeenFromRaw`)。`data` が壊れているときは `format` だけ変えて、あとの検証に任せる(`2` の変換と同じ作法)。
 - `toeic_practice_backup`(独自形式)の変換: `seenGrammar` を、同じように `grammarStats` と `weakGrammar` から作って入れる。
 - `parseBackup`:
   - `d.seenGrammar` は版4では必須の配列。配列でなければ「形が正しくありません」で断る。
-  - `sanitizeSeenGrammar(raw)` で、正の整数だけを残し、重複を除き、除いた件数を `invalid` に足す。
+  - `sanitizeSeenGrammar(raw)` で、問題番号として正しい値だけを残し、重複は除く。`invalid` に足すのは正しくない値の件数だけで、重複は数えない(単語側 `sanitizeSeenByMode` と同じ)。
   - `records.seenGrammar` として返す。
 - `RECORD_KEYS` に `seenGrammar: GRAMMAR_SEEN_KEY` を足す。`RECORD_STORAGE_KEYS` はここから作られるので、取り消し用の退避にも自動で含まれる。
 - `runRestore`:
@@ -47,7 +47,9 @@
   - 上書き: ファイルの内容をそのまま使う。
 - `reloadRecordsFromStorage`: `state.grammarSeen = loadGrammarSeen()` を足す。取り消しで保存値が消えた(`null`)場合は、読み込み時に初期値が作り直される。
 - 件数の表示:
-  - `currentCounts` / `countsFromRaw` に `grammarSeen`(件数)を足す。
+  - `currentCounts` / `countsFromRaw` に `grammarSeen`(件数)を足す。取り消し用の記録に出題済みが無いときは、取り消したあとに作り直される件数(成績と苦手リストから)を出す。
+  - バックアップのホーム画面の表と説明文にも「出題済みの文法」を出す。
+  - 「今のデータに無い記録」の注記の問題件数には、出題済みの番号も含める(苦手と重なる番号は1件と数える)。
   - `compareTable` に「出題済みの文法 ○問」の行を足す。
   - 壊れた保存値や、`seenGrammar` が無い保存値の件数は 0 とする。
 

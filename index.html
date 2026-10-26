@@ -2494,7 +2494,7 @@ const GRAMMAR_STATS_KEY = 'toeic_grammar_stats';
 const GRAMMAR_SEEN_KEY = 'toeic_seen_grammar';
 
 function isGrammarId(v) {
-  return Number.isInteger(v) && v > 0;
+  return Number.isInteger(v) && v > 0 && v <= 999999999; // isGrammarKey と同じ 9 桁まで
 }
 
 // 渡したオブジェクト（成績・苦手など）のキーから、問題番号として読めるものを重複なしで集める
@@ -4491,7 +4491,7 @@ const BACKUP_MIGRATIONS = {
       format: 4,
       data: isPlainObject(d) ? {
         ...d,
-        seenGrammar: Array.isArray(d.seenGrammar) ? d.seenGrammar : grammarIdsFrom(d.grammarStats, d.weakGrammar),
+        seenGrammar: Array.isArray(d.seenGrammar) ? d.seenGrammar : seedGrammarSeenFromRaw(d.grammarStats, d.weakGrammar),
       } : d
     };
   },
@@ -4608,11 +4608,17 @@ function clampImportedTimes(data) {
   return data;
 }
 
+// バックアップ・取り消し用の記録の成績と苦手リストから、出題済みの初期値を作る。
+// 端末側（loadGrammarSeen）と同じく、形の正しくない記録は除いてから数える
+function seedGrammarSeenFromRaw(stats, weak) {
+  return grammarIdsFrom(sanitizeStatsMap(stats).data, isPlainObject(weak) ? sanitizeWeakData(weak, isGrammarKey).data : {});
+}
+
 // 文法の出題済み（問題番号の配列）から、番号として正しいものだけを重複なしで残す
 function sanitizeSeenGrammar(raw) {
   if (!Array.isArray(raw)) return { data: [], invalid: 0 };
-  const data = [...new Set(raw.filter(isGrammarId))];
-  return { data, invalid: raw.length - data.length };
+  const valid = raw.filter(isGrammarId);
+  return { data: [...new Set(valid)], invalid: raw.length - valid.length }; // 重複は不正に数えない（単語側と同じ）
 }
 
 function sanitizeStatsMap(raw) {
@@ -4657,7 +4663,7 @@ function parseBackup(text) {
         seenWords: Array.isArray(rawData.seenWords) ? copyToAllModes(rawData.seenWords) : {},
         wordStats: rawData.wordStats || {},
         grammarStats: rawData.grammarStats || {},
-        seenGrammar: grammarIdsFrom(rawData.grammarStats, rawData.weakGrammar),
+        seenGrammar: seedGrammarSeenFromRaw(rawData.grammarStats, rawData.weakGrammar),
         settings: rawData.settings,
         session: rawData.session,
       }
@@ -4712,7 +4718,7 @@ function parseBackup(text) {
     invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
-    unknownGrammar: Object.keys(grammar.data).filter(k => !GRAMMAR_BY_ID.has(Number(k))).length,
+    unknownGrammar: [...new Set([...Object.keys(grammar.data).map(Number), ...seenGrammar.data])].filter(id => !GRAMMAR_BY_ID.has(id)).length,
   };
 }
 
@@ -4963,7 +4969,10 @@ function countsFromRaw(records) {
   return {
     ...wordCounts(isPlainObject(words) ? words : {}, isPlainObject(seen) ? seen : {}),
     grammar: isPlainObject(grammar) ? Object.keys(grammar).length : 0,
-    grammarSeen: Array.isArray(grammarSeen) ? grammarSeen.length : 0,
+    // 出題済みの記録が無い取り消し用の記録は、取り消したあと成績と苦手リストから作り直される
+    grammarSeen: records[RECORD_KEYS.seenGrammar] == null
+      ? seedGrammarSeenFromRaw(grammarStats, grammar).length
+      : (Array.isArray(grammarSeen) ? grammarSeen.length : 0),
     wordStats: summarizeStats(isPlainObject(wordStats) ? wordStats : {}),
     grammarStats: summarizeStats(isPlainObject(grammarStats) ? grammarStats : {}),
   };
@@ -4998,6 +5007,7 @@ function backupHomeHtml(v) {
     <table class="backup-table">
       ${VOCAB_MODES.map(m => `<tr><td>単語の苦手（${MODE_LABELS[m]}）</td><td>${c.words[m]}件（要復習 ${c.wordsDue[m]}件）</td></tr>`).join('')}
       <tr><td>文法の苦手</td><td>${c.grammar}件（要復習 ${c.grammarDue}件）</td></tr>
+      <tr><td>出題済みの文法</td><td>${c.grammarSeen}問</td></tr>
       <tr><td>学習済みの単語</td><td>${c.seen}語</td></tr>
     </table>
     <div class="backup-note">最後に書き出した日時: ${Number.isFinite(meta.lastExportAt) ? formatDateTime(meta.lastExportAt) : 'まだ書き出していません'}</div>
@@ -5020,7 +5030,7 @@ function backupHomeHtml(v) {
         <button class="backup-btn small" data-backup="undo">直前の復元を取り消す</button>
       </div>` : ''}
     <div class="backup-help" style="margin-top:14px;">
-      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・通算の正誤カウント・設定・出題の続きを1つのファイルに保存します。
+      苦手リスト（復習日を含む。単語はモードごと）・学習済みの単語・出題済みの文法・通算の正誤カウント・設定・出題の続きを1つのファイルに保存します。
       別の端末やブラウザで復元すると、同じ記録で続けられます（統合と上書きを選べます）。
       記録はこの端末の中にしか無いので、ときどき書き出しておくと安心です。
     </div>`;
