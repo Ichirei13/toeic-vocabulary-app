@@ -1230,6 +1230,41 @@ body {
   display: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+/* 前の問題に戻るボタン。回答済みの直前の問題があるときだけ左端に出す */
+.back-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--ui-border);
+  font-family: inherit;
+  padding: 13px 14px;
+  min-height: 46px;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  flex: 0 0 auto;
+  display: none;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.back-btn:active {
+  background: var(--ui-surface);
+  color: var(--text-page);
+  transform: scale(0.98);
+}
+/* 見直し中の問題に付ける、回答結果のラベル */
+.review-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--text-card-muted);
+}
+.review-badge.ok { background: rgba(46, 160, 67, 0.15); color: #1f7a33; }
+.review-badge.ng { background: rgba(220, 53, 69, 0.14); color: #b02a37; }
 .dont-know-btn:active { 
   background: var(--ui-surface); 
   color: var(--text-page); 
@@ -2124,6 +2159,7 @@ body {
     </div>
   </div>
   <div class="action-bar">
+    <button id="back-btn" class="back-btn" onclick="reviewBack()" aria-label="前の問題に戻る">← 前へ</button>
     <button id="dont-know-btn" class="dont-know-btn">わからない</button>
     <button id="next-btn" class="next-btn">次へ</button>
   </div>
@@ -2574,6 +2610,7 @@ let state = {
   wordStats: loadStatsData(WORD_STATS_KEY),
   currentOptions: [],
   answered: false,
+  wordLog: {}, // 今回答えた単語問題の結果（出題順の番号 → 見直し用の記録）
 
   // Grammar state
   grammarBook: 'all',
@@ -2588,6 +2625,9 @@ let state = {
   grammarWeakData: loadWeakData('toeic_weak_grammar', isGrammarKey),
   grammarStats: loadStatsData(GRAMMAR_STATS_KEY),
   grammarAnswered: false,
+  grammarLog: {}, // 今回答えた文法問題の結果（出題順の番号 → 見直し用の記録）
+
+  reviewIndex: null, // 「前へ」で見直し中の問題の番号。null なら今の問題を出している
 
   weakSort: 'new', // 苦手リストの並び順
   weakListMode: 'e2j' // 単語の苦手リストで表示しているモード
@@ -2797,6 +2837,7 @@ function applyGrammarFilters() {
   });
 
   state.grammarPool = shuffle(filtered);
+  resetReview();
   state.currentGrammarIndex = 0;
   state.grammarScore = 0;
   state.grammarAnsweredCount = 0;
@@ -2813,6 +2854,7 @@ function renderCurrentGrammar() {
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
   const nextBtn = document.getElementById('next-btn');
+  const review = activeReview(state.grammarLog);
 
   if (state.grammarPool.length === 0) {
     container.innerHTML = `<div class="card"><div class="meaning-display">条件に合う文法問題がありません</div></div>`;
@@ -2822,7 +2864,7 @@ function renderCurrentGrammar() {
     return;
   }
 
-  if (state.currentGrammarIndex >= state.grammarPool.length) {
+  if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
     container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div></div>`;
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
@@ -2830,8 +2872,8 @@ function renderCurrentGrammar() {
     return;
   }
 
-  const ex = state.grammarPool[state.currentGrammarIndex];
-  state.grammarAnswered = false;
+  const ex = state.grammarPool[review ? state.reviewIndex : state.currentGrammarIndex];
+  if (!review) state.grammarAnswered = false; // 見直し中は今の問題の回答状況に触れない
   choicesDiv.innerHTML = '';
   nextBtn.style.display = 'none';
 
@@ -2897,11 +2939,19 @@ function renderCurrentGrammar() {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
     btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-label">${labels[idx]}</span><span class="choice-text">${choice}</span>`;
-    btn.onclick = () => handleGrammarAnswer(idx, btn);
+    if (!review) btn.onclick = () => handleGrammarAnswer(idx, btn);
+    if (review && idx === review.sel && !review.ok) btn.classList.add('wrong');
     choicesDiv.appendChild(btn);
   });
-  setDontKnowVisible(true);
-  document.getElementById('dont-know-btn').onclick = handleGrammarDontKnow;
+  if (review) {
+    if (review.sel !== null && !review.ok) showGrammarYourAnswer(ex, review.sel);
+    markGrammarAnswer(ex);
+    addReviewBadge(review.sel === null ? 'わからない' : (review.ok ? '正解' : '不正解'), review.ok ? 'ok' : 'ng');
+    showNextButton(reviewNext);
+  } else {
+    setDontKnowVisible(true);
+    document.getElementById('dont-know-btn').onclick = handleGrammarDontKnow;
+  }
 
   updateFooter();
 }
@@ -2916,15 +2966,20 @@ function handleGrammarAnswer(selectedIdx, btn) {
   if (!isCorrect) {
     btn.classList.add('wrong');
     shakeCard();
-    const yours = document.getElementById('grammar-your-ans');
-    yours.textContent = `あなたの回答: (${['A','B','C','D'][selectedIdx]}) ${ex.c[selectedIdx]}`;
-    yours.style.display = 'block';
+    showGrammarYourAnswer(ex, selectedIdx);
     recordWeakGrammar(ex, false);
   } else {
     state.grammarScore++;
     recordWeakGrammar(ex, true);
   }
+  state.grammarLog[state.currentGrammarIndex] = { ok: isCorrect, sel: selectedIdx };
   revealGrammarAnswer(ex);
+}
+
+function showGrammarYourAnswer(ex, selectedIdx) {
+  const yours = document.getElementById('grammar-your-ans');
+  yours.textContent = `あなたの回答: (${['A','B','C','D'][selectedIdx]}) ${ex.c[selectedIdx]}`;
+  yours.style.display = 'block';
 }
 
 // 「わからない」: 正解と解説を見せて苦手に登録。スコアは増やさず、赤表示や揺れは出さない
@@ -2933,6 +2988,7 @@ function handleGrammarDontKnow() {
   const ex = state.grammarPool[state.currentGrammarIndex];
   playDuoSound(false);
   showDuoBanner(false, `(${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}`);
+  state.grammarLog[state.currentGrammarIndex] = { ok: false, sel: null };
   recordWeakGrammar(ex, false);
   revealGrammarAnswer(ex);
 }
@@ -2940,7 +2996,18 @@ function handleGrammarDontKnow() {
 function revealGrammarAnswer(ex) {
   state.grammarAnswered = true;
   setDontKnowVisible(false);
+  markGrammarAnswer(ex);
 
+  showNextButton(() => {
+    hideDuoBanner();
+    state.currentGrammarIndex++;
+    renderCurrentGrammar();
+  });
+  updateFooter();
+}
+
+// 正解の選択肢に印を付け、解説を開く。回答直後と見直しで共通
+function markGrammarAnswer(ex) {
   const choicesDiv = document.getElementById('choices-container');
   choicesDiv.querySelectorAll('.choice-btn').forEach((b, i) => {
     if (i === ex.a) b.classList.add('correct');
@@ -2952,13 +3019,6 @@ function revealGrammarAnswer(ex) {
 
   const expBox = document.getElementById('grammar-exp-box');
   if (expBox) expBox.style.display = 'block';
-
-  showNextButton(() => {
-    hideDuoBanner();
-    state.currentGrammarIndex++;
-    renderCurrentGrammar();
-  });
-  updateFooter();
 }
 
 function recordWeakGrammar(ex, isCorrect) {
@@ -3129,6 +3189,7 @@ function initFilters() {
   document.querySelectorAll('.mode-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
       state.mode = e.currentTarget.dataset.mode;
+      resetReview(); // 見直しの記録はモードごとの出題内容なので、モードを変えたら消す
       document.querySelectorAll('.mode-segments .segment').forEach(b => {
         b.classList.toggle('active', b.dataset.mode === state.mode);
       });
@@ -3231,6 +3292,7 @@ function applyFilters() {
   });
   
   state.pool = shuffle(dedupeWords(filtered));
+  resetReview();
   state.currentIndex = 0;
   state.score = 0;
   state.answeredCount = 0;
@@ -3266,6 +3328,62 @@ function nextWord() {
   hideDuoBanner();
   state.currentIndex++;
   renderCurrent();
+}
+
+// ==================== 前の問題の見直し ====================
+// 「前へ」で回答済みの問題を、結果と解説つきで見直す。見直しでは正答数・苦手・保存位置を一切変えない
+
+function reviewContext() {
+  return state.app === 'grammar'
+    ? { log: state.grammarLog, cur: 'currentGrammarIndex', render: renderCurrentGrammar }
+    : { log: state.wordLog, cur: 'currentIndex', render: renderCurrent };
+}
+
+// 出題し直したときなど、見直しの記録が今の問題と合わなくなるときに消す
+function resetReview() {
+  state.reviewIndex = null;
+  state.wordLog = {};
+  state.grammarLog = {};
+}
+
+// 見直し中ならその記録を返す。記録が無ければ見直しをやめる
+function activeReview(log) {
+  if (state.reviewIndex === null) return null;
+  const entry = log[state.reviewIndex];
+  if (!entry) state.reviewIndex = null;
+  return entry || null;
+}
+
+function reviewBack() {
+  const c = reviewContext();
+  const from = state.reviewIndex === null ? state[c.cur] : state.reviewIndex;
+  if (!c.log[from - 1]) return;
+  hideDuoBanner();
+  state.reviewIndex = from - 1;
+  c.render();
+}
+
+// 見直しの「次へ」。今の問題まで戻ってきたら、回答済みなら次の問題へ、未回答ならそのまま続きから解く
+function reviewNext() {
+  const c = reviewContext();
+  const i = state.reviewIndex;
+  hideDuoBanner();
+  state.reviewIndex = null;
+  if (i === state[c.cur]) state[c.cur]++;
+  else if (c.log[i + 1]) state.reviewIndex = i + 1;
+  c.render();
+}
+
+function updateBackButton() {
+  const c = reviewContext();
+  const from = state.reviewIndex === null ? state[c.cur] : state.reviewIndex;
+  document.getElementById('back-btn').style.display = c.log[from - 1] ? 'block' : 'none';
+}
+
+// 見直し中の問題カードの先頭に「正解・不正解」などのラベルを付ける
+function addReviewBadge(label, kind) {
+  const card = document.querySelector('#quiz-container .card');
+  if (card) card.insertAdjacentHTML('afterbegin', `<div class="review-badge ${kind}">見直し ・ ${label}</div>`);
 }
 
 // 不正解のときにカードを揺らす。揺らしたカードそのものを戻すので、0.4秒以内に次へ進んでも問題ない
@@ -3396,6 +3514,7 @@ function renderCurrent() {
   document.getElementById('choices-container').classList.remove('compact');
   const container = document.getElementById('quiz-container');
   const choicesDiv = document.getElementById('choices-container');
+  const review = activeReview(state.wordLog);
 
   if (state.pool.length === 0) {
     container.innerHTML = `<div class="card"><div class="meaning-display">条件に合う単語がありません</div></div>`;
@@ -3404,15 +3523,15 @@ function renderCurrent() {
     return;
   }
 
-  if (state.currentIndex >= state.pool.length) {
+  if (!review && state.currentIndex >= state.pool.length) {
     container.innerHTML = `<div class="card"><div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div></div>`;
     choicesDiv.innerHTML = '';
     updateFooter();
     return;
   }
 
-  const word = state.pool[state.currentIndex];
-  state.answered = false;
+  const word = state.pool[review ? state.reviewIndex : state.currentIndex];
+  if (!review) state.answered = false; // 見直し中は今の問題の回答状況に触れない
   choicesDiv.innerHTML = '';
 
   if (state.mode === 'e2j' || state.mode === 'j2e') {
@@ -3424,18 +3543,27 @@ function renderCurrent() {
       </div>
     `;
 
-    const options = buildOptions(word);
-    state.currentOptions = options;
+    const options = review ? review.opts : buildOptions(word);
+    if (!review) state.currentOptions = options;
 
     options.forEach((opt, idx) => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
       btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-text">${state.mode === 'e2j' ? opt.m : opt.w}</span>`;
-      btn.onclick = () => handleAnswer(opt, btn);
+      if (!review) btn.onclick = () => handleAnswer(opt, btn);
+      if (review) {
+        if (opt.w === word.w) btn.classList.add('correct');
+        else if (idx === review.sel) btn.classList.add('wrong');
+      }
       choicesDiv.appendChild(btn);
     });
-    setDontKnowVisible(true);
-    document.getElementById('dont-know-btn').onclick = handleDontKnow;
+    if (review) {
+      addReviewBadge(review.dk ? 'わからない' : (review.ok ? '正解' : '不正解'), review.ok ? 'ok' : 'ng');
+      showAnswerDetails();
+    } else {
+      setDontKnowVisible(true);
+      document.getElementById('dont-know-btn').onclick = handleDontKnow;
+    }
   } else if (state.mode === 'flash') {
     container.innerHTML = `
       <div class="card flash-mode" id="flash-card">
@@ -3452,9 +3580,18 @@ function renderCurrent() {
         </div>
       </div>
     `;
-    document.getElementById('flash-card').onclick = flipCard;
-    document.getElementById('next-btn').innerText = 'めくる';
-    showNextButton(flipCard);
+    if (review) {
+      // 見直しでは答えの面を先に出し、カードはタップでめくり返せるだけにする
+      const flash = document.getElementById('flash-card');
+      flash.classList.add('flipped');
+      flash.onclick = () => flash.classList.toggle('flipped');
+      addReviewBadge(review.ok ? '覚えた' : 'まだ', review.ok ? 'ok' : 'ng');
+      showNextButton(reviewNext);
+    } else {
+      document.getElementById('flash-card').onclick = flipCard;
+      document.getElementById('next-btn').innerText = 'めくる';
+      showNextButton(flipCard);
+    }
   } else if (state.mode === 'type') {
     container.innerHTML = `
       <div class="card" id="main-card">
@@ -3469,7 +3606,7 @@ function renderCurrent() {
       </div>
     `;
     const input = document.getElementById('type-input');
-    input.focus();
+    if (!review) input.focus();
     input.addEventListener('keydown', e => {
       // 日本語入力の変換確定の Enter では答え合わせしない
       if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229 || state.answered) return;
@@ -3478,8 +3615,15 @@ function renderCurrent() {
       handleTypeAnswer(input.value);
     });
     document.getElementById('type-check-btn').onclick = () => handleTypeAnswer(input.value);
-    setDontKnowVisible(true);
-    document.getElementById('dont-know-btn').onclick = handleTypeDontKnow;
+    if (review) {
+      input.value = review.typed;
+      showTypeResult(word, review.ok, review.typed);
+      addReviewBadge(review.dk ? 'わからない' : (review.ok ? '正解' : '不正解'), review.ok ? 'ok' : 'ng');
+      showAnswerDetails();
+    } else {
+      setDontKnowVisible(true);
+      document.getElementById('dont-know-btn').onclick = handleTypeDontKnow;
+    }
   }
 
   updateFooter();
@@ -3516,6 +3660,12 @@ function answerChoice(isCorrect, selectedBtn) {
     selectedBtn.classList.add('wrong');
     shakeCard();
   }
+  state.wordLog[state.currentIndex] = {
+    ok: isCorrect,
+    dk: !selectedBtn,
+    sel: selectedBtn ? [...document.querySelectorAll('#choices-container .choice-btn')].indexOf(selectedBtn) : -1,
+    opts: state.currentOptions,
+  };
   recordWeak(word, isCorrect);
   showAnswerDetails();
 }
@@ -3524,7 +3674,7 @@ function answerChoice(isCorrect, selectedBtn) {
 function showAnswerDetails() {
   revealPos();
   document.getElementById('example-box').style.display = 'block';
-  showNextButton(nextWord);
+  showNextButton(state.reviewIndex === null ? nextWord : reviewNext);
   updateFooter();
 }
 
@@ -3547,6 +3697,7 @@ function gradeFlash(known) {
   state.answered = true;
   playDuoSound(known);
   if (known) state.score++;
+  state.wordLog[state.currentIndex] = { ok: known };
   recordWeak(state.pool[state.currentIndex], known);
   nextWord();
 }
@@ -3584,7 +3735,13 @@ function revealTypeAnswer(word, isCorrect, typed) {
   setDontKnowVisible(false);
   playDuoSound(isCorrect);
   showDuoBanner(isCorrect, `${word.w} : ${word.m}`);
+  state.wordLog[state.currentIndex] = { ok: isCorrect, dk: !typed, typed };
+  showTypeResult(word, isCorrect, typed);
+  showAnswerDetails();
+}
 
+// タイプ回答の結果（入力欄を固めて、あなたの回答と正解を出す）。回答直後と見直しで共通
+function showTypeResult(word, isCorrect, typed) {
   const input = document.getElementById('type-input');
   input.disabled = true;
   input.blur();
@@ -3597,8 +3754,6 @@ function revealTypeAnswer(word, isCorrect, typed) {
     : `${typed ? `<div><span class="type-result-label">あなた</span><span class="type-result-yours">${escapeHtml(typed)}</span></div>` : ''}
        <div><span class="type-result-label">正解</span><span class="type-result-answer">${escapeHtml(word.w)}</span></div>`;
   result.style.display = 'block';
-
-  showAnswerDetails();
 }
 
 function recordWeak(word, isCorrect) {
@@ -3625,12 +3780,15 @@ function updateFooter() {
   const index = isGrammar ? state.currentGrammarIndex : state.currentIndex;
   const score = isGrammar ? state.grammarScore : state.score;
   const answered = isGrammar ? state.grammarAnsweredCount : state.answeredCount;
-  document.getElementById('progress-text').innerText = pool.length > 0 ? `${Math.min(index + 1, pool.length)} / ${pool.length}` : '0 / 0';
+  const shown = state.reviewIndex === null ? index : state.reviewIndex; // 見直し中は見ている問題の番号を出す
+  document.getElementById('progress-text').innerText = pool.length > 0 ? `${Math.min(shown + 1, pool.length)} / ${pool.length}` : '0 / 0';
   const rate = answered > 0 ? `（${Math.round(score / answered * 100)}%）` : '';
   document.getElementById('score-text').innerText = `正答 ${score} / ${answered}${rate}`;
   // 進捗バーは「回答済み（次へ進んだ）問題数 / プール全体」
   const done = Math.min(index, pool.length);
   document.getElementById('progress-fill').style.width = pool.length > 0 ? `${done / pool.length * 100}%` : '0';
+
+  updateBackButton();
 
   // 表示が変わるたびに呼ばれるので、ここで設定と進み具合を保存しておく
   saveSettings();
@@ -3731,6 +3889,7 @@ function restoreSession(app) {
   if (pool.length === 0 || pool.some(x => !x) || index < 0 || index >= pool.length) return false;
   const score = Number.isInteger(saved.score) ? saved.score : 0;
   const answered = Number.isInteger(saved.answered) ? saved.answered : 0;
+  resetReview();
   if (app === 'grammar') {
     Object.assign(state, { grammarPool: pool, currentGrammarIndex: index, grammarScore: score, grammarAnsweredCount: answered });
   } else {
