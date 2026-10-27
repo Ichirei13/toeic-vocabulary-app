@@ -600,6 +600,148 @@ test('session_save_does_not_schedule_sync', () => withPage({}, async page => {
   assert.strictEqual(r.afterStats, true);
 }));
 
+// ==================== 絞り込みの複数選択(範囲・品詞・文法の章) ====================
+
+// 起動時の移行(苦手の「すべて」を「苦手+未」に引き上げる)を済ませた印も付けて、苦手の絞り込みを「すべて」にしておく
+const settings = o => ({ toeic_default_unlearned_migrated_v2: 'true', toeic_settings: JSON.stringify({ weakFilter: 'all', ...o }) });
+const openFilters = async page => { await dismissNudge(page); await page.click('#filter-toggle'); };
+const chipActive = (page, sel) => page.$eval(sel, e => e.classList.contains('active'));
+
+test('range_multi_select', () => withPage(settings({ sourceFilter: 'teppan' }), async page => {
+  await openFilters(page);
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="101-200"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }, { start: 101, end: 200 }]);
+  const r = await page.evaluate(() => {
+    const nos = state.pool.map(w => w.no);
+    return { min: Math.min(...nos), max: Math.max(...nos), has1: nos.some(n => n <= 100), has2: nos.some(n => n > 100), inGap: nos.some(n => n > 200) };
+  });
+  assert(r.has1 && r.has2 && !r.inGap, JSON.stringify(r));
+  assert(await chipActive(page, '#range-filters [data-range="1-100"]'));
+  assert(await chipActive(page, '#range-filters [data-range="101-200"]'));
+  assert(!(await chipActive(page, '#range-filters [data-range="all"]')));
+  assert.strictEqual(await page.$eval('#filter-count', e => e.innerText), '3'); // 出典1 + 範囲2
+}));
+
+test('range_toggle_off_and_all', () => withPage(settings({ sourceFilter: 'teppan' }), async page => {
+  await openFilters(page);
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="1-100"]'); // もう一度押すと外れる
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), []);
+  assert(await chipActive(page, '#range-filters [data-range="all"]'));
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="101-200"]');
+  await page.click('#range-filters [data-range="all"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), []);
+}));
+
+test('pos_multi_select', () => withPage(settings({ sourceFilter: 'daily' }), async page => {
+  await openFilters(page);
+  await page.click('#pos-filters [data-pos="名詞"]');
+  await page.click('#pos-filters [data-pos="動詞"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), ['名詞', '動詞']);
+  const ps = await page.evaluate(() => [...new Set(state.pool.map(w => w.p))]);
+  assert(ps.includes('名詞') && ps.includes('動詞') && ps.length === 2, JSON.stringify(ps));
+  assert(!(await chipActive(page, '#pos-filters [data-pos="all"]')));
+  await page.click('#pos-filters [data-pos="名詞"]');
+  await page.click('#pos-filters [data-pos="動詞"]');
+  assert(await chipActive(page, '#pos-filters [data-pos="all"]')); // 全部外すと「すべて」に戻る
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), []);
+}));
+
+test('pos_phrase_group_with_other', () => withPage(settings({ sourceFilter: 'daily', posFilter: ['句・表現', '副詞'] }), async page => {
+  const r = await page.evaluate(() => {
+    const ps = [...new Set(state.pool.map(w => w.p))];
+    return { ps, onlyAllowed: ps.every(p => p === '副詞' || PHRASE_POS.includes(p)), hasAdverb: ps.includes('副詞'), hasPhrase: ps.some(p => PHRASE_POS.includes(p)) };
+  });
+  assert(r.onlyAllowed && r.hasAdverb && r.hasPhrase, JSON.stringify(r));
+}));
+
+test('grammar_chapters_across_books', () => withPage({}, async page => {
+  await openGrammar(page);
+  await openFilters(page);
+  const keys = await page.$$eval('#grammar-chapter-filters [data-gchapter]', els => els.map(e => e.dataset.gchapter));
+  assert(keys.includes('kin:2') && keys.includes('sekai:2'), keys.join(','));
+  await page.click('#grammar-chapter-filters [data-gchapter="kin:2"]');
+  await page.click('#grammar-chapter-filters [data-gchapter="sekai:2"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2', 'sekai:2']);
+  const r = await page.evaluate(() => ({
+    n: state.grammarPool.length,
+    expected: RAW_GRAMMAR.filter(g => g.ch === 2).length,
+    books: [...new Set(state.grammarPool.map(g => g.b || 'sekai'))].sort(),
+    chs: [...new Set(state.grammarPool.map(g => g.ch))],
+  }));
+  assert.strictEqual(r.n, r.expected);
+  assert.deepStrictEqual(r.books, ['kin', 'sekai']);
+  assert.deepStrictEqual(r.chs, [2]);
+  await page.click('#grammar-chapter-filters [data-gchapter="kin:2"]'); // 外すと世界一の第2章だけ
+  assert.deepStrictEqual(await page.evaluate(() => [...new Set(state.grammarPool.map(g => g.b || 'sekai'))]), ['sekai']);
+  await page.click('#grammar-chapter-filters [data-gchapter="all"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+}));
+
+test('grammar_book_change_resets_chapters', () => withPage(settings({ app: 'grammar', grammarChapter: ['kin:2', 'sekai:2'] }), async page => {
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2', 'sekai:2']);
+  await openFilters(page);
+  await page.click('#grammar-book-segments [data-gbook="kin"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+  await page.click('#grammar-chapter-filters [data-gchapter="kin:3"]');
+  assert.deepStrictEqual(await page.evaluate(() => [...new Set(state.grammarPool.map(g => g.ch))]), [3]);
+}));
+
+test('grammar_rule_drill_clears_chapters', () => withPage(settings({ app: 'grammar', grammarChapter: ['sekai:2'] }), async page => {
+  const r = await page.evaluate(() => { startRuleDrill(KIN_RULES[0].number); return { ch: state.grammarChapter, rule: state.grammarRule, book: state.grammarBook, n: state.grammarPool.length }; });
+  assert.deepStrictEqual(r.ch, []);
+  assert.strictEqual(r.book, 'kin');
+  assert(r.n > 0);
+}));
+
+test('multi_filters_persist_and_count', () => withPage(settings({ sourceFilter: 'teppan' }), async page => {
+  await openFilters(page);
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="201-300"]');
+  await page.reload();
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }, { start: 201, end: 300 }]);
+  await dismissNudge(page);
+  assert.strictEqual(await page.$eval('#filter-count', e => e.innerText), '3'); // 出典1 + 範囲2
+}));
+
+test('legacy_single_filters_migrate', () => withPage({}, async page => {
+  await setStorageAndReload(page, settings({ sourceFilter: 'teppan', rangeFilter: { start: 1, end: 100 }, posFilter: '名詞' }));
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }]);
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), ['名詞']);
+  await setStorageAndReload(page, settings({ app: 'grammar', grammarBook: 'kin', grammarChapter: 2 }));
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2']);
+  // 本が「すべて」のときの番号だけでは、どの本の章か決まらないので外す
+  await setStorageAndReload(page, settings({ app: 'grammar', grammarBook: 'all', grammarChapter: 2 }));
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+  await setStorageAndReload(page, settings({ app: 'grammar', grammarChapter: 'all', rangeFilter: null, posFilter: 'all' }));
+  assert.deepStrictEqual(await page.evaluate(() => [state.grammarChapter, state.rangeFilter, state.posFilter]), [[], [], []]);
+}));
+
+test('multi_filters_reject_invalid_saved_values', () => withPage({}, async page => {
+  await setStorageAndReload(page, settings({
+    sourceFilter: 'teppan', app: 'grammar', grammarBook: 'kin',
+    rangeFilter: [{ start: 1, end: 100 }, { start: 5, end: 6 }, 'x', { start: 1, end: 100 }],
+    posFilter: ['名詞', '存在しない', '名詞'],
+    grammarChapter: ['kin:2', 'sekai:2', 'kin:99', 'bogus', 7],
+  }));
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }]);
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), ['名詞']);
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2']); // 選んでいる本の章だけ残す
+}));
+
+test('past_records_untouched_by_filter_change', () => withPage({
+  toeic_grammar_stats: JSON.stringify(STATS5),
+  toeic_weak_grammar: JSON.stringify(WEAK9),
+  toeic_settings: JSON.stringify({ rangeFilter: { start: 1, end: 100 }, grammarChapter: 3 }),
+}, async page => {
+  const r = await page.evaluate(() => ({ stats: state.grammarStats, weak: Object.keys(state.grammarWeakData), seen: [...state.grammarSeen].sort() }));
+  assert.deepStrictEqual(r.stats, STATS5);
+  assert.deepStrictEqual(r.weak, ['9']);
+  assert.deepStrictEqual(r.seen.map(Number), [5, 9]);
+}));
+
 // ==================== 実行 ====================
 
 (async () => {
