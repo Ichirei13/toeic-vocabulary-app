@@ -984,6 +984,20 @@ body {
 }
 .filters .segments { margin: 0; }
 #mode-segments { margin: 2px 20px 8px; }
+#grammar-book-segments {
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#grammar-book-segments::-webkit-scrollbar {
+  display: none;
+}
+#grammar-book-segments .segment {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
 
 .segment {
   flex: 1;
@@ -1513,6 +1527,16 @@ body {
   background: rgba(59, 130, 246, 0.14);
   color: #1e40af;
   border: 1px solid rgba(59, 130, 246, 0.35);
+}
+.badge-polaris {
+  background: rgba(124, 58, 237, 0.14);
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.35);
+}
+.badge-toplevel {
+  background: rgba(5, 150, 105, 0.14);
+  color: #059669;
+  border: 1px solid rgba(5, 150, 105, 0.35);
 }
 .grammar-rule-card {
   margin: 12px 0 14px 0;
@@ -2338,9 +2362,11 @@ body {
     </div>
     <div id="grammar-filters" style="display:none;">
       <div class="segments" id="grammar-book-segments" style="margin-bottom: 6px;">
-        <div class="segment active" data-gbook="all">すべて <span style="font-size:10px;opacity:0.8;">(301)</span></div>
+        <div class="segment active" data-gbook="all">すべて <span style="font-size:10px;opacity:0.8;">(1155)</span></div>
         <div class="segment" data-gbook="kin">👑 金の文法 <span style="font-size:10px;opacity:0.8;">(160)</span></div>
         <div class="segment" data-gbook="sekai">📖 世界一 <span style="font-size:10px;opacity:0.8;">(141)</span></div>
+        <div class="segment" data-gbook="polaris2">🧭 ポラリス2 <span style="font-size:10px;opacity:0.8;">(334)</span></div>
+        <div class="segment" data-gbook="toplevel">🎓 トップレベル <span style="font-size:10px;opacity:0.8;">(520)</span></div>
       </div>
       <div class="filter-row" id="grammar-chapter-filters"></div>
       <div class="segments" id="grammar-weak-segments" style="margin-top: 4px;">
@@ -2860,8 +2886,24 @@ function updateGrammarWeakBadge() {
   setBadge('grammar-due-badge', weak.filter(ex => isDue(state.grammarWeakData[ex.id])).length);
 }
 
-function getGrammarChaptersList() {
-  const book = state.grammarBook || 'all';
+function getBookBadge(b) {
+  if (b === 'kin') return '<span class="grammar-book-badge badge-kin">👑 金の文法</span>';
+  if (b === 'polaris2') return '<span class="grammar-book-badge badge-polaris">🧭 ポラリス2</span>';
+  if (b === 'toplevel') return '<span class="grammar-book-badge badge-toplevel">🎓 トップレベル</span>';
+  return '<span class="grammar-book-badge badge-sekai">📖 世界一</span>';
+}
+
+function getChapterLabel(b, ch, chTitle) {
+  const prefix = b === 'polaris2' ? `Unit ${ch}` : (b === 'toplevel' ? `Lecture ${ch}` : `第${ch}章`);
+  return chTitle ? `${prefix} ${chTitle}` : prefix;
+}
+
+function grammarChoiceLabel(idx) {
+  return ['A', 'B', 'C', 'D', 'E'][idx] || String.fromCharCode(65 + idx);
+}
+
+function getGrammarChaptersList(b) {
+  const book = b || state.grammarBook || 'all';
   const pool = book === 'all' ? RAW_GRAMMAR : RAW_GRAMMAR.filter(g => (g.b || 'sekai') === book);
   
   if (book === 'kin') {
@@ -2886,12 +2928,35 @@ function getGrammarChaptersList() {
       }
     });
     return [{ ch: 'all', title: `世界一 全14章 (${pool.length}問)` }, ...sekaiChaps];
+  } else if (book === 'polaris2') {
+    const polarisChaps = [];
+    const seen = new Set();
+    RAW_GRAMMAR.filter(g => g.b === 'polaris2').forEach(g => {
+      if (!seen.has(g.ch)) {
+        seen.add(g.ch);
+        const count = RAW_GRAMMAR.filter(x => x.b === 'polaris2' && x.ch === g.ch).length;
+        polarisChaps.push({ ch: g.ch, title: `Unit ${g.ch} ${g.ch_title} (${count}問)` });
+      }
+    });
+    return [{ ch: 'all', title: `ポラリス2 全6Unit (${pool.length}問)` }, ...polarisChaps];
+  } else if (book === 'toplevel') {
+    const toplevelChaps = [];
+    const seen = new Set();
+    RAW_GRAMMAR.filter(g => g.b === 'toplevel').forEach(g => {
+      if (!seen.has(g.ch)) {
+        seen.add(g.ch);
+        const count = RAW_GRAMMAR.filter(x => x.b === 'toplevel' && x.ch === g.ch).length;
+        toplevelChaps.push({ ch: g.ch, title: `Lecture ${g.ch} ${g.ch_title} (${count}問)` });
+      }
+    });
+    return [{ ch: 'all', title: `トップレベル 全24Lecture (${pool.length}問)` }, ...toplevelChaps];
   } else {
     return [
       { ch: 'all', title: `全問 (${pool.length}問)` }
     ];
   }
 }
+const getGrammarChapters = getGrammarChaptersList;
 
 function renderGrammarChapterFilters() {
   const gcf = document.getElementById('grammar-chapter-filters');
@@ -3013,16 +3078,14 @@ function renderCurrentGrammar() {
   const formattedQ = ex.q.replace(/-{3,}/g, '<span style="color:var(--seal);font-weight:bold;text-decoration:underline;">_______</span>');
 
   const isKin = ex.b === 'kin';
-  const bookBadgeHtml = isKin 
-    ? '<span class="grammar-book-badge badge-kin">👑 金の文法</span>'
-    : '<span class="grammar-book-badge badge-sekai">📖 世界一</span>';
+  const bookBadgeHtml = getBookBadge(ex.b);
 
   const ruleHtml = (ex.rule && ex.rule.number) ? `
     <div class="grammar-rule-card">
       <div class="grammar-rule-header">
-        <span class="grammar-rule-icon">👑</span>
-        <span class="grammar-rule-badge-text">金のルール ${ex.rule.number}</span>
-        ${ex.rule.category && ex.rule.category !== `第${ex.ch}章 ${ex.ch_title}` ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
+        <span class="grammar-rule-icon">${isKin ? '👑' : (ex.b === 'polaris2' ? '🧭' : (ex.b === 'toplevel' ? '🎓' : '📌'))}</span>
+        <span class="grammar-rule-badge-text">${isKin ? '金のルール ' + ex.rule.number : (ex.b === 'polaris2' ? 'Unit ' + ex.ch + ' ポイント' : (ex.b === 'toplevel' ? 'Lecture ' + ex.ch + ' ポイント' : 'ルール ' + ex.rule.number))}</span>
+        ${ex.rule.category && ex.rule.category !== `第${ex.ch}章 ${ex.ch_title}` && ex.rule.category !== ex.ch_title ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
       </div>
       <div class="grammar-rule-title">${ex.rule.title}</div>
     </div>
@@ -3048,9 +3111,9 @@ function renderCurrentGrammar() {
       </div>
       <div class="grammar-question">${formattedQ}</div>
       <div class="grammar-exp-container" id="grammar-exp-box" style="display:none;">
-        <div class="grammar-correct-ans">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+        <div class="grammar-correct-ans">正解: (${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}</div>
         <div class="grammar-your-ans" id="grammar-your-ans" style="display:none;"></div>
-        <div class="grammar-theme-revealed">第${ex.ch}章 ${ex.ch_title} ・${ex.th_title}</div>
+        <div class="grammar-theme-revealed">${getChapterLabel(ex.b, ex.ch, ex.ch_title)} ・${ex.th_title}</div>
         ${ruleHtml}
         ${phaseHtml}
         <div class="grammar-exp-text">${ex.exp}</div>
@@ -3066,11 +3129,11 @@ function renderCurrentGrammar() {
     </div>
   `;
 
-  const labels = ['A', 'B', 'C', 'D'];
+  const labels = ['A', 'B', 'C', 'D', 'E'];
   ex.c.forEach((choice, idx) => {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
-    btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-label">${labels[idx]}</span><span class="choice-text">${choice}</span>`;
+    btn.innerHTML = `<span class="choice-key">${idx + 1}</span><span class="choice-label">${labels[idx] || String.fromCharCode(65 + idx)}</span><span class="choice-text">${choice}</span>`;
     if (!review) btn.onclick = () => handleGrammarAnswer(idx, btn);
     if (review && idx === review.sel && !review.ok) btn.classList.add('wrong');
     choicesDiv.appendChild(btn);
@@ -3093,7 +3156,7 @@ function handleGrammarAnswer(selectedIdx, btn) {
   const ex = state.grammarPool[state.currentGrammarIndex];
   const isCorrect = selectedIdx === ex.a;
   playDuoSound(isCorrect);
-  showDuoBanner(isCorrect, `(${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}`);
+  showDuoBanner(isCorrect, `(${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}`);
 
   if (!isCorrect) {
     btn.classList.add('wrong');
@@ -3110,7 +3173,7 @@ function handleGrammarAnswer(selectedIdx, btn) {
 
 function showGrammarYourAnswer(ex, selectedIdx) {
   const yours = document.getElementById('grammar-your-ans');
-  yours.textContent = `あなたの回答: (${['A','B','C','D'][selectedIdx]}) ${ex.c[selectedIdx]}`;
+  yours.textContent = `あなたの回答: (${grammarChoiceLabel(selectedIdx)}) ${ex.c[selectedIdx]}`;
   yours.style.display = 'block';
 }
 
@@ -3119,7 +3182,7 @@ function handleGrammarDontKnow() {
   if (state.grammarAnswered) return;
   const ex = state.grammarPool[state.currentGrammarIndex];
   playDuoSound(false);
-  showDuoBanner(false, `(${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}`);
+  showDuoBanner(false, `(${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}`);
   state.grammarLog[state.currentGrammarIndex] = { ok: false, sel: null };
   recordWeakGrammar(ex, false);
   revealGrammarAnswer(ex);
@@ -3187,7 +3250,7 @@ function renderGrammarWeakList() {
     container.innerHTML = obsidianSyncBarHtml() + '<div style="color:var(--muted);text-align:center;padding:20px;">文法の苦手問題はありません</div>';
     return;
   }
-  const bookOrder = ex => (ex.b === 'kin' ? 0 : 1);
+  const bookOrder = ex => ({ kin: 0, sekai: 1, polaris2: 2, toplevel: 3 }[ex.b || 'sekai'] ?? 99);
   sortWeakItems(items, (a, b) => bookOrder(a.ex) - bookOrder(b.ex) || a.ex.ch - b.ex.ch || a.ex.id - b.ex.id);
 
   let html = obsidianSyncBarHtml() + weakListHeader(items, '本・章順');
@@ -3196,15 +3259,23 @@ function renderGrammarWeakList() {
     html += `
       <div class="weak-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
         <div style="display:flex;justify-content:space-between;width:100%;align-items:center;">
-          <span style="font-size:11px;color:var(--muted);font-weight:bold;">
-            ${ex.b === 'kin' ? '<span style="color:#b45309;">👑 金の文法</span>' : '<span style="color:#1d4ed8;">📖 世界一</span>'} 第${ex.ch}章 ${ex.ch_title}
-            ${stText ? `<span style="margin-left:6px;font-weight:normal;">（${stText}）</span>` : ''}
+          <span style="font-size:11px;color:var(--muted);font-weight:bold;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${getBookBadge(ex.b)} ${getChapterLabel(ex.b, ex.ch, ex.ch_title)}
+            ${stText ? `<span style="font-weight:normal;">（${stText}）</span>` : ''}
           </span>
           <button class="del-btn" data-remove-weak="${key}">削除</button>
         </div>
-        ${ex.rule ? `<div style="font-size:11px;color:#b45309;font-weight:bold;background:rgba(234,179,8,0.15);padding:2px 6px;border-radius:4px;border:1px solid rgba(234,179,8,0.4);">👑 金のルール ${ex.rule.number}: ${ex.rule.title}</div>` : ''}
+        ${ex.rule ? (
+          ex.b === 'kin'
+            ? `<div style="font-size:11px;color:#b45309;font-weight:bold;background:rgba(234,179,8,0.15);padding:2px 6px;border-radius:4px;border:1px solid rgba(234,179,8,0.4);">👑 金のルール ${ex.rule.number}: ${ex.rule.title}</div>`
+            : (ex.b === 'polaris2'
+                ? `<div style="font-size:11px;color:#7c3aed;font-weight:bold;background:rgba(124,58,237,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(124,58,237,0.35);">🧭 ${ex.rule.title}</div>`
+                : (ex.b === 'toplevel'
+                    ? `<div style="font-size:11px;color:#059669;font-weight:bold;background:rgba(5,150,105,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(5,150,105,0.35);">🎓 ${ex.rule.title}</div>`
+                    : `<div style="font-size:11px;color:var(--muted);font-weight:bold;padding:2px 6px;">${ex.rule.title}</div>`))
+        ) : ''}
         <div style="font-size:13px;font-weight:600;color:var(--ink);">${ex.q}</div>
-        <div style="font-size:12px;color:var(--jade);">正解: (${['A','B','C','D'][ex.a]}) ${ex.c[ex.a]}</div>
+        <div style="font-size:12px;color:var(--jade);">正解: (${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}</div>
         ${dueLabel(entry)}
       </div>
     `;
@@ -3974,7 +4045,7 @@ function restoreSettings() {
       saveSettings();
     }
   } catch(e) {}
-  state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai'], 'all');
+  state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai', 'polaris2', 'toplevel'], 'all');
   state.grammarChapter = pick(saved.grammarChapter, getGrammarChaptersList().map(c => c.ch), 'all');
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
@@ -5698,7 +5769,7 @@ function showToast(message) {
 }
 
 // ==================== キーボード操作（PC 向け） ====================
-// 1〜4 (テンキー・全角・A〜D): 選択肢 / 0: わからない / Enter・スペース: 次へ
+// 1〜5 (テンキー・全角・A〜E): 選択肢 / 0: わからない / Enter・スペース: 次へ
 // カードモード: スペース: めくる / Enter: めくる・覚えた / 1・←: まだ / 2・→: 覚えた
 // Esc: 下から出るシートを閉じる
 
@@ -5736,7 +5807,7 @@ document.addEventListener('keydown', e => {
   };
 
   // 全角数字やテンキー対応のための正規化
-  const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '０': '0' };
+  const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '５': '5', '０': '0' };
   const rawKey = fullToHalf[e.key] || e.key;
 
   // 単語カードモード
@@ -5747,16 +5818,16 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // 選択肢インデックス判定（1〜4, テンキー1〜4, A〜Dキー）
+  // 選択肢インデックス判定（1〜5, テンキー1〜5, A〜Eキー）
   let choiceIdx = -1;
-  if (/^[1-4]$/.test(rawKey)) {
+  if (/^[1-5]$/.test(rawKey)) {
     choiceIdx = Number(rawKey) - 1;
-  } else if (/^Digit[1-4]$/.test(e.code)) {
+  } else if (/^Digit[1-5]$/.test(e.code)) {
     choiceIdx = Number(e.code.replace('Digit', '')) - 1;
-  } else if (/^Numpad[1-4]$/.test(e.code)) {
+  } else if (/^Numpad[1-5]$/.test(e.code)) {
     choiceIdx = Number(e.code.replace('Numpad', '')) - 1;
-  } else if (/^[a-dA-D]$/.test(rawKey)) {
-    const map = { a: 0, b: 1, c: 2, d: 3, A: 0, B: 1, C: 2, D: 3 };
+  } else if (/^[a-eA-E]$/.test(rawKey)) {
+    const map = { a: 0, b: 1, c: 2, d: 3, e: 4, A: 0, B: 1, C: 2, D: 3, E: 4 };
     choiceIdx = map[rawKey];
   }
 
