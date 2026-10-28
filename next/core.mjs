@@ -1,6 +1,6 @@
 // This module is deliberately independent of the legacy application and Google APIs.
 import { defaultPreferences, validatePreferences } from './preferences.mjs';
-import { emptyActivity, validateActivity } from './activity.mjs';
+import { emptyActivity, validateActivity, addDailyAnswer } from './activity.mjs';
 import { legacyTheme } from './themes.mjs';
 export const STORAGE_KEY = 'toeic_next_v1';
 export const MODES = { e2j: '英 → 日', j2e: '日 → 英', flash: 'カード', type: 'タイプ' };
@@ -193,6 +193,7 @@ export function recordAnswer(data, item, result, now = Date.now()) {
   const session = data.session;
   if (Object.hasOwn(session.answers, item.id)) return false;
   session.answers[item.id] = { ...result, at: now };
+  data.activity = addDailyAnswer(data.activity, data.preferences.dailyGoal, new Date(now));
   const r = data.records;
   const statMap = item.kind === 'grammar' ? r.grammarStats : r.wordStats;
   const previous = statMap[item.key] || { a: 0, c: 0 };

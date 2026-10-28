@@ -439,3 +439,24 @@ body:has(dialog[open]) { overflow: hidden; }
 .book-unseen { display: block; font-size: .75rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
 .setup-basics > .filter-title { margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
 .setup-basics > .filter-title h2 { margin-bottom: 0; }
+.goal-strip { display: flex; width: 100%; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; text-align: left; min-height: 48px; font-size: .8rem; }
+.goal-strip > span:first-child { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.goal-status { color: var(--muted); }
+.goal-track { display: block; flex: 1; min-width: 40px; max-width: 140px; height: 6px; background: var(--border); border-radius: 8px; overflow: hidden; }
+.goal-track i { display: block; height: 100%; background: var(--accent); }
+.goal-open { margin-left: auto; color: var(--accent); }
+.learning-settings .form-grid { margin: 20px 0; }
+#calendar-dialog { width: min(560px,calc(100% - 24px)); }
+.calendar-navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0; }
+.calendar-navigation h3 { font-size: 1rem; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 6px; text-align: center; }
+.weekday { font-size: .75rem; color: var(--muted); }
+.calendar-day { min-width: 0; padding: 8px 0; border-radius: 10px; border: 1px solid var(--border); font-size: .85rem; line-height: 1.5; }
+.calendar-day small { display: block; font-size: .7rem; height: 1.3em; }
+.calendar-day.active { background: var(--tint); border-color: var(--accent); color: var(--accent); }
+.calendar-day.achieved { background: var(--accent); color: var(--on-accent); }
+.calendar-day.today { outline: 2px solid var(--focus); outline-offset: 1px; }
+.calendar-day.future { color: var(--muted); }
+.calendar-legend { font-size: .75rem; color: var(--muted); margin-top: 16px; }
+@media (max-width: 768px) { .goal-track { max-width: 60px; } .goal-status { display: none; } .goal-strip { padding-inline: 12px; gap: 8px; } }
+@media (max-width: 380px) { .calendar-grid { gap: 4px; } .calendar-day { font-size: .7rem; } }

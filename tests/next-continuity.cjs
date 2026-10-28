@@ -58,3 +58,22 @@ test('normal exercise remembers conditions but individual review does not overwr
  await page.locator('#count').waitFor();
  assert.equal(await page.locator('#count').inputValue(),'20');
 });
+
+test('daily goal, calendar, backup and settings persist without counting a reload',async t=>{
+ const page=await open(t);
+ assert.ok(await page.locator('[data-action="open-calendar"]').isVisible());
+ await page.locator('[data-action="open-calendar"]').click();
+ await page.getByRole('dialog',{name:'学習カレンダー'}).waitFor();
+ await page.locator('[data-action="calendar-prev"]').click();
+ assert.match(await page.locator('#calendar-month').innerText(),/年/);
+ await page.keyboard.press('Escape');
+ await page.locator('[data-action="quick-start"]').click();
+ await page.locator('.choice').first().waitFor();
+ await page.locator('[data-action="dont-know"]').click();
+ const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('toeic_next_v1')).activity);
+ await page.reload();await page.locator('.question-text').waitFor();
+ assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('toeic_next_v1')).activity),before);
+ await page.goto(base+'#settings');await page.locator('#daily-goal').waitFor();
+ await page.locator('#daily-goal').selectOption('5');await page.reload();await page.locator('#daily-goal').waitFor();
+ assert.equal(await page.locator('#daily-goal').inputValue(),'5');
+});

@@ -1,5 +1,7 @@
 import { STORAGE_KEY, MODES, BOOKS, openStore, makeCatalog, weakMap, selectItems,
   choicesFor, startSession, validSession, recordAnswer } from './core.mjs';
+import { activitySummary, monthModel, setDailyGoal, localDateKey } from './activity.mjs';
+import { goalMarkup, calendarMarkup, learningSettingsMarkup } from './learning-ui.mjs';
 import { bookProgress } from './progress.mjs';
 import { rememberPreset, resolvePreset, presetKey } from './preferences.mjs';
 import { THEMES, themeById, sessionRewards, playAnswerSound } from './themes.mjs';
@@ -27,6 +29,11 @@ let backupMessage = '';
 let fileReadVersion = 0;
 let filterDraft = null;
 let themeGalleryOpen = false;
+let calendarMonth = localDateKey(new Date()).slice(0,7);
+let goalReached = false;
+let lastDate = localDateKey(new Date());
+let dayTimer;
+let calendarTrigger;
 let setupRoute = '';
 let presetNotice = '';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -84,6 +91,7 @@ function home() {
   const counts = recordCounts(data.records);
   const totalCorrect = [...Object.values(data.records.wordStats), ...Object.values(data.records.grammarStats)].reduce((n, x) => n + x.c, 0);
   return `<div class="home-heading"><div><p class="eyebrow">${today()} · Your study space</p><h1>おかえりなさい。</h1></div><button class="theme-trigger" data-action="open-themes">${paletteIcon}<span>${themeById(data.theme).name}</span></button></div>
+    <div id="daily-goal-strip">${goalMarkup(activitySummary(data.activity,data.preferences.dailyGoal))}</div>
     <div class="hero-grid"><section class="study-card"><p class="eyebrow">${active ? 'Continue learning' : 'A little progress, every day'}</p>
       <h2>${active ? `${esc(sourceName(s.config.kind, s.config.source))}<br>前回の続きから。` : previous ? `${esc(sourceName(previous.kind, previous.source))}<br>いつもの条件で。` : '今日も、10問から。'}</h2>
       <p class="subtext">${active ? `${s.ids.length}問中 ${Object.keys(s.answers).length}問を解答済み` : previous ? esc(filterSummary(previous) + ' · ' + (previous.count === 'all' ? '対象すべて' : previous.count + '問')) : '金の文法からランダムに出題します。'}</p>
@@ -222,7 +230,7 @@ function resultBanner(s, item, result) {
   const { streak, xp } = sessionRewards(s);
   const milestone = result.correct && (streak === 3 || streak === 5 || (streak > 0 && streak % 10 === 0));
   const correctAnswer = item.kind === 'grammar' ? item.c[item.a] : ['e2j', 'flash'].includes(s.config.mode) ? item.m : item.w;
-  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}"><span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span><div class="result-copy"><strong>${milestone ? `${streak}問連続正解！` : result.correct ? '正解！その調子。' : 'ここで覚えよう。'}</strong>${result.correct ? `<small>${milestone ? '集中できています。' : '正解で +10 XP'} · 今回 ${xp} XP</small>` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>`}</div></div>`;
+  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}"><span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span><div class="result-copy"><strong>${milestone ? `${streak}問連続正解！` : result.correct ? '正解！その調子。' : 'ここで覚えよう。'}</strong>${result.correct ? `<small>${goalReached ? '今日の目標達成！' : milestone ? '集中できています。' : '正解で +10 XP'} · 今回 ${xp} XP</small>` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>`}</div></div>`;
 }
 function animateAnswer(s, correct) {
   if (data.theme !== 'duolingo' || reducedMotion.matches) return;
@@ -263,6 +271,7 @@ function settings() {
       ${pendingBackup || undoPreview ? restorePreview() : ''}
       ${data.restoreUndo && !pendingBackup && !undoPreview ? `<div class="undo-row"><p>直前の復元：${new Date(data.restoreUndo.at).toLocaleString('ja-JP')}</p>${button('直前の復元を取り消す', 'preview-undo', true)}</div>` : ''}
       <details class="backup-details"><summary>保存先と互換性について</summary><p>復元先は試用版だけです。従来版の記録やGoogle Driveのデータは変更しません。試用版のバックアップは試用版へ、従来版のバックアップはどちらへも復元できます。</p><p>Google Driveへの自動同期とObsidian連携は、試用版ではまだ利用できません。必要な場合は従来版を使えます。</p><p>初回コピー日時：${new Date(data.importedAt).toLocaleString('ja-JP')}</p></details></section>
+    ${learningSettingsMarkup(data.preferences)}
     <div class="legacy-note"><div><h2>いつもの学習も、そのまま。</h2><p>従来版のテーマ・記録・同期機能は引き続き使えます。</p></div><a class="button secondary" href="../">従来版を開く ↗</a></div></div>`;
 }
 
@@ -273,7 +282,7 @@ function restorePreview() {
   return `<div class="restore-preview"><h3 id="restore-title" tabindex="-1">${undoPreview ? '復元前の状態に戻します' : '取り込む内容を確認'}</h3>
     ${!undoPreview ? `<p class="file-name">${esc(pendingBackup.name)} · ${pendingBackup.parsed.source}</p><fieldset class="restore-modes"><legend>復元方法</legend><label class="check-label"><input type="radio" name="restore-mode" value="merge" ${restoreMode === 'merge' ? 'checked' : ''}>今の記録に統合</label><label class="check-label"><input type="radio" name="restore-mode" value="replace" ${restoreMode === 'replace' ? 'checked' : ''}>ファイルの記録で置き換え</label></fieldset>` : ''}
     <table class="restore-table"><caption class="sr-only">現在と反映後の記録の比較</caption><thead><tr><th>項目</th><th>現在</th><th>反映後</th></tr></thead><tbody>${Object.entries(labels).map(([key, label]) => `<tr><th scope="row">${label}</th><td>${before[key].toLocaleString()}</td><td>${after[key].toLocaleString()}</td></tr>`).join('')}</tbody></table>
-    <p class="restore-explanation">${undoPreview ? '復元後の学習や設定変更も取り消し、復元直前の状態へ戻します。' : restoreMode === 'merge' ? '学習済みをまとめ、同じ成績は重複加算しません。今のテーマと演習の続きは保ちます。' : '試用版の学習記録を置き換えます。試用版のファイルならテーマと演習の続きも復元します。'}</p>
+    <p class="help">${!undoPreview && restoreMode === 'replace' ? pendingBackup.parsed.activity ? '学習設定と日別記録も置き換えます。' : '学習設定は保ち、日別記録は空にします。' : !undoPreview ? '日別記録は同日の大きい件数を採用します。端末間の回答数の合算ではありません。' : '学習設定と日別記録も復元前に戻します。'}</p><p class="restore-explanation">${undoPreview ? '復元後の学習や設定変更も取り消し、復元直前の状態へ戻します。' : restoreMode === 'merge' ? '学習済みをまとめ、同じ成績は重複加算しません。今のテーマと演習の続きは保ちます。' : '試用版の学習記録を置き換えます。試用版のファイルならテーマと演習の続きも復元します。'}</p>
     ${!undoPreview ? pendingBackup.parsed.warnings.map(w => `<p class="help">${esc(w)}</p>`).join('') : ''}
     <p class="help">従来版とGoogle Driveの記録には影響しません。</p>
     <div class="setting-buttons">${button(undoPreview ? '復元前に戻す' : 'この内容で復元する', 'confirm-restore')}${button('キャンセル', 'cancel-restore', true)}</div></div>`;
@@ -308,7 +317,7 @@ function begin(config, items, { remember = true } = {}) {
   data.session = startSession(items, config, catalog);
   data.session.reviewOnly = !remember;
   if (remember) data.preferences = rememberPreset(data.preferences, config);
-  flashRevealed = false;
+  flashRevealed = false; goalReached = false;
   save();
   navigate('exercise');
 }
@@ -316,7 +325,9 @@ function answer(result) {
   const s = currentSession();
   if (!s || s.cursor >= s.ids.length) return;
   const item = catalog.byId.get(s.ids[s.cursor]);
+  const beforeGoal = activitySummary(data.activity,data.preferences.dailyGoal).achieved;
   if (recordAnswer(data, item, result)) {
+    goalReached = !beforeGoal && activitySummary(data.activity,data.preferences.dailyGoal).achieved;
     if (data.theme === 'duolingo' && data.sound !== false) playAnswerSound(result.correct);
     save();
     render();
@@ -350,6 +361,13 @@ document.addEventListener('click', event => {
   if (!target || target.disabled) return;
   const action = target.dataset.action;
   const s = currentSession();
+  if (action === 'open-calendar') { calendarTrigger = target; calendarMonth = localDateKey(new Date()).slice(0,7); refreshCalendar(); $('#calendar-dialog').showModal(); }
+  if (action === 'close-calendar') $('#calendar-dialog').close();
+  if (action === 'calendar-prev' || action === 'calendar-next') {
+    const model = monthModel(data.activity,calendarMonth);
+    if (action === 'calendar-prev' || model.canGoNext) calendarMonth = action === 'calendar-prev' ? model.previousMonth : model.nextMonth;
+    refreshCalendar(); $(`[data-action="${action}"]`)?.focus({ preventScroll: true });
+  }
   if (action === 'open-themes') { $('#dialog-themes').innerHTML = themePicker(); $('#theme-dialog').showModal(); }
   if (action === 'close-themes') $('#theme-dialog').close();
   if (action === 'quick-start') { draft = defaultConfig(); begin(draft, selectItems(catalog, data.records, draft)); }
@@ -390,9 +408,9 @@ document.addEventListener('click', event => {
   if (action === 'reveal') { flashRevealed = true; render(); $('[data-action="flash-correct"]')?.focus({ preventScroll: true }); }
   if (action === 'flash-correct' || action === 'flash-wrong') answer({ correct: action === 'flash-correct' });
   if (action === 'next' && s && s.answers[s.ids[s.cursor]]) {
-    s.cursor++; flashRevealed = false; save(); render(true);
+    s.cursor++; flashRevealed = false; goalReached = false; save(); render(true);
   }
-  if (action === 'previous' && s && s.cursor > 0) { s.cursor--; flashRevealed = false; save(); render(true); }
+  if (action === 'previous' && s && s.cursor > 0) { s.cursor--; flashRevealed = false; goalReached = false; save(); render(true); }
   if (action === 'retry' && s) begin({ ...s.config, count: 'all' }, s.ids.filter(id => s.answers[id] && !s.answers[id].correct).map(id => catalog.byId.get(id)), { remember: false });
   if (action === 'repeat' && s) {
     const items = selectItems(catalog, data.records, s.config);
@@ -416,7 +434,7 @@ document.addEventListener('click', event => {
     const next = undoPreview ? prepareUndo(data) : prepareRestore(data, pendingBackup.parsed, restoreMode);
     if (store.replace(next)) {
       backupMessage = undoPreview ? '復元前の状態に戻しました。' : '試用版の記録を復元しました。';
-      pendingBackup = null; undoPreview = false; flashRevealed = false; applyTheme();
+      pendingBackup = null; undoPreview = false; flashRevealed = false; goalReached = false; applyTheme();
       $('#storage-notice').hidden = true;
     } else {
       backupMessage = `復元できませんでした。記録は元のままです。${store.notice}`;
@@ -441,6 +459,13 @@ document.addEventListener('submit', event => {
 });
 document.addEventListener('change', event => {
   const el = event.target;
+  if (el.id === 'daily-goal' || el.id === 'companion-setting') {
+    const next = el.id === 'daily-goal' ? setDailyGoal(data,Number(el.value)) : structuredClone(data);
+    if (el.id === 'companion-setting') next.preferences.companion = el.value;
+    goalReached = false;
+    store.replace(next); $('#storage-notice').textContent = store.notice; $('#storage-notice').hidden = !store.notice;
+    render(); $(`#${el.id}`)?.focus({ preventScroll: true });
+  }
   if (el.id === 'sound-enabled') { data.sound = el.checked; save(); }
   if (el.name === 'restore-mode') {
     restoreMode = el.value; render(); $(`[name="restore-mode"][value="${restoreMode}"]`).focus({ preventScroll: true });
@@ -480,6 +505,8 @@ document.addEventListener('keydown', event => {
 });
 window.addEventListener('hashchange', () => {
   closeFilters();
+  goalReached = false;
+  if ($('#calendar-dialog').open) $('#calendar-dialog').close();
   if ($('#theme-dialog').open) $('#theme-dialog').close();
   flashRevealed = false;
   if (location.hash !== '#settings') { pendingBackup = null; undoPreview = false; fileReadVersion++; }
@@ -513,6 +540,25 @@ window.addEventListener('storage', event => {
     $('#storage-notice').hidden = false;
   }
 });
+function refreshCalendar() {
+  const summary = activitySummary(data.activity,data.preferences.dailyGoal);
+  $('#calendar-overview').textContent = `累計 ${summary.activeDays}日 · ${summary.streak}日連続`;
+  $('#calendar-body').innerHTML = calendarMarkup(monthModel(data.activity,calendarMonth));
+}
+$('#calendar-dialog').addEventListener('close', () => { if (calendarTrigger?.isConnected) calendarTrigger.focus({ preventScroll: true }); });
+function refreshDay() {
+  const now = new Date(), date = localDateKey(now);
+  if (date !== lastDate) {
+    lastDate = date; goalReached = false;
+    if ($('#daily-goal-strip')) $('#daily-goal-strip').innerHTML = goalMarkup(activitySummary(data.activity,data.preferences.dailyGoal,now));
+    if ($('#calendar-dialog').open) { calendarMonth = date.slice(0,7); refreshCalendar(); }
+  }
+  clearTimeout(dayTimer);
+  const next = new Date(now); next.setHours(24,0,1,0);
+  dayTimer = setTimeout(refreshDay,Math.max(1000,next-now));
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshDay(); });
+refreshDay();
 const connection = () => { $('#offline-notice').hidden = navigator.onLine; };
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);

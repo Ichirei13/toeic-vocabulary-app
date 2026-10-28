@@ -113,3 +113,13 @@ test('spaced review advances only when due and eventually graduates', () => {
   }
   assert.equal(data.records.grammarWeak['1'], undefined);
 });
+
+test('only a new answer increments the activity day',()=>{
+ const catalog=makeCatalog(words,grammar);
+ const store=openStore(storage()),data=store.data;
+ data.session=startSession([catalog.byId.get('g:1')],config,catalog);
+ const now=new Date(2026,9,28,23,59).getTime();
+ recordAnswer(data,catalog.byId.get('g:1'),{correct:false},now);
+ recordAnswer(data,catalog.byId.get('g:1'),{correct:true},now);
+ assert.equal(data.activity.days['2026-10-28'].answers,1);
+});
