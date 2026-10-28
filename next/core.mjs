@@ -1,4 +1,6 @@
 // This module is deliberately independent of the legacy application and Google APIs.
+import { defaultPreferences, validatePreferences } from './preferences.mjs';
+import { emptyActivity, validateActivity } from './activity.mjs';
 import { legacyTheme } from './themes.mjs';
 export const STORAGE_KEY = 'toeic_next_v1';
 export const MODES = { e2j: '英 → 日', j2e: '日 → 英', flash: 'カード', type: 'タイプ' };
@@ -42,7 +44,7 @@ export function seedFromLegacy(storage) {
   const wordStats = stats(read(storage, 'toeic_word_stats', {}));
   const grammarSeen = read(storage, 'toeic_seen_grammar', null);
   return {
-    schema: 1, importedAt: Date.now(), importedItems: Object.keys(wordStats).length + Object.keys(grammarStats).length,
+    schema: 2, preferences: defaultPreferences(), activity: emptyActivity(), importedAt: Date.now(), importedItems: Object.keys(wordStats).length + Object.keys(grammarStats).length,
     theme: legacyTheme(storage.getItem('toeic_app_theme')), sound: true, session: null,
     records: {
       weakWords: Object.fromEntries(Object.keys(MODES).map(m => [m, weak(object(byMode) ? byMode[m] : oldWeak, tombs, `w:${m}:`)])),
@@ -55,10 +57,23 @@ export function seedFromLegacy(storage) {
 }
 
 function validSaved(value) {
-  if (!object(value) || value.schema !== 1 || !object(value.records)) return false;
+  if (!object(value) || ![1, 2].includes(value.schema) || !object(value.records)) return false;
   const r = value.records;
   return object(r.weakWords) && object(r.seenWords) && object(r.wordStats) && object(r.grammarWeak) &&
     object(r.grammarStats) && Array.isArray(r.grammarSeen) && Object.keys(MODES).every(m => object(r.weakWords[m]) && Array.isArray(r.seenWords[m]));
+}
+
+export function migrateSaved(raw, now = new Date(), includeUndo = true) {
+  if (!validSaved(raw)) throw new Error('unsupported');
+  const data = structuredClone(raw);
+  data.preferences = raw.schema === 1 ? defaultPreferences() : validatePreferences(raw.preferences);
+  data.activity = raw.schema === 1 ? emptyActivity(now) : validateActivity(raw.activity);
+  data.schema = 2;
+  if (includeUndo && data.restoreUndo) {
+    if (!object(data.restoreUndo) || !Number.isFinite(data.restoreUndo.at)) throw new Error('invalid undo');
+    data.restoreUndo.before = migrateSaved(data.restoreUndo.before, now, false);
+  } else if (!includeUndo) delete data.restoreUndo;
+  return data;
 }
 
 export function openStore(storage) {
@@ -72,7 +87,7 @@ export function openStore(storage) {
     if (lastRaw !== null) {
       const parsed = JSON.parse(lastRaw);
       if (!validSaved(parsed)) throw new Error('unsupported');
-      data = parsed;
+      data = migrateSaved(parsed);
     } else data = seedFromLegacy(storage);
   } catch {
     blocked = true;
@@ -101,7 +116,8 @@ export function openStore(storage) {
     data, get notice() { return notice; },
     save() { return persist(data); },
     replace(next) {
-      if (!validSaved(next) || !persist(next)) return false;
+      try { next = migrateSaved(next); } catch { return false; }
+      if (!persist(next)) return false;
       Object.keys(data).forEach(key => delete data[key]);
       Object.assign(data, next);
       return true;

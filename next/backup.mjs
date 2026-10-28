@@ -1,3 +1,5 @@
+import { validatePreferences } from './preferences.mjs';
+import { validateActivity, mergeActivity, emptyActivity } from './activity.mjs';
 import { MODES, validSession } from './core.mjs';
 import { themeById } from './themes.mjs';
 
@@ -110,7 +112,7 @@ function warnUnknown(records, catalog, warnings) {
 
 export function createBackup(data) {
   const { restoreUndo, ...snapshot } = data;
-  return { app: BACKUP_APP, format: 1, exportedAt: new Date().toISOString(), data: clone(snapshot) };
+  return { app: BACKUP_APP, format: 2, exportedAt: new Date().toISOString(), data: clone(snapshot) };
 }
 export function parseBackup(text, catalog) {
   assert(new TextEncoder().encode(text).length <= MAX_BACKUP_BYTES, 'ファイルは2MBまでです。');
@@ -119,14 +121,16 @@ export function parseBackup(text, catalog) {
   assert(object(backup), 'バックアップファイルではありません。');
   const warnings = [];
   if (backup.app === BACKUP_APP) {
-    assert(backup.format === undefined || backup.format === 1, 'このバックアップの版には対応していません。');
-    assert(object(backup.data) && backup.data.schema === 1, 'この保存形式には対応していません。');
+    assert(backup.format === undefined || backup.format === 1 || backup.format === 2, 'このバックアップの版には対応していません。');
+    assert(object(backup.data) && [1,2].includes(backup.data.schema), 'この保存形式には対応していません。');
     const data = backup.data;
+    const preferences = data.schema === 2 ? validatePreferences(data.preferences) : undefined;
+    const activity = data.schema === 2 ? validateActivity(data.activity) : undefined;
     const records = cleanRecords(data.records);
     warnUnknown(records, catalog, warnings);
     const session = data.session ? safeSession(data.session, catalog) : null;
     if (data.session && !session) warnings.push('教材または形式が一致しないため、演習の続きは取り込みません。');
-    return { source: '試用版', records, session, theme: themeById(data.theme).id,
+    return { source: '試用版', records, session, preferences, activity, theme: themeById(data.theme).id,
       sound: data.sound !== false, exportedAt: backup.exportedAt, warnings };
   }
   assert(['toeic-drill', 'toeic_practice_backup'].includes(backup.app), 'TOEIC Drillのバックアップではありません。');
@@ -176,7 +180,9 @@ export function prepareRestore(current, parsed, mode) {
   assert(['merge', 'replace'].includes(mode));
   const next = clone(current);
   next.records = mode === 'merge' ? mergeRecords(current.records, parsed.records) : clone(parsed.records);
+  next.activity = parsed.activity ? (mode === 'merge' ? mergeActivity(current.activity, parsed.activity) : clone(parsed.activity)) : mode === 'merge' ? clone(current.activity) : emptyActivity();
   if (mode === 'replace') {
+    if (parsed.preferences) next.preferences = clone(parsed.preferences);
     next.session = clone(parsed.session);
     if (parsed.theme) next.theme = parsed.theme;
     if (typeof parsed.sound === 'boolean') next.sound = parsed.sound;

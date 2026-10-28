@@ -116,7 +116,7 @@ test('graduation tombstone prevents old backup from restoring mastered weakness'
 
 test('malformed, future, oversized, and unsafe backups are rejected without touching state', () => {
   const backup=createBackup(makeData());
-  for(const text of ['not json','{}',JSON.stringify({...backup,format:2}),JSON.stringify({...backup,app:'another-app'}), ' '.repeat(MAX_BACKUP_BYTES+1)]) {
+  for(const text of ['not json','{}',JSON.stringify({...backup,format:3}),JSON.stringify({...backup,app:'another-app'}), ' '.repeat(MAX_BACKUP_BYTES+1)]) {
     assert.throws(()=>parseBackup(text,catalog));
   }
   backup.data.records.grammarStats={1:{a:2,c:5}};
@@ -137,4 +137,14 @@ test('session XP and streak survive reload/review and count each answer once', (
   const session={answers:{a:{correct:true,at:1},b:{correct:true,at:2},c:{correct:false,at:3},d:{correct:true,at:4}}};
   assert.deepEqual(sessionRewards(session),{xp:30,streak:1,best:2});
   assert.deepEqual(sessionRewards(JSON.parse(JSON.stringify(session))),sessionRewards(session));
+});
+
+test('schema1 migration is read-only until save and new learning fields roundtrip and undo',()=>{
+ const old=makeData(); old.schema=1;delete old.preferences;delete old.activity;
+ const raw=JSON.stringify(old),storage=disk({[STORAGE_KEY]:raw});const store=openStore(storage);
+ assert.equal(store.data.schema,2);assert.equal(storage.getItem(STORAGE_KEY),raw);assert.equal(store.data.preferences.dailyGoal,10);
+ const incoming=makeData();incoming.preferences.dailyGoal=20;incoming.activity.days['2026-10-28']={answers:6,goal:20};
+ const parsed=parse(incoming);assert.deepEqual(parsed.activity,incoming.activity);
+ const replaced=prepareRestore(store.data,parsed,'replace');assert.equal(replaced.preferences.dailyGoal,20);assert.deepEqual(prepareUndo(replaced).activity,store.data.activity);
+ assert.equal(createBackup(incoming).format,2);
 });

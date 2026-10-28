@@ -37,7 +37,7 @@ test('legacy tombstones prevent importing resurrected weak records', () => {
 });
 
 test('corrupt/unknown trial records are never overwritten', () => {
-  for (const raw of ['broken', '{"schema":2}', '{"schema":1,"records":{}}']) {
+  for (const raw of ['broken', '{"schema":3}', '{"schema":1,"records":{}}']) {
     const disk = storage({ [STORAGE_KEY]: raw });
     const store = openStore(disk);
     assert.equal(store.save(), false);
