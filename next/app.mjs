@@ -22,6 +22,10 @@ let restoreMode = 'merge';
 let undoPreview = false;
 let backupMessage = '';
 let fileReadVersion = 0;
+let filterDraft = null;
+let themeGalleryOpen = false;
+const compactLayout = window.matchMedia('(max-width: 768px)');
+const FILTERS = [['all', 'すべて'], ['due', '今日の復習'], ['weak', '苦手のみ'], ['weak_unseen', '苦手 ＋ 未学習'], ['unseen', '未学習のみ']];
 
 const sourceName = (kind, source) => kind === 'grammar'
   ? BOOKS[source]?.title || 'すべての文法教材'
@@ -70,12 +74,11 @@ function home() {
   const totalCorrect = [...Object.values(data.records.wordStats), ...Object.values(data.records.grammarStats)].reduce((n, x) => n + x.c, 0);
   return `<div class="home-heading"><div><p class="eyebrow">${today()} · Your study space</p><h1>おかえりなさい。</h1></div><button class="theme-trigger" data-action="open-themes">${paletteIcon}<span>${themeById(data.theme).name}</span></button></div>
     <div class="hero-grid"><section class="study-card"><p class="eyebrow">${active ? 'Continue learning' : 'A little progress, every day'}</p>
-      <h2>${active ? `${esc(sourceName(s.config.kind, s.config.source))}<br>前回の続きから。` : '今日の一問が、<br>明日の自信に。'}</h2>
-      <p class="subtext">${active ? `${s.ids.length}問中 ${Object.keys(s.answers).length}問を解答済み` : '教材を開いて、まずは10問。自分のペースで始めよう。'}</p>
+      <h2>${active ? `${esc(sourceName(s.config.kind, s.config.source))}<br>前回の続きから。` : '今日も、10問から。'}</h2>
+      <p class="subtext">${active ? `${s.ids.length}問中 ${Object.keys(s.answers).length}問を解答済み` : '金の文法からランダムに出題します。'}</p>
       ${button(active ? `続きから ${arrow}` : `10問から始める ${arrow}`, active ? 'resume' : 'quick-start')}</section>
       <section class="review-card"><h2>今日の復習</h2><div class="count">${due}<small>問</small></div>
         <p class="subtext">${due ? '復習のタイミングが来ています。' : '今、復習が必要な問題はありません。'}<br>文法と単語〈英 → 日〉</p><a class="text-link" href="#review">復習を確認する ${arrow}</a></section></div>
-    <dl class="study-overview"><div><dt>これまでの回答</dt><dd>${counts.answers.toLocaleString()}<small> 回</small></dd></div><div><dt>正答率</dt><dd>${counts.answers ? Math.round(totalCorrect / counts.answers * 100) + '<small> %</small>' : '—'}</dd></div><div><dt>学習済みの文法</dt><dd>${counts.seenGrammar.toLocaleString()}<small> 問</small></dd></div></dl>
     <div class="section-heading"><div><p class="eyebrow">Your library</p><h2>あなたの教材</h2></div><small>今日は、どこから始めよう。</small></div>
     <section class="bookshelf" aria-label="教材一覧">${[
       ...Object.entries(BOOKS).map(([source, book]) => ({ kind: 'grammar', source, ...book })),
@@ -85,32 +88,65 @@ function home() {
       const count = selectItems(catalog, data.records, { ...defaultConfig(), kind: b.kind, source: b.source }).length;
       return `<a class="book-card ${b.color}" href="#setup/${b.kind}/${b.source}"><span class="book-glyph" aria-hidden="true"><span>${String(index + 1).padStart(2, '0')}</span>${bookIcon}</span><span class="book-info"><small class="book-kind">${b.kind === 'grammar' ? 'GRAMMAR' : 'VOCABULARY'}</small><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>${count.toLocaleString()}${b.kind === 'grammar' ? '問' : '語'}を収録</span><span class="book-arrow" aria-hidden="true">↗</span></span></span></a>`;
     }).join('')}</section>
+    <dl class="study-overview"><div><dt>これまでの回答</dt><dd>${counts.answers.toLocaleString()}<small> 回</small></dd></div><div><dt>正答率</dt><dd>${counts.answers ? Math.round(totalCorrect / counts.answers * 100) + '<small> %</small>' : '—'}</dd></div><div><dt>学習済みの文法</dt><dd>${counts.seenGrammar.toLocaleString()}<small> 問</small></dd></div></dl>
     <aside class="trial-note">新しい学習スペースをお試しいただけます。${imported ? `従来版の成績 ${imported}項目をもとに始めています。` : ''}試用版での学習はこの端末に保存され、従来版やGoogle Driveには反映されません。<a href="../">従来版はいつでも使えます。</a></aside>`;
 }
 
 function checks(name, values, selected) {
   return `<div class="checkboxes">${values.map(([value, label]) => `<label class="check-label"><input type="checkbox" name="${name}" value="${esc(value)}" ${selected.includes(value) ? 'checked' : ''}>${esc(label)}</label>`).join('')}</div>`;
 }
+function filterFields(config) {
+  const grammar = config.kind === 'grammar';
+  const chapters = [...new Map(catalog.items.filter(i => i.kind === 'grammar' && i.source === config.source).map(i => [i.ch, i.ch_title])).entries()];
+  const dates = [...new Set(RAW_WORDS.filter(w => w.s === 'daily').map(w => w.d))].filter(Boolean).sort().reverse();
+  const maxNo = Math.max(...RAW_WORDS.filter(w => w.s === 'teppan').map(w => w.no));
+  return `<div class="filter-fields"><div class="field"><label for="filter">出題する問題</label><select id="filter" name="filter">${FILTERS.map(([v, l]) => option(v, l, config.filter)).join('')}</select></div>
+    ${grammar && chapters.length ? `<fieldset><legend>章・ユニット</legend>${checks('chapters', chapters.map(([n, title]) => [n, `${n}. ${title}`]), config.chapters)}</fieldset>` : ''}
+    ${!grammar ? `<fieldset><legend>品詞</legend>${checks('pos', [...new Set(RAW_WORDS.map(w => w.p))].map(p => [p, p]), config.pos)}</fieldset>
+      ${config.source === 'teppan' ? `<fieldset><legend>単語番号</legend>${checks('ranges', Array.from({ length: Math.ceil(maxNo / 100) }, (_, i) => [i * 100 + 1, `${i * 100 + 1}–${Math.min((i + 1) * 100, maxNo)}`]), config.ranges)}</fieldset>` : ''}
+      ${config.source === 'daily' ? `<fieldset><legend>追加日</legend>${checks('dates', dates.map(d => [d, d]), config.dates)}</fieldset>` : ''}` : ''}
+    <p class="help">複数選択できます。未選択の項目は全範囲から出題します。</p></div>`;
+}
+function filterSummary(config) {
+  return [FILTERS.find(([v]) => v === config.filter)?.[1],
+    config.chapters.length ? `章 ${config.chapters.join('・')}` : '',
+    config.pos.length ? config.pos.join('・') : '',
+    config.ranges.length ? `番号 ${config.ranges.length}範囲` : '',
+    config.dates.length ? `追加日 ${config.dates.length}件` : ''].filter(Boolean).join(' / ');
+}
 function setup() {
   const grammar = draft.kind === 'grammar';
   const pool = selectItems(catalog, data.records, draft);
-  const chapters = [...new Map(catalog.items.filter(i => i.kind === 'grammar' && i.source === draft.source).map(i => [i.ch, i.ch_title])).entries()];
   const sources = grammar ? Object.entries(BOOKS).filter(([id]) => catalog.items.some(i => i.kind === 'grammar' && i.source === id)).map(([id, b]) => [id, b.title]) : [['teppan', 'TEPPAN'], ['daily', '日々の単語']];
-  const dates = [...new Set(RAW_WORDS.filter(w => w.s === 'daily').map(w => w.d))].filter(Boolean).sort().reverse();
-  const maxNo = Math.max(...RAW_WORDS.filter(w => w.s === 'teppan').map(w => w.no));
-  return `<div class="narrow"><a class="back-link" href="#home">← ホームに戻る</a><div class="page-title"><p class="eyebrow">Set your pace</p><h1>${esc(sourceName(draft.kind, draft.source))}</h1><p>範囲と問題数を選んで、学習を始めましょう。</p></div>
-    <form id="setup-form" class="panel"><div class="form-grid">
-      <div class="field"><label for="source">教材</label><select id="source" name="source">${option('all', 'すべて', draft.source)}${sources.map(([v, l]) => option(v, l, draft.source)).join('')}</select></div>
-      <div class="field"><label for="count">今回の問題数</label><select id="count" name="count">${[['10', '10問'], ['20', '20問'], ['all', '条件に合う問題すべて']].map(([v, l]) => option(v, l, draft.count)).join('')}</select></div>
+  return `<div class="setup-page"><a class="back-link" href="#home">← 教材を選び直す</a><div class="page-title"><p class="eyebrow">Set your pace</p><h1>${esc(sourceName(draft.kind, draft.source))}</h1><p>自分に合う範囲で、始めよう。</p></div>
+    <form id="setup-form"><div class="setup-columns"><section class="panel setup-basics" aria-label="基本設定"><h2>今回の学習</h2><div class="form-grid">
+      <div class="field source-field"><label for="source">教材</label><select id="source" name="source">${option('all', 'すべて', draft.source)}${sources.map(([v, l]) => option(v, l, draft.source)).join('')}</select></div>
+      <div class="field"><label for="count">今回の問題数</label><select id="count" name="count">${[['10', '10問'], ['20', '20問'], ['all', '対象すべて']].map(([v, l]) => option(v, l, draft.count)).join('')}</select></div>
       ${!grammar ? `<div class="field"><label for="mode">答え方</label><select id="mode" name="mode">${Object.entries(MODES).map(([v, l]) => option(v, l, draft.mode)).join('')}</select></div>` : ''}
-      <div class="field"><label for="filter">出題する問題</label><select id="filter" name="filter">${[['all', 'すべて'], ['due', '今日の復習'], ['weak', '苦手のみ'], ['weak_unseen', '苦手 ＋ 未学習'], ['unseen', '未学習のみ']].map(([v, l]) => option(v, l, draft.filter)).join('')}</select></div>
-    </div>
-    ${grammar && chapters.length ? `<fieldset><legend>章・ユニット（複数選択可）</legend>${checks('chapters', chapters.map(([n, title]) => [n, `${n}. ${title}`]), draft.chapters)}<p class="help">未選択なら、この教材の全範囲から出題します。</p></fieldset>` : ''}
-    ${!grammar ? `<details><summary>範囲・品詞を詳しく選ぶ</summary><fieldset><legend>品詞</legend>${checks('pos', [...new Set(RAW_WORDS.map(w => w.p))].map(p => [p, p]), draft.pos)}</fieldset>
-      ${draft.source === 'teppan' ? `<fieldset><legend>単語番号</legend>${checks('ranges', Array.from({ length: Math.ceil(maxNo / 100) }, (_, i) => [i * 100 + 1, `${i * 100 + 1}–${Math.min((i + 1) * 100, maxNo)}`]), draft.ranges)}</fieldset>` : ''}
-      ${draft.source === 'daily' ? `<fieldset><legend>追加日</legend>${checks('dates', dates.map(d => [d, d]), draft.dates)}</fieldset>` : ''}<p class="help">各項目は複数選択できます。未選択なら全範囲です。</p></details>` : ''}
-    <div class="form-footer"><p id="pool-count" role="status">対象 <strong>${pool.length}</strong> 問</p><button class="button" type="submit" ${pool.length ? '' : 'disabled'}>${pool.length ? `${draft.count === 'all' ? pool.length : Math.min(Number(draft.count), pool.length)}問を始める ${arrow}` : '条件に合う問題がありません'}</button></div>
-    ${currentSession() && !complete(currentSession()) ? '<p class="help">新しく始めると、途中の演習は置き換わります。これまでの成績と苦手記録は残ります。</p>' : ''}</form></div>`;
+    </div><div class="filter-summary"><div><strong>出題範囲</strong><p>${esc(filterSummary(draft))}</p></div><button class="button secondary filter-trigger" type="button" data-action="open-filters" aria-haspopup="dialog">絞り込み</button></div>
+    ${currentSession() && !complete(currentSession()) ? '<p class="help">新しく始めると途中の演習は置き換わります。成績と苦手記録は残ります。</p>' : ''}</section>
+    <section id="filter-inline" class="panel" aria-label="絞り込み条件"><div class="filter-title"><h2>絞り込み</h2><button type="button" class="button quiet" data-action="reset-filters">解除</button></div>${filterDraft ? '' : filterFields(draft)}</section></div>
+    <div class="form-footer setup-start"><p id="pool-count" role="status">対象 <strong>${pool.length}</strong> 問</p><button class="button" type="submit" ${pool.length ? '' : 'disabled'}>${pool.length ? `${draft.count === 'all' ? pool.length : Math.min(Number(draft.count), pool.length)}問を始める ${arrow}` : '対象なし'}</button></div>
+    ${!pool.length ? '<p class="help" role="status">条件に合う問題がありません。絞り込みを変更または解除してください。</p>' : ''}</form></div>`;
+}
+function readFilters(container, config) {
+  const selected = name => [...container.querySelectorAll(`input[name="${name}"]:checked`)].map(el => el.value);
+  return { ...config, filter: container.querySelector('[name="filter"]').value,
+    chapters: selected('chapters').map(Number), pos: selected('pos'),
+    ranges: selected('ranges').map(Number), dates: selected('dates') };
+}
+function refreshFilterCount() {
+  $('#filter-count').textContent = `対象 ${selectItems(catalog, data.records, filterDraft).length} 問`;
+}
+function closeFilters(apply = false) {
+  if (!filterDraft) return;
+  if (apply) draft = filterDraft;
+  filterDraft = null;
+  $('#filter-dialog').close();
+  $('#filter-body').replaceChildren();
+  render();
+  const target = compactLayout.matches ? $('[data-action="open-filters"]') : $('#filter');
+  target?.focus({ preventScroll: true });
 }
 
 function prepareChoices(item, session) {
@@ -183,7 +219,7 @@ function review() {
 }
 function settings() {
   return `<div class="settings-page"><div class="page-title"><p class="eyebrow">Make it yours</p><h1>あなたの学びやすさに。</h1><p>いつものテーマも、新しい見た目も。気分に合わせて選べます。</p></div>
-    <section class="panel settings-section"><div class="section-intro"><div><h2>テーマを選ぶ</h2><p>従来の7テーマと、Study Deskの2つの表情。</p></div><span class="selected-theme">選択中：${themeById(data.theme).name}</span></div>${themePicker()}
+    <section class="panel settings-section"><div class="section-intro"><div><h2>テーマを選ぶ</h2><p>従来の7テーマと、Study Deskの2つの表情。</p></div><span class="selected-theme">選択中：${themeById(data.theme).name}</span></div><details class="theme-disclosure" ${themeGalleryOpen ? 'open' : ''}><summary>テーマの見本から選ぶ</summary>${themePicker()}</details>
       <label class="sound-setting"><span><strong>Duolingoの効果音</strong><small>正解・不正解を音でもお知らせします。</small></span><input type="checkbox" id="sound-enabled" ${data.sound !== false ? 'checked' : ''}></label></section>
     <section class="panel settings-section" id="backup-section"><div class="section-intro"><div><p class="eyebrow">Keep your progress</p><h2>記録のバックアップ・復元</h2><p>学習の積み重ねを、ファイルとして手元に残せます。</p></div><span class="local-badge">この端末に保存</span></div>
       <div class="backup-actions"><div><h3>記録を書き出す</h3><p>成績・苦手・学習済み・テーマ・演習の続きを保存します。</p>${button('バックアップを書き出す', 'export', true)}</div><div><h3>ファイルから復元する</h3><p>試用版と従来版のJSONに対応。内容を確認してから反映します。</p>${button('ファイルを選ぶ', 'import', true)}</div></div>
@@ -269,7 +305,24 @@ document.addEventListener('click', event => {
   const s = currentSession();
   if (action === 'open-themes') { $('#dialog-themes').innerHTML = themePicker(); $('#theme-dialog').showModal(); }
   if (action === 'close-themes') $('#theme-dialog').close();
-  if (action === 'quick-start') { draft = defaultConfig(); navigate('setup/grammar/kin'); }
+  if (action === 'quick-start') { draft = defaultConfig(); begin(draft, selectItems(catalog, data.records, draft)); }
+  if (action === 'open-filters') {
+    filterDraft = structuredClone(draft);
+    $('#filter-inline').querySelector('.filter-fields')?.remove();
+    $('#filter-body').innerHTML = filterFields(filterDraft);
+    refreshFilterCount();
+    $('#filter-dialog').showModal();
+    $('#filter').focus({ preventScroll: true });
+  }
+  if (action === 'close-filters') closeFilters();
+  if (action === 'apply-filters') closeFilters(true);
+  if (action === 'reset-filters') {
+    const reset = config => ({ ...config, filter: 'all', chapters: [], pos: [], ranges: [], dates: [] });
+    if (filterDraft) {
+      filterDraft = reset(filterDraft);
+      $('#filter-body').innerHTML = filterFields(filterDraft); refreshFilterCount();
+    } else { draft = reset(draft); render(); $('[data-action="reset-filters"]')?.focus({ preventScroll: true }); }
+  }
   if (action === 'resume') navigate('exercise');
   if (action === 'answer' && s) {
     const item = catalog.byId.get(s.ids[s.cursor]);
@@ -335,17 +388,22 @@ document.addEventListener('change', event => {
   if (el.name === 'restore-mode') {
     restoreMode = el.value; render(); $(`[name="restore-mode"][value="${restoreMode}"]`).focus({ preventScroll: true });
   }
+  if (el.closest('#filter-body') && filterDraft) {
+    filterDraft = readFilters($('#filter-body'), filterDraft); refreshFilterCount();
+  }
   if (el.closest('#setup-form')) {
-    const form = new FormData($('#setup-form'));
-    const changedSource = draft.source !== form.get('source');
-    draft = { ...draft, source: form.get('source'), count: form.get('count'), mode: form.get('mode') || 'e2j', filter: form.get('filter'),
-      chapters: changedSource ? [] : form.getAll('chapters').map(Number), pos: form.getAll('pos'),
-      ranges: changedSource ? [] : form.getAll('ranges').map(Number), dates: changedSource ? [] : form.getAll('dates') };
-    if (changedSource) history.replaceState(null, '', `#setup/${draft.kind}/${draft.source}`);
-    const detailsOpen = $('#setup-form details')?.open;
     const name = el.name, value = el.value;
+    const filterScroll = $('#filter-inline .filter-fields')?.scrollTop || 0;
+    if (el.closest('.filter-fields')) draft = readFilters($('#filter-inline'), draft);
+    else {
+      const form = new FormData($('#setup-form'));
+      const changedSource = draft.source !== form.get('source');
+      draft = { ...draft, source: form.get('source'), count: form.get('count'), mode: form.get('mode') || 'e2j',
+        chapters: changedSource ? [] : draft.chapters, ranges: changedSource ? [] : draft.ranges, dates: changedSource ? [] : draft.dates };
+      if (changedSource) history.replaceState(null, '', `#setup/${draft.kind}/${draft.source}`);
+    }
     render();
-    if (detailsOpen && $('#setup-form details')) $('#setup-form details').open = true;
+    if ($('#filter-inline .filter-fields')) $('#filter-inline .filter-fields').scrollTop = name === 'source' ? 0 : filterScroll;
     [...document.querySelectorAll('#setup-form input, #setup-form select')].find(x => x.name === name && x.value === value)?.focus({ preventScroll: true });
   }
   if (el.id === 'review-kind') { reviewKind = el.value; reviewLimit = 20; render(); $('#review-kind').focus(); }
@@ -364,10 +422,18 @@ document.addEventListener('keydown', event => {
   if (target && !target.disabled) { event.preventDefault(); target.click(); }
 });
 window.addEventListener('hashchange', () => {
+  closeFilters();
+  if ($('#theme-dialog').open) $('#theme-dialog').close();
   flashRevealed = false;
   if (location.hash !== '#settings') { pendingBackup = null; undoPreview = false; fileReadVersion++; }
   render(true);
 });
+$('#filter-dialog').addEventListener('cancel', event => { event.preventDefault(); closeFilters(); });
+// All modal dismissal paths discard pending edits unless Apply was pressed.
+$('#filter-dialog').addEventListener('close', () => { if (filterDraft) closeFilters(); });
+document.addEventListener('toggle', event => {
+  if (event.target.matches('.theme-disclosure')) themeGalleryOpen = event.target.open;
+}, true);
 $('#theme-dialog').addEventListener('close', () => $('[data-action="open-themes"]')?.focus({ preventScroll: true }));
 $('#backup-file').addEventListener('change', async event => {
   const file = event.target.files[0];

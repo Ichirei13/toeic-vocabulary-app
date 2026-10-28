@@ -37,6 +37,11 @@
     <div class="dialog-header"><div><p class="eyebrow">Make it yours</p><h2 id="theme-dialog-title">好きな見た目で、続けよう。</h2></div><button class="button quiet" data-action="close-themes" aria-label="テーマ選択を閉じる">閉じる</button></div>
     <div id="dialog-themes"></div>
   </dialog>
+  <dialog id="filter-dialog" aria-labelledby="filter-dialog-title">
+    <div class="filter-sheet-header"><div><h2 id="filter-dialog-title">絞り込み</h2><p class="help">必要な条件だけ選んでください。</p></div><button class="button quiet" data-action="close-filters">閉じる</button></div>
+    <div id="filter-body"></div>
+    <div class="filter-sheet-footer"><p id="filter-count" role="status"></p><div><button class="button secondary" data-action="reset-filters">解除</button><button class="button" data-action="apply-filters">適用</button></div></div>
+  </dialog>
   <noscript>このアプリの演習にはJavaScriptが必要です。<a href="../">従来版へ戻る</a></noscript>
 </body>
 </html>

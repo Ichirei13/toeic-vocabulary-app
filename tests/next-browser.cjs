@@ -116,6 +116,7 @@ let browser;
   await page.goto(base + '/next/#home');
   await page.screenshot({ path: '/tmp/study-desk-mobile.png', fullPage: true });
   await page.goto(base + '/next/#settings');
+  await page.locator('.theme-disclosure > summary').click();
   await page.locator('[data-theme-id="dark"]').click();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   await page.goto(base + '/next/#exercise');
@@ -193,6 +194,7 @@ let browser;
   reports.push('Duolingo初期テーマ継承・演習中切替・モーダルのキー隔離・XP再読込');
 
   await ui.goto(base+'/next/#settings');
+  await ui.locator('.theme-disclosure > summary').click();
   await ui.locator('#sound-enabled').uncheck();
   assert.equal(await ui.evaluate(key=>JSON.parse(localStorage.getItem(key)).sound,KEY),false);
   const themeIds=['light','dark','duolingo','ink','navy','quizlet','forest','nordic','sepia'];
