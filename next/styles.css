@@ -434,3 +434,8 @@ body:has(dialog[open]) { overflow: hidden; }
   .filter-summary { flex-wrap: wrap; }
   .filter-trigger { width: 100%; }
 }
+.book-progress { display: block; height: 5px; background: var(--border); border-radius: 8px; overflow: hidden; margin-top: 8px; }
+.book-progress i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.book-unseen { display: block; font-size: .75rem; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+.setup-basics > .filter-title { margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.setup-basics > .filter-title h2 { margin-bottom: 0; }

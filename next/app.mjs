@@ -1,5 +1,6 @@
 import { STORAGE_KEY, MODES, BOOKS, openStore, makeCatalog, weakMap, selectItems,
   choicesFor, startSession, validSession, recordAnswer } from './core.mjs';
+import { bookProgress } from './progress.mjs';
 import { rememberPreset, resolvePreset, presetKey } from './preferences.mjs';
 import { THEMES, themeById, sessionRewards, playAnswerSound } from './themes.mjs';
 import { createBackup, parseBackup, recordCounts, prepareRestore, prepareUndo, MAX_BACKUP_BYTES } from './backup.mjs';
@@ -99,8 +100,9 @@ function home() {
       if (!books.length) return '';
       return `<section aria-labelledby="library-${kind}"><div class="section-heading"><h2 id="library-${kind}">${title}</h2></div>
         <div class="bookshelf">${books.map((b, index) => {
-          const count = selectItems(catalog, data.records, { ...defaultConfig(), kind, source: b.source }).length;
-          return `<a class="book-card ${b.color}" href="#setup/${kind}/${b.source}"><span class="book-glyph" aria-hidden="true"><span>${String(index + 1).padStart(2, '0')}</span>${bookIcon}</span><span class="book-info"><small class="book-kind">${kind === 'grammar' ? 'GRAMMAR' : 'VOCABULARY'}</small><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>${count.toLocaleString()}${kind === 'grammar' ? '問' : '語'}を収録</span><span class="book-arrow" aria-hidden="true">↗</span></span></span></a>`;
+          const progress = bookProgress(catalog,data.records,kind,b.source);
+          const unit = kind === 'grammar' ? '問' : '語';
+          return `<a class="book-card ${b.color}" href="#setup/${kind}/${b.source}"><span class="book-glyph" aria-hidden="true"><span>${String(index + 1).padStart(2, '0')}</span>${bookIcon}</span><span class="book-info"><small class="book-kind">${kind === 'grammar' ? 'GRAMMAR' : 'VOCABULARY'}</small><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>学習済み ${progress.seen} / ${progress.total}${unit}</span><span class="book-arrow" aria-hidden="true">↗</span></span><span class="book-progress" role="progressbar" aria-label="${esc(b.title)}の学習済み" aria-valuemin="0" aria-valuemax="${progress.total || 1}" aria-valuenow="${progress.seen}"><i style="width:${progress.total ? progress.seen / progress.total * 100 : 0}%"></i></span><span class="book-unseen">未学習 ${progress.unseen}${unit}${kind === 'vocab' ? ' · いずれかのモードで回答済み' : ''}</span></span></a>`;
         }).join('')}</div></section>`;
     }).join('')}
     <dl class="study-overview"><div><dt>これまでの回答</dt><dd>${counts.answers.toLocaleString()}<small> 回</small></dd></div><div><dt>正答率</dt><dd>${counts.answers ? Math.round(totalCorrect / counts.answers * 100) + '<small> %</small>' : '—'}</dd></div><div><dt>学習済みの文法</dt><dd>${counts.seenGrammar.toLocaleString()}<small> 問</small></dd></div></dl>

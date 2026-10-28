@@ -2,7 +2,7 @@
 // Reuse that cache, but keep ALL trial entries (including data) under /next/__offline__/.
 // Never overwrite the legacy worker's URLs, delete caches, or claim its scope.
 const CACHE = 'toeic-drill-v1';
-const ASSETS = ['./', './index.html', './styles.css', './themes.css', './app.mjs', './core.mjs', './preferences.mjs', './activity.mjs', './themes.mjs', './backup.mjs', '../data/words.js', '../data/grammar.js'];
+const ASSETS = ['./', './index.html', './styles.css', './themes.css', './app.mjs', './core.mjs', './preferences.mjs', './activity.mjs', './progress.mjs', './themes.mjs', './backup.mjs', '../data/words.js', '../data/grammar.js'];
 function cacheKey(input) {
   const url = new URL(typeof input === 'string' ? input : input.url, self.registration.scope);
   return new URL(`__offline__/${encodeURIComponent(url.pathname)}`, self.registration.scope).href;
