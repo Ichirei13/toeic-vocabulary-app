@@ -98,3 +98,57 @@ test('companion and goal celebration share a banner and respect off across reloa
  await page.goto(base+'#exercise');await page.locator('.result-banner').waitFor();
  assert.equal(await page.locator('.companion-art').count(),0);
 });
+
+test('updated or empty previous conditions return to settings with a visible reason',async t=>{
+ const page=await open(t);
+ await page.evaluate(()=>{
+  const d=JSON.parse(localStorage.getItem('toeic_next_v1'));
+  d.preferences.recentPreset='grammar:missing';d.preferences.presets['grammar:missing']={kind:'grammar',source:'missing',mode:'e2j',count:'10',filter:'all',chapters:[],pos:[],ranges:[],dates:[]};
+  localStorage.setItem('toeic_next_v1',JSON.stringify(d));
+ });
+ await page.reload();await page.locator('[data-action="previous-start"]').click();
+ await page.locator('#setup-form').waitFor();
+ assert.match(await page.locator('.setup-basics').innerText(),/教材更新/);
+ assert.equal(await page.locator('#source').inputValue(),'kin');
+});
+
+test('calendar allows goal editing, stays readable at 200 percent, and restores focus',async t=>{
+ const page=await open(t,'home',320,568);
+ await page.locator('[data-action="open-calendar"]').click();
+ const dialog=page.getByRole('dialog',{name:'学習カレンダー'});
+ assert.ok(await dialog.locator('#calendar-goal').isVisible());
+ await dialog.locator('#calendar-goal').selectOption('20');
+ await page.addStyleTag({content:':root {font-size:32px!important}'});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));
+ await page.keyboard.press('Escape');
+ assert.ok(await page.locator('[data-action="open-calendar"]').evaluate(el=>document.activeElement===el));
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('toeic_next_v1')).preferences.dailyGoal),20);
+});
+
+test('complete study journey roundtrips preferences, activity and review facts in another context',async t=>{
+ const page=await open(t,'setup/grammar/kin',390,844);
+ await page.locator('#setup-form [type="submit"]').click();await page.locator('.choice').first().waitFor();
+ for(let i=0;i<10;i++) { await page.locator('[data-action="dont-know"]').click();await page.locator('[data-action="next"]').click(); }
+ await page.locator('.summary-card').waitFor();
+ await page.goto(base+'#home');await page.locator('#daily-goal-strip').waitFor();
+ assert.match(await page.locator('#daily-goal-strip').innerText(),/10 \/ 10/);
+ assert.match(await page.locator('[aria-labelledby="library-grammar"]').innerText(),/学習済み 10 \/ 160/);
+ await page.goto(base+'#settings');await page.locator('#companion-setting').selectOption('off');
+ const before=await page.evaluate(()=>JSON.parse(localStorage.getItem('toeic_next_v1')));
+ const downloadEvent=page.waitForEvent('download');await page.locator('[data-action="export"]').click();
+ const buffer=fs.readFileSync(await (await downloadEvent).path());
+ const restored=await open(t,'settings');
+ await restored.locator('#backup-file').setInputFiles({name:'new-backup.json',mimeType:'application/json',buffer});
+ await restored.locator('[name="restore-mode"][value="replace"]').check();
+ await restored.locator('[data-action="confirm-restore"]').click();
+ const after=await restored.evaluate(()=>JSON.parse(localStorage.getItem('toeic_next_v1')));
+ assert.deepEqual(after.activity,before.activity);assert.deepEqual(after.preferences,before.preferences);
+ await restored.goto(base+'#home');await restored.locator('[data-action="previous-start"]').click();
+ await restored.locator('.choice').first().waitFor();
+ const correct=await restored.evaluate(()=>{const s=JSON.parse(localStorage.getItem('toeic_next_v1')).session;return s.choices[s.ids[0]].correct;});
+ await restored.locator('.choice').nth(correct).click();
+ const result=await restored.evaluate(()=>{const s=JSON.parse(localStorage.getItem('toeic_next_v1')).session;return s.answers[s.ids[0]];});
+ // Retry follows the same broad pool, so only assert the fact was recorded as a boolean.
+ assert.equal(typeof result.wasWeak,'boolean');assert.equal(result.graduated,false);
+});

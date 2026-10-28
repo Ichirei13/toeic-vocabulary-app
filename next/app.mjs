@@ -37,6 +37,7 @@ let dayTimer;
 let calendarTrigger;
 let setupRoute = '';
 let presetNotice = '';
+let pendingSetupNotice = '';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const dockObserver = new ResizeObserver(entries => {
   const dock = entries[0]?.target;
@@ -303,7 +304,7 @@ function render(focus = false) {
     if (setupRoute !== route && ['grammar','vocab'].includes(kind) && ['all', ...Object.keys(BOOKS), 'teppan', 'daily'].includes(source)) {
       const previous = resolvePreset(data.preferences, `${kind}:${source}`, catalog);
       draft = previous.config || { ...defaultConfig(), kind, source };
-      presetNotice = previous.message;
+      presetNotice = pendingSetupNotice || previous.message; pendingSetupNotice = '';
       setupRoute = route;
     }
   } else setupRoute = '';
@@ -399,9 +400,12 @@ document.addEventListener('click', event => {
     const previous = resolvePreset(data.preferences, data.preferences.recentPreset, catalog);
     if (previous.config && !previous.needsConfirmation && selectItems(catalog,data.records,previous.config).length) begin(previous.config,selectItems(catalog,data.records,previous.config));
     else {
-      const config = previous.config || data.preferences.presets[data.preferences.recentPreset];
+      const original = data.preferences.presets[data.preferences.recentPreset];
+      const preferredSource = original.kind === 'grammar' ? 'kin' : 'teppan';
+      const fallbackSource = catalog.items.some(i => i.kind === original.kind && i.source === preferredSource) ? preferredSource : catalog.items.find(i => i.kind === original.kind)?.source || 'all';
+      const config = previous.config || { ...defaultConfig(), kind: original.kind, source: fallbackSource };
+      pendingSetupNotice = previous.message || '条件に合う問題がありません。絞り込みを見直してください。';
       navigate(`setup/${config.kind}/${config.source}`);
-      presetNotice = previous.message || '条件に合う問題がありません。絞り込みを見直してください。';
     }
   }
   if (action === 'resume') navigate('exercise');
@@ -465,12 +469,16 @@ document.addEventListener('submit', event => {
 });
 document.addEventListener('change', event => {
   const el = event.target;
-  if (el.id === 'daily-goal' || el.id === 'companion-setting') {
-    const next = el.id === 'daily-goal' ? setDailyGoal(data,Number(el.value)) : structuredClone(data);
+  if (['daily-goal','calendar-goal','companion-setting'].includes(el.id)) {
+    const next = el.id !== 'companion-setting' ? setDailyGoal(data,Number(el.value)) : structuredClone(data);
     if (el.id === 'companion-setting') next.preferences.companion = el.value;
     goalReached = false;
     store.replace(next); $('#storage-notice').textContent = store.notice; $('#storage-notice').hidden = !store.notice;
-    render(); $(`#${el.id}`)?.focus({ preventScroll: true });
+    if (el.id === 'calendar-goal') {
+      if ($('#daily-goal-strip')) $('#daily-goal-strip').innerHTML = goalMarkup(activitySummary(data.activity,data.preferences.dailyGoal));
+      refreshCalendar();
+    } else render();
+    $(`#${el.id}`)?.focus({ preventScroll: true });
   }
   if (el.id === 'sound-enabled') { data.sound = el.checked; save(); }
   if (el.name === 'restore-mode') {
@@ -548,10 +556,11 @@ window.addEventListener('storage', event => {
 });
 function refreshCalendar() {
   const summary = activitySummary(data.activity,data.preferences.dailyGoal);
+  $('#calendar-goal').value = String(data.preferences.dailyGoal);
   $('#calendar-overview').textContent = `累計 ${summary.activeDays}日 · ${summary.streak}日連続`;
   $('#calendar-body').innerHTML = calendarMarkup(monthModel(data.activity,calendarMonth));
 }
-$('#calendar-dialog').addEventListener('close', () => { if (calendarTrigger?.isConnected) calendarTrigger.focus({ preventScroll: true }); });
+$('#calendar-dialog').addEventListener('close', () => { (calendarTrigger?.isConnected ? calendarTrigger : $('[data-action="open-calendar"]'))?.focus({ preventScroll: true }); });
 function refreshDay() {
   const now = new Date(), date = localDateKey(now);
   if (date !== lastDate) {

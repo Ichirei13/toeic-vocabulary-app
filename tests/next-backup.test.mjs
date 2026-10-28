@@ -148,3 +148,19 @@ test('schema1 migration is read-only until save and new learning fields roundtri
  const replaced=prepareRestore(store.data,parsed,'replace');assert.equal(replaced.preferences.dailyGoal,20);assert.deepEqual(prepareUndo(replaced).activity,store.data.activity);
  assert.equal(createBackup(incoming).format,2);
 });
+
+test('old preview backup merge preserves activity, replace clears it and keeps current preferences',()=>{
+ const current=makeData();current.preferences.dailyGoal=20;current.activity.days['2026-10-28']={answers:8,goal:20};
+ const old=makeData();old.schema=1;delete old.preferences;delete old.activity;
+ const parsed=parseBackup(JSON.stringify({app:'toeic-study-desk-preview',format:1,data:old}),catalog);
+ const merged=prepareRestore(current,parsed,'merge');assert.deepEqual(merged.activity,current.activity);
+ const replaced=prepareRestore(current,parsed,'replace');assert.deepEqual(replaced.activity.days,{});assert.equal(replaced.preferences.dailyGoal,20);
+ assert.deepEqual(prepareUndo(replaced).activity,current.activity);
+});
+test('malformed new learning data blocks import and local overwrite',()=>{
+ for(const change of [d=>{d.preferences.dailyGoal=999;},d=>{d.activity.days['2026-02-30']={answers:1,goal:10};},d=>{d.activity.days['2026-10-28']={answers:-1,goal:10};}]) {
+  const data=makeData();change(data);assert.throws(()=>parse(data));
+  const raw=JSON.stringify(data),storage=disk({[STORAGE_KEY]:raw}),store=openStore(storage);
+  assert.equal(store.save(),false);assert.equal(storage.getItem(STORAGE_KEY),raw);
+ }
+});

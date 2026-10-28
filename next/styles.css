@@ -473,3 +473,12 @@ body[data-companion="true"][data-page="exercise"] { padding-bottom: calc(var(--e
 body[data-companion="true"][data-page="exercise"] :is(button,input,select,summary) { scroll-margin-bottom: calc(var(--exercise-dock-height,180px) + 24px); }
 body[data-companion="true"][data-page="exercise"]:has(.summary-card) { padding-bottom: 0; }
 @media (max-width: 380px) { .result-banner .companion-art { width: 36px; height: 45px; } }
+body[data-page="exercise"] { padding-bottom: calc(var(--exercise-dock-height,96px) + 24px); }
+body[data-page="exercise"]:has(.summary-card) { padding-bottom: 0; }
+.calendar-goal-field { grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
+.calendar-goal-field select { width: auto; min-width: 100px; }
+@media (max-width: 380px) { .calendar-goal-field { grid-template-columns: 1fr; } .calendar-goal-field select { width: 100%; } }
+#calendar-dialog { max-width: calc(100% - 24px); }
+.calendar-navigation { display: grid; grid-template-columns: 48px minmax(0,1fr) 48px; gap: 8px; }
+.calendar-navigation .button { padding-inline: 0; min-width: 0; }
+.calendar-navigation h3 { text-align: center; min-width: 0; overflow-wrap: anywhere; }
