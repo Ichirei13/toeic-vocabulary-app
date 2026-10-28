@@ -180,7 +180,7 @@ const STATS5 = { 5: { a: 1, c: 1 } };
 
 test('build_has_seen_grammar', () => withPage({}, async page => {
   const b = await page.evaluate(() => { state.grammarSeen = new Set([4, 7]); return buildBackup(); });
-  assert.strictEqual(b.format, 4);
+  assert.strictEqual(b.format, 5);
   assert.deepStrictEqual(sortedNums(b.data.seenGrammar), [4, 7]);
 }));
 
@@ -243,8 +243,8 @@ test('roundtrip_v4', () => withPage({}, async page => {
   assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [2, 11, 40]);
 }));
 
-test('v5_rejected', () => withPage({}, async page => {
-  const r = await parse(page, backupText(5, { seenGrammar: [] }));
+test('v6_future_rejected', () => withPage({}, async page => {
+  const r = await parse(page, backupText(6, { seenGrammar: [] }));
   assert.strictEqual(r.ok, false);
   assert(/新しいバージョン/.test(r.error), r.error);
 }));
@@ -383,6 +383,363 @@ test('unknown_note_counts_seen', () => withPage({}, async page => {
   }));
   assert.strictEqual(r.ok, true, r.error);
   assert.strictEqual(r.unknownGrammar, 2);
+}));
+
+// ==================== 同期: 苦手の削除・新旧の判定・再描画ループ(版5) ====================
+
+const DAY = 86400000;
+// 同期の統合の単体テスト用。local/remote の記録を渡して mergeBackupRecords の結果を返す
+const mergeRecords = (page, local, remote) => page.evaluate(([l, r]) => {
+  const base = { weakWords: { e2j: {}, j2e: {}, flash: {}, type: {} }, weakGrammar: {}, seenWords: {}, wordStats: {}, grammarStats: {}, seenGrammar: [], weakDeleted: {} };
+  return JSON.parse(JSON.stringify(mergeBackupRecords({ ...base, ...l }, { ...base, ...r })));
+}, [local, remote]);
+const entry = (streak, due, u) => ({ streak, added: 1, due, ...(u === undefined ? {} : { u }) });
+
+test('sync_mastered_word_stays_deleted', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakDeleted: { 'w:e2j:margin': now } },
+    { weakWords: { e2j: { margin: entry(2, now - 1000) } } }); // クラウドは古い版(u なし)
+  assert.strictEqual(m.weakWords.e2j.margin, undefined);
+  assert.strictEqual(m.weakDeleted['w:e2j:margin'], now);
+}));
+
+test('sync_mastered_grammar_stays_deleted', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakDeleted: { 'g:9': now } },
+    { weakGrammar: { 9: entry(1, now, now - 5000) } });
+  assert.strictEqual(m.weakGrammar[9], undefined);
+}));
+
+test('sync_deletion_propagates_from_remote', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakWords: { e2j: { margin: entry(1, now, now - 5000) } } },
+    { weakDeleted: { 'w:e2j:margin': now } });
+  assert.strictEqual(m.weakWords.e2j.margin, undefined);
+}));
+
+test('sync_relearned_after_delete_wins', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakWords: { e2j: { margin: entry(0, now, now) } } }, // 削除のあとに間違えて苦手に戻した
+    { weakDeleted: { 'w:e2j:margin': now - 5000 } });
+  assert.strictEqual(m.weakWords.e2j.margin.streak, 0);
+}));
+
+test('sync_deletion_is_per_mode', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakDeleted: { 'w:e2j:margin': now } },
+    { weakWords: { e2j: { margin: entry(1, now) }, j2e: { margin: entry(1, now) } } });
+  assert.strictEqual(m.weakWords.e2j.margin, undefined);
+  assert.notStrictEqual(m.weakWords.j2e.margin, undefined);
+}));
+
+test('sync_newer_wrong_answer_beats_cloud_streak', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakGrammar: { 9: entry(0, now, now) } }, // 手元: たった今間違えた
+    { weakGrammar: { 9: entry(2, now + 5 * DAY, now - 3 * DAY) } }); // クラウド: 3日前に進んだ記録
+  assert.strictEqual(m.weakGrammar[9].streak, 0);
+  const m2 = await mergeRecords(page,
+    { weakGrammar: { 9: entry(2, now + 5 * DAY, now - 3 * DAY) } },
+    { weakGrammar: { 9: entry(0, now, now) } });
+  assert.strictEqual(m2.weakGrammar[9].streak, 0); // 向きを逆にしても同じ
+}));
+
+test('sync_legacy_entries_keep_old_rule', () => withPage({}, async page => {
+  const now = Date.now();
+  const m = await mergeRecords(page,
+    { weakGrammar: { 9: entry(1, now) } },
+    { weakGrammar: { 9: entry(2, now) } }); // どちらも u なし → 従来どおり streak が大きい方
+  assert.strictEqual(m.weakGrammar[9].streak, 2);
+}));
+
+test('weak_entry_records_updated_at_and_tombstone', () => withPage({}, async page => {
+  const r = await page.evaluate(() => {
+    const w = RAW_WORDS[0].w;
+    state.mode = 'e2j';
+    state.weakByMode.e2j[w] = { streak: 3, added: 1, due: 1 };
+    recordWeak(RAW_WORDS[0], true); // 3回目のあとの正解 → 苦手から外れる
+    const gone = w in state.weakByMode.e2j;
+    const tomb = state.weakDeleted['w:e2j:' + w];
+    recordWeak(RAW_WORDS[0], false); // 間違えて苦手に戻る
+    return { gone, tomb, u: state.weakByMode.e2j[w].u, saved: JSON.parse(localStorage.getItem('toeic_weak_deleted')) };
+  });
+  assert.strictEqual(r.gone, false);
+  assert(r.tomb > 0, 'tombstone recorded');
+  assert(r.u >= r.tomb, 'updatedAt set on wrong answer');
+  assert.strictEqual(Object.values(r.saved)[0], r.tomb);
+}));
+
+test('manual_remove_records_tombstone', () => withPage({}, async page => {
+  const r = await page.evaluate(() => {
+    state.app = 'grammar';
+    state.grammarWeakData[9] = { streak: 0, added: 1, due: 1 };
+    removeWeak('9');
+    return { has: 9 in state.grammarWeakData, tomb: state.weakDeleted['g:9'] };
+  });
+  assert.strictEqual(r.has, false);
+  assert(r.tomb > 0);
+}));
+
+test('build_v5_roundtrip_and_migrate_v4', () => withPage({}, async page => {
+  const now = Date.now();
+  const b = await page.evaluate(n => { state.weakDeleted = { 'w:j2e:margin': n, 'g:9': n }; return buildBackup(); }, now);
+  assert.strictEqual(b.format, 5);
+  const r = await parse(page, JSON.stringify(b));
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(r.records.weakDeleted, { 'w:j2e:margin': now, 'g:9': now });
+  const r4 = await parse(page, backupText(4, { seenGrammar: [] })); // 版4には weakDeleted が無い
+  assert.strictEqual(r4.ok, true, r4.error);
+  assert.deepStrictEqual(r4.records.weakDeleted, {});
+  const bad = await parse(page, backupText(5, { seenGrammar: [], weakDeleted: [] }));
+  assert.strictEqual(bad.ok, false);
+}));
+
+test('weak_deleted_sanitize_and_clamp', () => withPage({}, async page => {
+  const future = Date.now() + 30 * DAY;
+  const r = await parse(page, backupText(5, { seenGrammar: [], weakDeleted: {
+    'w:e2j:ok': future, 'g:5': 1000, 'x:1': 1000, 'w:bogus:a': 1000, 'g:0': 1000, 'g:6': 'z',
+  }, weakGrammar: { 9: { ...WEAK9[9], u: future } } }));
+  assert.strictEqual(r.ok, true, r.error);
+  assert.deepStrictEqual(Object.keys(r.records.weakDeleted).sort(), ['g:5', 'w:e2j:ok']);
+  assert(r.records.weakDeleted['w:e2j:ok'] <= Date.now(), 'future deletion time is clamped');
+  assert(r.records.weakGrammar[9].u <= Date.now(), 'future updatedAt is clamped');
+  assert.strictEqual(r.invalid, 4);
+}));
+
+test('restore_undo_with_weak_deleted', () => withPage({}, async page => {
+  const now = Date.now();
+  await restoreText(page, backupText(5, { seenGrammar: [], weakDeleted: { 'g:9': now } }), 'overwrite');
+  assert.deepStrictEqual(await page.evaluate(() => state.weakDeleted), { 'g:9': now });
+  await page.evaluate(() => runUndo());
+  assert.deepStrictEqual(await page.evaluate(() => state.weakDeleted), {});
+  // 取り消し用の記録が weakDeleted を持たない(版4時代の)ものでも取り消せる
+  await page.evaluate(() => {
+    const records = Object.fromEntries(RECORD_STORAGE_KEYS.filter(k => k !== 'toeic_weak_deleted').map(k => [k, localStorage.getItem(k)]));
+    localStorage.setItem('toeic_backup_undo', JSON.stringify({ savedAt: Date.now(), records }));
+  });
+  assert.notStrictEqual(await page.evaluate(() => loadUndo()), null);
+}));
+
+// ---- 同期ループ: Drive をスタブにして、同期が自分で次の同期や再描画を呼ばないことを確かめる ----
+
+async function stubDrive(page) {
+  await page.evaluate(() => {
+    localStorage.setItem(GDRIVE_LINKED_KEY, '1');
+    gdriveAccessToken = 'x';
+    gdriveTokenExpiresAt = Date.now() + 3600e3;
+    window.__patches = 0;
+    const store = { text: JSON.stringify(buildBackup()) };
+    window.fetch = async (url, opt = {}) => {
+      const u = String(url);
+      const json = o => ({ ok: true, status: 200, json: async () => o, text: async () => JSON.stringify(o) });
+      if (u.includes('spaces=appDataFolder')) return json({ files: [{ id: 'f1' }] });
+      if (u.includes('alt=media')) return { ok: true, status: 200, text: async () => store.text };
+      if ((opt.method || '') === 'PATCH') { window.__patches++; store.text = opt.body; return json({ modifiedTime: 't' }); }
+      return json({});
+    };
+  });
+}
+
+test('sync_does_not_retrigger_itself', () => withPage({}, async page => {
+  await dismissNudge(page);
+  await stubDrive(page);
+  await page.evaluate(async () => {
+    window.__renders = 0;
+    const orig = renderCurrent;
+    renderCurrent = function () { window.__renders++; return orig.apply(this, arguments); };
+    await syncWithGoogleDrive({ interactive: false, silent: true });
+  });
+  await page.waitForTimeout(9000); // 4秒おきに再同期していれば 2 回以上になる
+  const r = await page.evaluate(() => ({ patches: window.__patches, renders: window.__renders }));
+  assert.strictEqual(r.patches, 1);
+  assert.strictEqual(r.renders, 0);
+}));
+
+test('sync_keeps_answered_question', () => withPage({}, async page => {
+  await dismissNudge(page);
+  await stubDrive(page);
+  const r = await page.evaluate(async () => {
+    state.weakFilter = 'all'; applyFilters();
+    document.querySelector('#choices-container .choice-btn').click();
+    const before = { idx: state.currentIndex, answered: state.answered, html: document.getElementById('quiz-container').innerHTML };
+    await syncWithGoogleDrive({ interactive: false, silent: true });
+    return { before, idx: state.currentIndex, answered: state.answered, html: document.getElementById('quiz-container').innerHTML, sessionIdx: JSON.parse(localStorage.getItem('toeic_session')).vocab.index };
+  });
+  assert.strictEqual(r.before.answered, true);
+  assert.strictEqual(r.answered, true);
+  assert.strictEqual(r.idx, r.before.idx);
+  assert.strictEqual(r.html, r.before.html);
+}));
+
+test('sync_does_not_notify_other_tabs', () => withPage({}, async page => {
+  await dismissNudge(page);
+  await stubDrive(page);
+  const stamp = await page.evaluate(async () => {
+    await syncWithGoogleDrive({ interactive: false, silent: true });
+    return localStorage.getItem('toeic_restore_stamp');
+  });
+  assert.strictEqual(stamp, null); // 同期は「復元」ではないので、別のタブを読み込み直させない
+}));
+
+test('session_save_does_not_schedule_sync', () => withPage({}, async page => {
+  await stubDrive(page);
+  const r = await page.evaluate(() => {
+    localStorage.setItem(GDRIVE_AUTOSYNC_KEY, '1');
+    gdriveSyncTimer = null;
+    saveJSON(SESSION_KEY, {});
+    const afterSession = gdriveSyncTimer;
+    saveJSON(WORD_STATS_KEY, {});
+    return { afterSession, afterStats: gdriveSyncTimer !== null };
+  });
+  assert.strictEqual(r.afterSession, null);
+  assert.strictEqual(r.afterStats, true);
+}));
+
+// ==================== 絞り込みの複数選択(範囲・品詞・文法の章) ====================
+
+// 起動時の移行(苦手の「すべて」を「苦手+未」に引き上げる)を済ませた印も付けて、苦手の絞り込みを「すべて」にしておく
+const settings = o => ({ toeic_default_unlearned_migrated_v2: 'true', toeic_settings: JSON.stringify({ weakFilter: 'all', ...o }) });
+const openFilters = async page => { await dismissNudge(page); await page.click('#filter-toggle'); };
+const chipActive = (page, sel) => page.$eval(sel, e => e.classList.contains('active'));
+
+test('range_multi_select', () => withPage(settings({ sourceFilter: 'teppan' }), async page => {
+  await openFilters(page);
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="101-200"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }, { start: 101, end: 200 }]);
+  const r = await page.evaluate(() => {
+    const nos = state.pool.map(w => w.no);
+    return { min: Math.min(...nos), max: Math.max(...nos), has1: nos.some(n => n <= 100), has2: nos.some(n => n > 100), inGap: nos.some(n => n > 200) };
+  });
+  assert(r.has1 && r.has2 && !r.inGap, JSON.stringify(r));
+  assert(await chipActive(page, '#range-filters [data-range="1-100"]'));
+  assert(await chipActive(page, '#range-filters [data-range="101-200"]'));
+  assert(!(await chipActive(page, '#range-filters [data-range="all"]')));
+  assert.strictEqual(await page.$eval('#filter-count', e => e.innerText), '3'); // 出典1 + 範囲2
+}));
+
+test('range_toggle_off_and_all', () => withPage(settings({ sourceFilter: 'teppan' }), async page => {
+  await openFilters(page);
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="1-100"]'); // もう一度押すと外れる
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), []);
+  assert(await chipActive(page, '#range-filters [data-range="all"]'));
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="101-200"]');
+  await page.click('#range-filters [data-range="all"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), []);
+}));
+
+test('pos_multi_select', () => withPage(settings({ sourceFilter: 'daily' }), async page => {
+  await openFilters(page);
+  await page.click('#pos-filters [data-pos="名詞"]');
+  await page.click('#pos-filters [data-pos="動詞"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), ['名詞', '動詞']);
+  const ps = await page.evaluate(() => [...new Set(state.pool.map(w => w.p))]);
+  assert(ps.includes('名詞') && ps.includes('動詞') && ps.length === 2, JSON.stringify(ps));
+  assert(!(await chipActive(page, '#pos-filters [data-pos="all"]')));
+  await page.click('#pos-filters [data-pos="名詞"]');
+  await page.click('#pos-filters [data-pos="動詞"]');
+  assert(await chipActive(page, '#pos-filters [data-pos="all"]')); // 全部外すと「すべて」に戻る
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), []);
+}));
+
+test('pos_phrase_group_with_other', () => withPage(settings({ sourceFilter: 'daily', posFilter: ['句・表現', '副詞'] }), async page => {
+  const r = await page.evaluate(() => {
+    const ps = [...new Set(state.pool.map(w => w.p))];
+    return { ps, onlyAllowed: ps.every(p => p === '副詞' || PHRASE_POS.includes(p)), hasAdverb: ps.includes('副詞'), hasPhrase: ps.some(p => PHRASE_POS.includes(p)) };
+  });
+  assert(r.onlyAllowed && r.hasAdverb && r.hasPhrase, JSON.stringify(r));
+}));
+
+test('grammar_chapters_across_books', () => withPage({}, async page => {
+  await openGrammar(page);
+  await openFilters(page);
+  const keys = await page.$$eval('#grammar-chapter-filters [data-gchapter]', els => els.map(e => e.dataset.gchapter));
+  assert(keys.includes('kin:2') && keys.includes('sekai:2'), keys.join(','));
+  await page.click('#grammar-chapter-filters [data-gchapter="kin:2"]');
+  await page.click('#grammar-chapter-filters [data-gchapter="sekai:2"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2', 'sekai:2']);
+  const r = await page.evaluate(() => ({
+    n: state.grammarPool.length,
+    expected: RAW_GRAMMAR.filter(g => g.ch === 2).length,
+    books: [...new Set(state.grammarPool.map(g => g.b || 'sekai'))].sort(),
+    chs: [...new Set(state.grammarPool.map(g => g.ch))],
+  }));
+  assert.strictEqual(r.n, r.expected);
+  assert.deepStrictEqual(r.books, ['kin', 'sekai']);
+  assert.deepStrictEqual(r.chs, [2]);
+  await page.click('#grammar-chapter-filters [data-gchapter="kin:2"]'); // 外すと世界一の第2章だけ
+  assert.deepStrictEqual(await page.evaluate(() => [...new Set(state.grammarPool.map(g => g.b || 'sekai'))]), ['sekai']);
+  await page.click('#grammar-chapter-filters [data-gchapter="all"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+}));
+
+test('grammar_book_change_resets_chapters', () => withPage(settings({ app: 'grammar', grammarChapter: ['kin:2', 'sekai:2'] }), async page => {
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2', 'sekai:2']);
+  await openFilters(page);
+  await page.click('#grammar-book-segments [data-gbook="kin"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+  await page.click('#grammar-chapter-filters [data-gchapter="kin:3"]');
+  assert.deepStrictEqual(await page.evaluate(() => [...new Set(state.grammarPool.map(g => g.ch))]), [3]);
+}));
+
+test('grammar_rule_drill_clears_chapters', () => withPage(settings({ app: 'grammar', grammarChapter: ['sekai:2'] }), async page => {
+  const r = await page.evaluate(() => { startRuleDrill(KIN_RULES[0].number); return { ch: state.grammarChapter, rule: state.grammarRule, book: state.grammarBook, n: state.grammarPool.length }; });
+  assert.deepStrictEqual(r.ch, []);
+  assert.strictEqual(r.book, 'kin');
+  assert(r.n > 0);
+}));
+
+test('multi_filters_persist_and_count', () => withPage(settings({ sourceFilter: 'teppan' }), async page => {
+  await openFilters(page);
+  await page.click('#range-filters [data-range="1-100"]');
+  await page.click('#range-filters [data-range="201-300"]');
+  await page.reload();
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }, { start: 201, end: 300 }]);
+  await dismissNudge(page);
+  assert.strictEqual(await page.$eval('#filter-count', e => e.innerText), '3'); // 出典1 + 範囲2
+}));
+
+test('legacy_single_filters_migrate', () => withPage({}, async page => {
+  await setStorageAndReload(page, settings({ sourceFilter: 'teppan', rangeFilter: { start: 1, end: 100 }, posFilter: '名詞' }));
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }]);
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), ['名詞']);
+  await setStorageAndReload(page, settings({ app: 'grammar', grammarBook: 'kin', grammarChapter: 2 }));
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2']);
+  // 本が「すべて」のときの番号だけでは、どの本の章か決まらないので外す
+  await setStorageAndReload(page, settings({ app: 'grammar', grammarBook: 'all', grammarChapter: 2 }));
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+  await setStorageAndReload(page, settings({ app: 'grammar', grammarChapter: 'all', rangeFilter: null, posFilter: 'all' }));
+  assert.deepStrictEqual(await page.evaluate(() => [state.grammarChapter, state.rangeFilter, state.posFilter]), [[], [], []]);
+}));
+
+test('multi_filters_reject_invalid_saved_values', () => withPage({}, async page => {
+  await setStorageAndReload(page, settings({
+    sourceFilter: 'teppan', app: 'grammar', grammarBook: 'kin',
+    rangeFilter: [{ start: 1, end: 100 }, { start: 5, end: 6 }, 'x', { start: 1, end: 100 }],
+    posFilter: ['名詞', '存在しない', '名詞'],
+    grammarChapter: ['kin:2', 'sekai:2', 'kin:99', 'bogus', 7],
+  }));
+  assert.deepStrictEqual(await page.evaluate(() => state.rangeFilter), [{ start: 1, end: 100 }]);
+  assert.deepStrictEqual(await page.evaluate(() => state.posFilter), ['名詞']);
+  assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2']); // 選んでいる本の章だけ残す
+}));
+
+test('past_records_untouched_by_filter_change', () => withPage({
+  toeic_grammar_stats: JSON.stringify(STATS5),
+  toeic_weak_grammar: JSON.stringify(WEAK9),
+  toeic_settings: JSON.stringify({ rangeFilter: { start: 1, end: 100 }, grammarChapter: 3 }),
+}, async page => {
+  const r = await page.evaluate(() => ({ stats: state.grammarStats, weak: Object.keys(state.grammarWeakData), seen: [...state.grammarSeen].sort() }));
+  assert.deepStrictEqual(r.stats, STATS5);
+  assert.deepStrictEqual(r.weak, ['9']);
+  assert.deepStrictEqual(r.seen.map(Number), [5, 9]);
 }));
 
 // ==================== 実行 ====================

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f5f1">
+  <meta name="robots" content="noindex">
+  <title>Study Desk — TOEIC Drill 試用版</title>
+  <link rel="icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="themes.css">
+  <script src="../data/words.js" defer></script>
+  <script src="../data/grammar.js" defer></script>
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <header class="site-header">
+    <a class="brand" href="#home" aria-label="Study Desk ホーム">
+      <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 6h8c2 0 3 1 3 3v18c0-2-1-3-3-3H5V6Zm22 0h-8c-2 0-3 1-3 3v18c0-2 1-3 3-3h8V6Z" stroke="currentColor" stroke-width="1.7"/></svg>
+      <span>Study Desk<small>TOEIC DRILL</small></span>
+    </a>
+    <nav aria-label="メインメニュー">
+      <a href="#home" data-nav="home">ホーム</a>
+      <a href="#review" data-nav="review">復習</a>
+      <a href="#settings" data-nav="settings">設定</a>
+    </nav>
+    <div class="header-tools"><span class="preview-label">試用版</span><a class="legacy-link" href="../">従来版へ <span aria-hidden="true">↗</span></a></div>
+  </header>
+  <div class="notice" id="storage-notice" role="status" hidden></div>
+  <div class="notice" id="offline-notice" role="status" hidden>オフラインです。読み込み済みの教材で学習を続けられます。</div>
+  <main id="main" tabindex="-1"><p>教材を読み込んでいます…</p></main>
+  <footer class="site-footer"><span>自分のペースで、一問ずつ。</span><a href="#settings">試用版の記録・表示設定</a></footer>
+  <div class="sr-only" id="announcement" role="status" aria-live="polite" aria-atomic="true"></div>
+  <input type="file" id="backup-file" accept=".json,application/json" hidden>
+  <dialog id="theme-dialog" aria-labelledby="theme-dialog-title">
+    <div class="dialog-header"><div><p class="eyebrow">Make it yours</p><h2 id="theme-dialog-title">好きな見た目で、続けよう。</h2></div><button class="button quiet" data-action="close-themes" aria-label="テーマ選択を閉じる">閉じる</button></div>
+    <div id="dialog-themes"></div>
+  </dialog>
+  <dialog id="filter-dialog" aria-labelledby="filter-dialog-title">
+    <div class="filter-sheet-header"><div><h2 id="filter-dialog-title">絞り込み</h2><p class="help">必要な条件だけ選んでください。</p></div><button class="button quiet" data-action="close-filters">閉じる</button></div>
+    <div id="filter-body"></div>
+    <div class="filter-sheet-footer"><p id="filter-count" role="status"></p><div><button class="button secondary" data-action="reset-filters">解除</button><button class="button" data-action="apply-filters">適用</button></div></div>
+  </dialog>
+  <dialog id="calendar-dialog" aria-labelledby="calendar-title"><div class="dialog-header"><div><h2 id="calendar-title">学習カレンダー</h2><p id="calendar-overview" class="help"></p></div><button class="button quiet" data-action="close-calendar">閉じる</button></div><div class="field calendar-goal-field"><label for="calendar-goal">今日の目標</label><select id="calendar-goal"><option value="0">目標なし</option><option value="5">5問</option><option value="10">10問</option><option value="20">20問</option><option value="30">30問</option></select></div><div id="calendar-body"></div><p class="help">日別記録はこの機能の導入後から残ります。</p></dialog>
+  <noscript>このアプリの演習にはJavaScriptが必要です。<a href="../">従来版へ戻る</a></noscript>
+</body>
+</html>

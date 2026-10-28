@@ -1,0 +1,12 @@
+import { GOALS } from './preferences.mjs';
+const esc = v => String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+export function goalMarkup(s) {
+  return `<button class="goal-strip" data-action="open-calendar" aria-haspopup="dialog"><span><strong>今日 ${s.answers}${s.goal ? ` / ${s.goal}` : ''}問</strong><span class="goal-status">${s.achieved ? '目標達成 ✓' : s.goal ? '今日の目標' : '目標なしで学習中'}</span></span><span class="goal-track" aria-hidden="true"><i style="width:${s.goal ? Math.min(100,s.answers/s.goal*100) : 0}%"></i></span><span class="goal-open">カレンダー →</span></button>`;
+}
+export function learningSettingsMarkup(p) {
+  return `<section class="panel settings-section learning-settings"><h2>学習のペース</h2><div class="form-grid"><div class="field"><label for="daily-goal">今日の目標</label><select id="daily-goal">${GOALS.map(n=>`<option value="${n}" ${n===p.dailyGoal?'selected':''}>${n ? n+'問' : '目標なし'}</option>`).join('')}</select></div><div class="field"><label for="companion-setting">案内役</label><select id="companion-setting">${[['auto','Duolingoで表示'],['on','すべてのテーマで表示'],['off','表示しない']].map(([v,l])=>`<option value="${v}" ${v===p.companion?'selected':''}>${l}</option>`).join('')}</select></div></div><button class="button secondary" data-action="open-calendar">学習日を確認する</button><p class="help">日別の記録は、この機能の導入後から残ります。</p></section>`;
+}
+export function calendarMarkup(model) {
+  const [year,month] = model.month.split('-').map(Number);
+  return `<div class="calendar-navigation"><button class="button secondary" data-action="calendar-prev" aria-label="前の月">←</button><h3 id="calendar-month" aria-live="polite">${year}年${month}月</h3><button class="button secondary" data-action="calendar-next" aria-label="次の月" ${model.canGoNext?'':'disabled'}>→</button></div><div class="calendar-grid" role="group" aria-label="${year}年${month}月の学習日">${['日','月','火','水','木','金','土'].map(d=>`<span class="weekday" aria-hidden="true">${d}</span>`).join('')}${model.days.map(d=>d ? `<span class="calendar-day ${d.active?'active':''} ${d.achieved?'achieved':''} ${d.today?'today':''} ${d.future?'future':''}" role="img" aria-label="${esc(d.date)}、${d.answers}問${d.goal ? `、目標${d.goal}問` : ''}${d.achieved?'、目標達成':d.active?'、学習日':''}"><span aria-hidden="true">${Number(d.date.slice(-2))}<small>${d.achieved?'✓':d.active?'●':'·'}</small></span></span>` : '<span aria-hidden="true"></span>').join('')}</div><p class="calendar-legend">● 学習した日　✓ 目標を達成した日</p>`;
+}

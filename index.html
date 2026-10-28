@@ -2524,10 +2524,11 @@ const REVIEW_INTERVALS = [1, 3, 7];
 function normalizeWeakEntry(e) {
   if (!e || typeof e !== 'object' || Array.isArray(e)) return null;
   const added = Number.isFinite(e.added) && e.added > 0 ? e.added : Date.now();
-  if (e.due === undefined) return { streak: 0, added, due: 0 };
+  const u = Number.isFinite(e.u) && e.u > 0 ? { u: e.u } : {}; // 最終更新時刻。同期で新しい方を選ぶのに使う（古い記録には無い）
+  if (e.due === undefined) return { streak: 0, added, due: 0, ...u };
   if (typeof e.due !== 'number' || !Number.isFinite(e.due) || e.due < 0) return null;
   if (!Number.isInteger(e.streak) || e.streak < 0 || e.streak > REVIEW_INTERVALS.length) return null;
-  return { streak: e.streak, added, due: e.due };
+  return { streak: e.streak, added, due: e.due, ...u };
 }
 
 // 苦手データのキー: 単語は綴り、文法は問題番号
@@ -2565,20 +2566,23 @@ function isDue(entry) {
   return entry.due <= Date.now();
 }
 
-// 回答結果を苦手データに反映する（単語・文法共通）。間違えたら今すぐ復習対象に戻す
-function updateWeakEntry(store, key, isCorrect) {
+// 回答結果を苦手データに反映する（単語・文法共通）。間違えたら今すぐ復習対象に戻す。
+// 記録を変えたときは u（最終更新時刻）を付け、苦手から外したときは tombKey で削除を覚える（同期で復活させないため）
+function updateWeakEntry(store, key, isCorrect, tombKey) {
   const entry = store[key];
   if (!isCorrect) {
-    store[key] = { streak: 0, added: entry ? entry.added : Date.now(), due: Date.now() };
+    store[key] = { streak: 0, added: entry ? entry.added : Date.now(), due: Date.now(), u: Date.now() };
     return;
   }
   // 苦手でない問題や、復習日より前の正解では記録を進めない
   if (!entry || !isDue(entry)) return;
   if (entry.streak >= REVIEW_INTERVALS.length) {
     delete store[key];
+    markWeakDeleted(tombKey);
   } else {
     entry.streak++;
     entry.due = startOfToday() + REVIEW_INTERVALS[entry.streak - 1] * DAY_MS;
+    entry.u = Date.now();
   }
 }
 
@@ -2642,6 +2646,39 @@ function loadGrammarSeen() {
 
 function saveGrammarSeen() {
   saveJSON(GRAMMAR_SEEN_KEY, [...state.grammarSeen]);
+}
+
+// 苦手から外した（克服した・削除した）時刻の記録。同期で別の端末の古い苦手記録が戻ってくるのを防ぐ。
+// キーは単語が "w:モード:綴り"、文法が "g:問題番号"
+const WEAK_DELETED_KEY = 'toeic_weak_deleted';
+
+function isWeakDeletedKey(k) {
+  const m = /^w:([^:]+):(.+)$/.exec(k);
+  if (m) return VOCAB_MODES.includes(m[1]) && isWordKey(m[2]);
+  return /^g:[1-9]\d{0,8}$/.test(k);
+}
+
+// 形の正しい件だけを残し、未来の時刻は今に直す（別の端末の時計がずれていても、削除が永久に勝ち続けないように）
+function sanitizeWeakDeleted(raw) {
+  const data = {};
+  let invalid = 0;
+  if (!isPlainObject(raw)) return { data, invalid: 0 };
+  Object.keys(raw).forEach(k => {
+    const t = raw[k];
+    if (isWeakDeletedKey(k) && typeof t === 'number' && Number.isFinite(t) && t > 0) data[k] = Math.min(t, Date.now());
+    else invalid++;
+  });
+  return { data, invalid };
+}
+
+function loadWeakDeleted() {
+  return sanitizeWeakDeleted(loadJSON(WEAK_DELETED_KEY, {})).data;
+}
+
+function markWeakDeleted(tombKey) {
+  if (!tombKey) return;
+  state.weakDeleted[tombKey] = Date.now();
+  saveJSON(WEAK_DELETED_KEY, state.weakDeleted);
 }
 
 function loadStatsData(key) {
@@ -2752,9 +2789,9 @@ let state = {
   // Vocab state
   mode: 'e2j',
   sourceFilter: 'all',
-  rangeFilter: null,
+  rangeFilter: [], // 選んだ TEPPAN の番号範囲 [{start, end}]。空なら全番号
   dateFilter: [],
-  posFilter: 'all',
+  posFilter: [], // 選んだ品詞。空なら全品詞
   weakFilter: 'weak_unlearned',
   pool: [],
   currentIndex: 0,
@@ -2769,7 +2806,7 @@ let state = {
 
   // Grammar state
   grammarBook: 'all',
-  grammarChapter: 'all',
+  grammarChapter: [], // 選んだ章 ['kin:2', 'sekai:3']（本:章）。空なら全章
   grammarWeakFilter: 'all',
   grammarRule: null, // 金のルール番号で絞り込み中なら数値
   guideChapter: 'all',
@@ -2789,6 +2826,7 @@ let state = {
 };
 // 初期値の作成に grammarStats と grammarWeakData を使うので、state ができたあとで読み込む
 state.grammarSeen = loadGrammarSeen();
+state.weakDeleted = loadWeakDeleted();
 
 // 今のモード（または指定したモード）の単語の苦手・学習済み
 function wordWeak(mode = state.mode) {
@@ -2857,15 +2895,17 @@ function initRangeFilters() {
 
   rf.querySelectorAll('.chip').forEach(btn => {
     btn.addEventListener('click', e => {
-      rf.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-      e.currentTarget.classList.add('active');
       const val = e.currentTarget.dataset.range;
       if (val === 'all') {
-        state.rangeFilter = null;
+        state.rangeFilter = [];
       } else {
         const [start, end] = val.split('-').map(Number);
-        state.rangeFilter = { start, end };
+        const picked = state.rangeFilter.some(r => r.start === start);
+        state.rangeFilter = picked
+          ? state.rangeFilter.filter(r => r.start !== start)
+          : [...state.rangeFilter, { start, end }].sort((a, b) => a.start - b.start);
       }
+      syncFilterUI();
       applyFilters();
     });
   });
@@ -2902,59 +2942,31 @@ function grammarChoiceLabel(idx) {
   return ['A', 'B', 'C', 'D', 'E'][idx] || String.fromCharCode(65 + idx);
 }
 
+// 本ごとの章の一覧。key は「本:章」（章の番号は本ごとに振られていて重なるので、本とセットで区別する）
+function grammarChapterKey(ex) {
+  return `${ex.b || 'sekai'}:${ex.ch}`;
+}
+
 function getGrammarChaptersList(b) {
   const book = b || state.grammarBook || 'all';
   const pool = book === 'all' ? RAW_GRAMMAR : RAW_GRAMMAR.filter(g => (g.b || 'sekai') === book);
-  
-  if (book === 'kin') {
-    const kinChaps = [];
-    const seen = new Set();
-    RAW_GRAMMAR.filter(g => g.b === 'kin').forEach(g => {
-      if (!seen.has(g.ch)) {
-        seen.add(g.ch);
-        const count = RAW_GRAMMAR.filter(x => x.b === 'kin' && x.ch === g.ch).length;
-        kinChaps.push({ ch: g.ch, title: `第${g.ch}章 ${g.ch_title} (${count}問)` });
-      }
-    });
-    return [{ ch: 'all', title: `金の文法 全7章 (${pool.length}問)` }, ...kinChaps];
-  } else if (book === 'sekai') {
-    const sekaiChaps = [];
-    const seen = new Set();
-    RAW_GRAMMAR.filter(g => (g.b || 'sekai') === 'sekai').forEach(g => {
-      if (!seen.has(g.ch)) {
-        seen.add(g.ch);
-        const count = RAW_GRAMMAR.filter(x => (x.b || 'sekai') === 'sekai' && x.ch === g.ch).length;
-        sekaiChaps.push({ ch: g.ch, title: `第${g.ch}章 ${g.ch_title} (${count}問)` });
-      }
-    });
-    return [{ ch: 'all', title: `世界一 全14章 (${pool.length}問)` }, ...sekaiChaps];
-  } else if (book === 'polaris2') {
-    const polarisChaps = [];
-    const seen = new Set();
-    RAW_GRAMMAR.filter(g => g.b === 'polaris2').forEach(g => {
-      if (!seen.has(g.ch)) {
-        seen.add(g.ch);
-        const count = RAW_GRAMMAR.filter(x => x.b === 'polaris2' && x.ch === g.ch).length;
-        polarisChaps.push({ ch: g.ch, title: `Unit ${g.ch} ${g.ch_title} (${count}問)` });
-      }
-    });
-    return [{ ch: 'all', title: `ポラリス2 全6Unit (${pool.length}問)` }, ...polarisChaps];
-  } else if (book === 'toplevel') {
-    const toplevelChaps = [];
-    const seen = new Set();
-    RAW_GRAMMAR.filter(g => g.b === 'toplevel').forEach(g => {
-      if (!seen.has(g.ch)) {
-        seen.add(g.ch);
-        const count = RAW_GRAMMAR.filter(x => x.b === 'toplevel' && x.ch === g.ch).length;
-        toplevelChaps.push({ ch: g.ch, title: `Lecture ${g.ch} ${g.ch_title} (${count}問)` });
-      }
-    });
-    return [{ ch: 'all', title: `トップレベル 全24Lecture (${pool.length}問)` }, ...toplevelChaps];
-  } else {
-    return [
-      { ch: 'all', title: `全問 (${pool.length}問)` }
-    ];
+  if (book === 'all') {
+    return [{ key: 'all', ch: 'all', title: `全問 (${pool.length}問)` }];
   }
+  const chapters = [];
+  const seen = new Set();
+  pool.forEach(g => {
+    if (seen.has(g.ch)) return;
+    seen.add(g.ch);
+    const count = pool.filter(x => x.ch === g.ch).length;
+    const chapLabel = getChapterLabel(book, g.ch, g.ch_title);
+    chapters.push({ key: `${book}:${g.ch}`, ch: g.ch, title: `${chapLabel} (${count}問)` });
+  });
+  const allTitle = book === 'kin' ? `金の文法 全${chapters.length}章 (${pool.length}問)`
+    : book === 'sekai' ? `世界一 全${chapters.length}章 (${pool.length}問)`
+    : book === 'polaris2' ? `ポラリス2 全${chapters.length}Unit (${pool.length}問)`
+    : `トップレベル 全${chapters.length}Lecture (${pool.length}問)`;
+  return [{ key: 'all', ch: 'all', title: allTitle }, ...chapters];
 }
 const getGrammarChapters = getGrammarChaptersList;
 
@@ -2967,9 +2979,9 @@ function renderGrammarChapterFilters() {
   if (state.grammarRule !== null) {
     html += `<button class="chip active rule-filter-chip" data-clear-rule="1">金のルール ${state.grammarRule} で絞り込み中 ✕</button>`;
   }
-  chapters.forEach((c, idx) => {
-    const isActive = state.grammarRule === null && ((state.grammarChapter === c.ch) || (idx === 0 && state.grammarChapter === 'all'));
-    html += `<button class="chip ${isActive ? 'active' : ''}" data-gchapter="${c.ch}">${c.title}</button>`;
+  chapters.forEach(c => {
+    const isActive = state.grammarRule === null && (c.key === 'all' ? state.grammarChapter.length === 0 : state.grammarChapter.includes(c.key));
+    html += `<button class="chip ${isActive ? 'active' : ''}" data-gchapter="${c.key}">${c.title}</button>`;
   });
   gcf.innerHTML = html;
 
@@ -2977,7 +2989,14 @@ function renderGrammarChapterFilters() {
     btn.addEventListener('click', e => {
       const val = e.currentTarget.dataset.gchapter;
       state.grammarRule = null;
-      state.grammarChapter = val === undefined || val === 'all' ? 'all' : Number(val);
+      if (val === undefined || val === 'all') {
+        state.grammarChapter = [];
+      } else if (state.grammarChapter.includes(val)) {
+        state.grammarChapter = state.grammarChapter.filter(k => k !== val);
+      } else {
+        const order = getGrammarChaptersList().map(c => c.key); // 一覧の並び順にそろえる
+        state.grammarChapter = order.filter(k => k === val || state.grammarChapter.includes(k));
+      }
       renderGrammarChapterFilters();
       applyGrammarFilters();
     });
@@ -2994,7 +3013,7 @@ function initGrammarFilters() {
         const target = e.currentTarget;
         target.classList.add('active');
         state.grammarBook = target.dataset.gbook;
-        state.grammarChapter = 'all';
+        state.grammarChapter = [];
         state.grammarRule = null;
         renderGrammarChapterFilters();
         applyGrammarFilters();
@@ -3018,7 +3037,7 @@ function initGrammarFilters() {
 function grammarMatchesBaseFilters(ex) {
   const itemBook = ex.b || 'sekai';
   if (state.grammarBook !== 'all' && itemBook !== state.grammarBook) return false;
-  if (state.grammarChapter !== 'all' && ex.ch !== state.grammarChapter) return false;
+  if (state.grammarChapter.length > 0 && !state.grammarChapter.includes(grammarChapterKey(ex))) return false;
   if (state.grammarRule !== null && ex.rule?.number !== state.grammarRule) return false;
   return true;
 }
@@ -3224,7 +3243,7 @@ function recordWeakGrammar(ex, isCorrect) {
     badge.textContent = statLabelText(state.grammarStats[String(ex.id)]);
     badge.hidden = false;
   }
-  updateWeakEntry(state.grammarWeakData, ex.id, isCorrect);
+  updateWeakEntry(state.grammarWeakData, ex.id, isCorrect, `g:${ex.id}`);
   saveGrammarWeakData();
   if (!state.grammarSeen.has(ex.id)) {
     state.grammarSeen.add(ex.id);
@@ -3322,13 +3341,12 @@ function updateSourceRows() {
 function syncFilterUI() {
   const mark = (selector, isActive) =>
     document.querySelectorAll(selector).forEach(b => b.classList.toggle('active', isActive(b.dataset)));
-  const range = state.rangeFilter ? `${state.rangeFilter.start}-${state.rangeFilter.end}` : 'all';
   mark('.app-type-segments .segment', d => d.app === state.app);
   mark('.mode-segments .segment', d => d.mode === state.mode);
   mark('#source-segments .segment', d => d.source === state.sourceFilter);
   mark('#date-filters .chip', d => d.date === 'all' ? state.dateFilter.length === 0 : state.dateFilter.includes(d.date));
-  mark('#pos-filters .chip', d => d.pos === state.posFilter);
-  mark('#range-filters .chip', d => d.range === range);
+  mark('#pos-filters .chip', d => d.pos === 'all' ? state.posFilter.length === 0 : state.posFilter.includes(d.pos));
+  mark('#range-filters .chip', d => d.range === 'all' ? state.rangeFilter.length === 0 : state.rangeFilter.some(r => `${r.start}-${r.end}` === d.range));
   mark('#weak-segments .segment', d => d.weak === state.weakFilter);
   mark('#grammar-book-segments .segment', d => d.gbook === state.grammarBook);
   mark('#grammar-weak-segments .segment', d => d.gweak === state.grammarWeakFilter);
@@ -3377,9 +3395,15 @@ function initFilters() {
 
   document.querySelectorAll('#pos-filters .chip').forEach(btn => {
     btn.addEventListener('click', e => {
-      document.querySelectorAll('#pos-filters .chip').forEach(b => b.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-      state.posFilter = e.currentTarget.dataset.pos;
+      const val = e.currentTarget.dataset.pos;
+      if (val === 'all') {
+        state.posFilter = [];
+      } else if (state.posFilter.includes(val)) {
+        state.posFilter = state.posFilter.filter(x => x !== val);
+      } else {
+        state.posFilter = POS_FILTERS.filter(p => p === val || state.posFilter.includes(p)); // チップの並び順にそろえる
+      }
+      syncFilterUI();
       applyFilters();
     });
   });
@@ -3417,16 +3441,16 @@ function updateFilterSummary() {
   let n = 0;
   if (state.app === 'grammar') {
     if (state.grammarBook !== 'all') n++;
-    if (state.grammarChapter !== 'all') n++;
+    n += state.grammarChapter.length;
     if (state.grammarRule !== null) n++;
     if (state.grammarWeakFilter !== 'all') n++;
   } else {
     if (state.sourceFilter !== 'all') n++;
     if (state.sourceFilter === 'teppan') {
-      if (state.rangeFilter) n++;
+      n += state.rangeFilter.length;
     } else {
       n += state.dateFilter.length;
-      if (state.posFilter !== 'all') n++;
+      n += state.posFilter.length;
     }
     if (state.weakFilter !== 'all') n++;
   }
@@ -3446,6 +3470,9 @@ function shuffle(array) {
   return array;
 }
 
+// 品詞の絞り込みの選択肢（チップの data-pos と同じ）
+const POS_FILTERS = ['名詞', '動詞', '形容詞', '副詞', '句・表現'];
+
 // 品詞「句・表現」に含める品詞（TEPPAN はそのまま「句・表現」で登録されている）
 const PHRASE_POS = ['名詞句', '動詞句', '形容詞句', '副詞句', '表現', '句・表現'];
 
@@ -3455,8 +3482,8 @@ function wordMatchesBaseFilters(w) {
   if (state.sourceFilter !== 'all' && w.s !== state.sourceFilter) return false;
 
   // range filter (for TEPPAN)
-  if (state.sourceFilter === 'teppan' && state.rangeFilter) {
-    if (!w.no || w.no < state.rangeFilter.start || w.no > state.rangeFilter.end) return false;
+  if (state.sourceFilter === 'teppan' && state.rangeFilter.length > 0) {
+    if (!w.no || !state.rangeFilter.some(r => w.no >= r.start && w.no <= r.end)) return false;
   }
 
   // date (for daily words or all)
@@ -3465,12 +3492,8 @@ function wordMatchesBaseFilters(w) {
   }
 
   // pos (for daily words or all)
-  if (state.sourceFilter !== 'teppan' && state.posFilter !== 'all') {
-    if (state.posFilter === '句・表現') {
-      if (!PHRASE_POS.includes(w.p)) return false;
-    } else {
-      if (w.p !== state.posFilter) return false;
-    }
+  if (state.sourceFilter !== 'teppan' && state.posFilter.length > 0) {
+    if (!state.posFilter.some(p => (p === '句・表現' ? PHRASE_POS.includes(w.p) : w.p === p))) return false;
   }
   return true;
 }
@@ -3649,11 +3672,11 @@ const NUDGE_DISMISSED_KEY = 'toeic_nudge_dismissed_condition';
 
 function getFilterStateKey() {
   if (state.app === 'grammar') {
-    return `g_${state.grammarBook}_${state.grammarChapter}_${state.grammarRule || 'none'}_${state.grammarWeakFilter}`;
+    return `g_${state.grammarBook}_${state.grammarChapter.join(',') || 'all'}_${state.grammarRule || 'none'}_${state.grammarWeakFilter}`;
   }
   const dates = (state.dateFilter || []).slice().sort().join(',');
-  const range = state.rangeFilter ? `${state.rangeFilter.start}-${state.rangeFilter.end}` : 'none';
-  return `v_${state.sourceFilter}_${dates}_${state.posFilter}_${range}_${state.weakFilter}`;
+  const range = state.rangeFilter.map(r => `${r.start}-${r.end}`).join(',') || 'none';
+  return `v_${state.sourceFilter}_${dates}_${state.posFilter.join(',') || 'all'}_${range}_${state.weakFilter}`;
 }
 
 function checkFilterNudge() {
@@ -3973,7 +3996,7 @@ function recordWeak(word, isCorrect) {
     statEl.hidden = false;
   }
   if (tagEl) tagEl.hidden = false;
-  updateWeakEntry(wordWeak(), word.w, isCorrect);
+  updateWeakEntry(wordWeak(), word.w, isCorrect, `w:${state.mode}:${word.w}`);
   if (!wordSeen().has(word.w)) {
     wordSeen().add(word.w);
     saveJSON(SEEN_WORDS_KEY, seenSnapshot());
@@ -4027,11 +4050,14 @@ function restoreSettings() {
   state.app = pick(saved.app, ['vocab', 'grammar'], 'vocab');
   state.mode = pick(saved.mode, ['e2j', 'j2e', 'flash', 'type'], 'e2j');
   state.sourceFilter = pick(saved.sourceFilter, ['all', 'daily', 'teppan'], 'all');
-  const range = saved.rangeFilter;
-  state.rangeFilter = range && TEPPAN_RANGES.some(r => r.start === range.start && r.end === range.end)
-    ? { start: range.start, end: range.end } : null;
+  // 範囲・品詞・章は複数選択。前のバージョンは1つだけ（範囲は {start,end}、品詞は文字列、章は番号）で保存していたので、それも読める
+  const savedRanges = Array.isArray(saved.rangeFilter) ? saved.rangeFilter : (saved.rangeFilter ? [saved.rangeFilter] : []);
+  state.rangeFilter = TEPPAN_RANGES
+    .filter(r => savedRanges.some(x => x && x.start === r.start && x.end === r.end))
+    .map(r => ({ start: r.start, end: r.end }));
   state.dateFilter = Array.isArray(saved.dateFilter) ? saved.dateFilter.filter(d => DATES.includes(d)) : [];
-  state.posFilter = pick(saved.posFilter, ['all', '名詞', '動詞', '形容詞', '副詞', '句・表現'], 'all');
+  const savedPos = Array.isArray(saved.posFilter) ? saved.posFilter : [saved.posFilter];
+  state.posFilter = POS_FILTERS.filter(p => savedPos.includes(p));
   state.weakFilter = pick(saved.weakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'weak_unlearned');
 
   // 既存ユーザー向けマイグレーション: 過去バージョンで 'all' のままだったユーザーも初回一度だけ 'weak_unlearned' に引き上げる
@@ -4046,7 +4072,10 @@ function restoreSettings() {
     }
   } catch(e) {}
   state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai', 'polaris2', 'toplevel'], 'all');
-  state.grammarChapter = pick(saved.grammarChapter, getGrammarChaptersList().map(c => c.ch), 'all');
+  // 章は「本:章」の配列。前のバージョンは番号1つだけだったので、本が決まっているときはその本の章として読む
+  const savedChapters = Array.isArray(saved.grammarChapter) ? saved.grammarChapter
+    : (Number.isInteger(saved.grammarChapter) && state.grammarBook !== 'all' ? [`${state.grammarBook}:${saved.grammarChapter}`] : []);
+  state.grammarChapter = getGrammarChaptersList().map(c => c.key).filter(k => k !== 'all' && savedChapters.includes(k));
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
@@ -4420,7 +4449,7 @@ function renderRuleGuide() {
 
 function startRuleDrill(number) {
   state.grammarBook = 'kin';
-  state.grammarChapter = 'all';
+  state.grammarChapter = [];
   state.grammarWeakFilter = 'all';
   state.grammarRule = number;
   syncFilterUI();
@@ -4487,11 +4516,13 @@ function applyObsidianSyncPayload(data) {
     state.grammarWeakData[k] = {
       streak: Number(v.streak) || 0,
       added: Number(v.added) || Date.now(),
-      due: Number(v.due) || Date.now()
+      due: Number(v.due) || Date.now(),
+      u: Date.now()
     };
   });
   masteredList.forEach(id => {
     delete state.grammarWeakData[String(id)];
+    markWeakDeleted(`g:${id}`);
   });
   saveGrammarWeakData();
   renderGrammarWeakList();
@@ -4594,9 +4625,11 @@ function renderWordWeakList() {
 function removeWeak(key) {
   if (state.app === 'grammar') {
     delete state.grammarWeakData[key];
+    markWeakDeleted(`g:${key}`);
     saveGrammarWeakData();
   } else {
     delete wordWeak(state.weakListMode)[key];
+    markWeakDeleted(`w:${state.weakListMode}:${key}`);
     saveWeakData();
   }
   renderWeakList();
@@ -4607,8 +4640,8 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む
-const BACKUP_FORMAT = 4;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む / 版5: 苦手から外した記録（weakDeleted）と苦手の最終更新時刻（u）を含む
+const BACKUP_FORMAT = 5;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。
@@ -4655,12 +4688,22 @@ const BACKUP_MIGRATIONS = {
       } : d
     };
   },
+  // 苦手から外した記録は無かったので空で始める（最終更新時刻 u の無い苦手は、同期で従来どおり比べる）
+  4: backup => {
+    const d = backup.data;
+    return {
+      ...backup,
+      format: 5,
+      data: isPlainObject(d) ? { ...d, weakDeleted: isPlainObject(d.weakDeleted) ? d.weakDeleted : {} } : d
+    };
+  },
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // ファイルの中の名前 → この端末の保存先
 const RECORD_KEYS = {
   weakWords: WEAK_WORDS_KEY,
   weakGrammar: 'toeic_weak_grammar',
+  weakDeleted: WEAK_DELETED_KEY,
   seenWords: SEEN_WORDS_KEY,
   wordStats: WORD_STATS_KEY,
   grammarStats: GRAMMAR_STATS_KEY,
@@ -4688,18 +4731,40 @@ function formatDateTime(ms) {
 
 // ---- レコードの合算・統合（マージ）ヘルパー ----
 
-function mergeWeakByMode(cur, inc) {
+// 同じ問題の苦手記録が両側にあるときの選び方。最終更新が新しい方、同じ（または両方とも古い記録で無い）なら streak が大きい方
+function pickWeakEntry(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const ua = a.u || 0;
+  const ub = b.u || 0;
+  if (ua !== ub) return ua > ub ? a : b;
+  return b.streak > a.streak || (b.streak === a.streak && b.due > a.due) ? b : a;
+}
+
+// 苦手の統合。苦手から外した記録（tombs）が最終更新より新しければ、その問題は苦手に戻さない
+function mergeWeakStore(cur, inc, tombs, tombPrefix) {
+  const out = {};
+  new Set([...Object.keys(cur || {}), ...Object.keys(inc || {})]).forEach(k => {
+    const picked = pickWeakEntry((cur || {})[k], (inc || {})[k]);
+    const deletedAt = tombs[tombPrefix + k] || 0;
+    if (deletedAt > 0 && (picked.u || 0) <= deletedAt) return;
+    out[k] = picked;
+  });
+  return out;
+}
+
+function mergeWeakByMode(cur, inc, tombs = {}) {
   const out = {};
   VOCAB_MODES.forEach(m => {
-    out[m] = { ...(cur[m] || {}) };
-    Object.entries(inc[m] || {}).forEach(([k, entry]) => {
-      const c = out[m][k];
-      if (!c) {
-        out[m][k] = entry;
-      } else if (entry.streak > c.streak || (entry.streak === c.streak && entry.due > c.due)) {
-        out[m][k] = entry;
-      }
-    });
+    out[m] = mergeWeakStore(cur[m], inc[m], tombs, `w:${m}:`);
+  });
+  return out;
+}
+
+function mergeWeakDeleted(cur, inc) {
+  const out = { ...(cur || {}) };
+  Object.entries(inc || {}).forEach(([k, t]) => {
+    if (!(out[k] >= t)) out[k] = t;
   });
   return out;
 }
@@ -4733,6 +4798,7 @@ function getCurrentLocalRecords() {
   return {
     weakWords: state.weakByMode,
     weakGrammar: state.grammarWeakData,
+    weakDeleted: state.weakDeleted,
     seenWords: seenSnapshot(),
     wordStats: state.wordStats,
     grammarStats: state.grammarStats,
@@ -4743,16 +4809,11 @@ function getCurrentLocalRecords() {
 }
 
 function mergeBackupRecords(localRec, remoteRec) {
-  const mergedWeakWords = mergeWeakByMode(localRec.weakWords || {}, remoteRec.weakWords || {});
+  const mergedWeakDeleted = mergeWeakDeleted(localRec.weakDeleted, remoteRec.weakDeleted);
+  const mergedWeakWords = mergeWeakByMode(localRec.weakWords || {}, remoteRec.weakWords || {}, mergedWeakDeleted);
   const mergedSeenWords = mergeSeenByMode(localRec.seenWords || {}, remoteRec.seenWords || {});
   
-  const mergedWeakGrammar = { ...(localRec.weakGrammar || {}) };
-  Object.entries(remoteRec.weakGrammar || {}).forEach(([k, inc]) => {
-    const cur = mergedWeakGrammar[k];
-    if (!cur || inc.streak > cur.streak || (inc.streak === cur.streak && inc.due > cur.due)) {
-      mergedWeakGrammar[k] = inc;
-    }
-  });
+  const mergedWeakGrammar = mergeWeakStore(localRec.weakGrammar, remoteRec.weakGrammar, mergedWeakDeleted, 'g:');
 
   const mergedWordStats = mergeStatsMap(localRec.wordStats || {}, remoteRec.wordStats || {});
   const mergedGrammarStats = mergeStatsMap(localRec.grammarStats || {}, remoteRec.grammarStats || {});
@@ -4762,6 +4823,7 @@ function mergeBackupRecords(localRec, remoteRec) {
     ...remoteRec,
     weakWords: mergedWeakWords,
     weakGrammar: mergedWeakGrammar,
+    weakDeleted: mergedWeakDeleted,
     seenWords: mergedSeenWords,
     wordStats: mergedWordStats,
     grammarStats: mergedGrammarStats,
@@ -4779,7 +4841,7 @@ function applyMergedRecordsToLocal(mergedRecords) {
     }
   });
   replaceRecords(rawByKey, false, 'クラウド自動同期');
-  reloadRecordsFromStorage();
+  reloadRecordsFromStorage(false);
 }
 
 // ==================== Google ドライブ自動バックアップ (AppData) ====================
@@ -5065,7 +5127,8 @@ async function loadFromGoogleDrive({ interactive = false } = {}) {
 function scheduleGoogleDriveAutoSync(key) {
   if (!isGoogleDriveAutoSyncEnabled()) return;
   if (typeof RECORD_STORAGE_KEYS !== 'undefined' && !RECORD_STORAGE_KEYS.includes(key)) return;
-  if (key === SETTINGS_KEY) return;
+  // 設定と出題の続きは描画のたびに保存されるので、これで同期すると同期が次の同期を呼び続ける
+  if (key === SETTINGS_KEY || key === SESSION_KEY) return;
 
   if (gdriveSyncTimer) clearTimeout(gdriveSyncTimer);
   gdriveSyncTimer = setTimeout(() => {
@@ -5110,6 +5173,7 @@ function buildBackup() {
     data: {
       weakWords: state.weakByMode,
       weakGrammar: state.grammarWeakData,
+      weakDeleted: state.weakDeleted,
       seenWords: seenSnapshot(),
       wordStats: state.wordStats,
       grammarStats: state.grammarStats,
@@ -5177,6 +5241,7 @@ function clampImportedTimes(data) {
   Object.values(data).forEach(e => {
     e.added = Math.min(e.added, Date.now());
     e.due = Math.min(e.due, latestDue);
+    if (e.u !== undefined) e.u = Math.min(e.u, Date.now());
   });
   return data;
 }
@@ -5233,6 +5298,7 @@ function parseBackup(text) {
       data: {
         weakWords: isPlainObject(rawData.weakWords) ? copyToAllModes(rawData.weakWords) : {},
         weakGrammar: rawData.weakGrammar || {},
+        weakDeleted: {},
         seenWords: Array.isArray(rawData.seenWords) ? copyToAllModes(rawData.seenWords) : {},
         wordStats: rawData.wordStats || {},
         grammarStats: rawData.grammarStats || {},
@@ -5261,6 +5327,7 @@ function parseBackup(text) {
     return fail('苦手リストか学習済みの単語の記録が欠けているか、形が正しくありません。');
   }
   if (!Array.isArray(d.seenGrammar)) return fail('文法の出題済みの記録が欠けているか、形が正しくありません。');
+  if (!isPlainObject(d.weakDeleted)) return fail('苦手から外した記録が欠けているか、形が正しくありません。');
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
 
@@ -5270,6 +5337,7 @@ function parseBackup(text) {
   const wordStats = sanitizeStatsMap(d.wordStats);
   const grammarStats = sanitizeStatsMap(d.grammarStats);
   const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
+  const weakDeleted = sanitizeWeakDeleted(d.weakDeleted);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -5281,6 +5349,7 @@ function parseBackup(text) {
     records: {
       weakWords: Object.fromEntries(VOCAB_MODES.map(m => [m, clampImportedTimes(words.data[m])])),
       weakGrammar: clampImportedTimes(grammar.data),
+      weakDeleted: weakDeleted.data,
       seenWords: seen.data,
       wordStats: wordStats.data,
       grammarStats: grammarStats.data,
@@ -5288,7 +5357,7 @@ function parseBackup(text) {
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + invalidBeforeMigration,
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration,
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: [...new Set([...Object.keys(grammar.data).map(Number), ...seenGrammar.data])].filter(id => !GRAMMAR_BY_ID.has(id)).length,
@@ -5347,19 +5416,25 @@ function replaceRecords(rawByKey, saveUndo, label) {
   }
 }
 
-// 書き換えた記録を読み込み直して画面に反映し、別のタブにも知らせる
-function reloadRecordsFromStorage() {
+// 書き換えた記録を読み込み直して画面に反映し、別のタブにも知らせる。
+// 復元ではなくクラウド同期のとき（isRestore が false）は、設定と出題の続きは変わらないので、
+// 解いている最中の画面を作り直さず、別のタブも読み込み直させない
+function reloadRecordsFromStorage(isRestore = true) {
   state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
+  state.weakDeleted = loadWeakDeleted();
   state.seenByMode = loadSeenByMode();
   state.wordStats = loadStatsData(WORD_STATS_KEY);
   state.grammarStats = loadStatsData(GRAMMAR_STATS_KEY);
   state.grammarSeen = loadGrammarSeen();
-  restoreSettings();
-  syncFilterUI();
-  setApp(state.app);
+  if (isRestore) {
+    restoreSettings();
+    syncFilterUI();
+    setApp(state.app);
+  }
   updateWeakBadge();
   updateGrammarWeakBadge();
+  if (!isRestore) return;
   try {
     localStorage.setItem(RESTORE_STAMP_KEY, String(Date.now()));
   } catch (e) {
@@ -5399,7 +5474,7 @@ function loadUndo() {
   if (!Number.isFinite(undo.savedAt) || !isPlainObject(undo.records)) return null;
   // 文法の出題済みを足す前に残した記録には、このキーが無い（復元前に保存が無かったのと同じ扱いにする）
   const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string'
-    || (k === GRAMMAR_SEEN_KEY && undo.records[k] === undefined));
+    || ((k === GRAMMAR_SEEN_KEY || k === WEAK_DELETED_KEY) && undo.records[k] === undefined));
   return valid ? undo : null;
 }
 
