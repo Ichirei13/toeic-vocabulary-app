@@ -77,3 +77,24 @@ test('daily goal, calendar, backup and settings persist without counting a reloa
  await page.locator('#daily-goal').selectOption('5');await page.reload();await page.locator('#daily-goal').waitFor();
  assert.equal(await page.locator('#daily-goal').inputValue(),'5');
 });
+
+test('companion and goal celebration share a banner and respect off across reload',async t=>{
+ const page=await open(t,'setup/grammar/kin',1280,900);
+ await page.evaluate(()=>{
+  const d=JSON.parse(localStorage.getItem('toeic_next_v1'));
+  d.theme='duolingo';d.preferences.dailyGoal=5;
+  const now=new Date(),date=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+  d.activity.days[date]={answers:4,goal:5};localStorage.setItem('toeic_next_v1',JSON.stringify(d));
+ });
+ await page.reload();await page.locator('#setup-form').waitFor();
+ await page.locator('#setup-form [type="submit"]').click();await page.locator('.choice').first().waitFor();
+ const correct=await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('toeic_next_v1')).session;return s.choices[s.ids[0]].correct;});
+ await page.locator('.choice').nth(correct).click();
+ assert.match(await page.locator('.result-banner').innerText(),/今日の目標達成/);
+ assert.ok(await page.locator('.result-banner .companion-art').isVisible());
+ await page.reload();await page.locator('.result-banner').waitFor();
+ assert.ok(!(await page.locator('.result-banner').innerText()).includes('目標達成'));
+ await page.goto(base+'#settings');await page.locator('#companion-setting').selectOption('off');
+ await page.goto(base+'#exercise');await page.locator('.result-banner').waitFor();
+ assert.equal(await page.locator('.companion-art').count(),0);
+});

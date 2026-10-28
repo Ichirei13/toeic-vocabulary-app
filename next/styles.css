@@ -460,3 +460,16 @@ body:has(dialog[open]) { overflow: hidden; }
 .calendar-legend { font-size: .75rem; color: var(--muted); margin-top: 16px; }
 @media (max-width: 768px) { .goal-track { max-width: 60px; } .goal-status { display: none; } .goal-strip { padding-inline: 12px; gap: 8px; } }
 @media (max-width: 380px) { .calendar-grid { gap: 4px; } .calendar-day { font-size: .7rem; } }
+.companion-art { display: block; width: 48px; height: 60px; flex-shrink: 0; color: var(--accent); }
+body[data-companion="true"] .result-banner { display: flex; gap: 12px; align-items: center; background: var(--tint); border: 1px solid var(--accent); border-radius: 12px; padding: 8px 12px; color: var(--accent); }
+body[data-companion="true"] .result-banner.wrong { background: var(--wrong-bg); color: var(--wrong); border-color: var(--wrong); }
+body[data-companion="true"] .result-banner.wrong .companion-art { color: var(--accent); }
+.result-copy { overflow-wrap: anywhere; }
+.goal-celebration { color: var(--accent); font-weight: 700; font-size: .9rem; }
+.completion-companion { display: flex; justify-content: center; margin-bottom: 20px; }
+.completion-companion .companion-art { width: 80px; height: 100px; }
+.review-result { background: var(--tint); color: var(--accent); padding: 12px; border-radius: 12px; margin-bottom: 16px; font-weight: 600; }
+body[data-companion="true"][data-page="exercise"] { padding-bottom: calc(var(--exercise-dock-height,180px) + 24px); }
+body[data-companion="true"][data-page="exercise"] :is(button,input,select,summary) { scroll-margin-bottom: calc(var(--exercise-dock-height,180px) + 24px); }
+body[data-companion="true"][data-page="exercise"]:has(.summary-card) { padding-bottom: 0; }
+@media (max-width: 380px) { .result-banner .companion-art { width: 36px; height: 45px; } }

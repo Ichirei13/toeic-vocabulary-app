@@ -1,5 +1,6 @@
 import { STORAGE_KEY, MODES, BOOKS, openStore, makeCatalog, weakMap, selectItems,
   choicesFor, startSession, validSession, recordAnswer } from './core.mjs';
+import { companionVisible, feedbackModel, companionMarkup } from './companion.mjs';
 import { activitySummary, monthModel, setDailyGoal, localDateKey } from './activity.mjs';
 import { goalMarkup, calendarMarkup, learningSettingsMarkup } from './learning-ui.mjs';
 import { bookProgress, reviewSummary } from './progress.mjs';
@@ -223,15 +224,18 @@ function exercise() {
     <div class="exercise-layout"><section class="panel question-panel"><div class="question-meta"><span>${grammar ? `文法 · No. ${esc(item.key)}` : `単語 · ${MODES[mode]}`}</span><span>${esc(sourceName(item.kind, item.source))}</span></div>
       <h1 class="question-text ${grammar ? '' : 'word-text'}" id="question-heading" tabindex="-1">${prompt}</h1>${interaction}</section>
       ${result ? explanation(item, result) : `<aside class="answer-placeholder">${bookIcon}<p>まずは、自分の力で。</p><p class="subtext">回答すると、正解と解説がここに表示されます。わからないときは、そのまま答えを確認できます。</p></aside>`}</div>
-    <div class="exercise-actions">${result ? resultBanner(s, item, result) : ''}<div class="action-buttons">${button('← 前の問題', 'previous', true, s.cursor === 0 ? 'disabled' : '')}<div>${result ? button(s.cursor === s.ids.length - 1 ? '結果を見る →' : '次へ →', 'next') : button('わからない', 'dont-know', true)}</div></div></div>
+    <div class="exercise-actions">${goalReached && data.theme !== 'duolingo' && !companionVisible(data.preferences,data.theme) ? '<p class="goal-celebration" role="status">今日の目標達成！</p>' : ''}${result ? resultBanner(s, item, result) : ''}<div class="action-buttons">${button('← 前の問題', 'previous', true, s.cursor === 0 ? 'disabled' : '')}<div>${result ? button(s.cursor === s.ids.length - 1 ? '結果を見る →' : '次へ →', 'next') : button('わからない', 'dont-know', true)}</div></div></div>
     <p class="shortcut-help">${grammar || ['e2j', 'j2e'].includes(mode) ? 'A–E / 1–5：回答　 ·　 ' : ''}0：わからない　 ·　 Enter：次へ</p>`;
 }
 function resultBanner(s, item, result) {
   const { streak, xp } = sessionRewards(s);
-  const milestone = result.correct && (streak === 3 || streak === 5 || (streak > 0 && streak % 10 === 0));
-  const correctAnswer = item.kind === 'grammar' ? item.c[item.a] : ['e2j', 'flash'].includes(s.config.mode) ? item.m : item.w;
-  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}"><span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span><div class="result-copy"><strong>${milestone ? `${streak}問連続正解！` : result.correct ? '正解！その調子。' : 'ここで覚えよう。'}</strong>${result.correct ? `<small>${goalReached ? '今日の目標達成！' : milestone ? '集中できています。' : '正解で +10 XP'} · 今回 ${xp} XP</small>` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>`}</div></div>`;
+  const model = feedbackModel({ correct: result.correct, goalReached, streak });
+  const milestone = model.state === 'celebrate';
+  const correctAnswer = item.kind === 'grammar' ? item.c[item.a] : ['e2j','flash'].includes(s.config.mode) ? item.m : item.w;
+  const shown = companionVisible(data.preferences,data.theme);
+  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}">${shown ? companionMarkup(model.state) : `<span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span>`}<div class="result-copy"><strong>${model.message}</strong>${result.correct ? `<small>${model.detail} · 今回 ${xp} XP</small>` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>${model.detail ? `<small>${model.detail}</small>` : ''}`}</div></div>`;
 }
+
 function animateAnswer(s, correct) {
   if (data.theme !== 'duolingo' || reducedMotion.matches) return;
   const answered = Object.keys(s.answers).length;
@@ -250,7 +254,7 @@ function summary(s) {
   const wrong = answers.filter(a => !a.correct).length;
   const reward = sessionRewards(s);
   const review = reviewSummary(s);
-  return `<section class="narrow panel summary-card"><div class="duo-completion" aria-hidden="true">${starIcon}<span>LESSON COMPLETE</span></div><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<dl class="duo-summary-stats"><div class="stat-score"><dt>正答数</dt><dd>${correct}<small> / ${s.ids.length}</small></dd></div><div class="stat-xp"><dt>獲得XP</dt><dd>${reward.xp}<small> XP</small></dd></div><div class="stat-streak"><dt>最高連続正解</dt><dd>${reward.best}<small> 問</small></dd></div></dl>${review.reviewed ? `<p class="review-result">苦手を${review.reviewed}問復習できました。${review.graduated ? ` ${review.graduated}問を克服しました。` : ''}</p>` : ''}<p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
+  return `<section class="narrow panel summary-card"><div class="duo-completion" aria-hidden="true">${companionVisible(data.preferences,data.theme) ? companionMarkup('celebrate') : starIcon}<span>LESSON COMPLETE</span></div>${data.theme !== 'duolingo' && companionVisible(data.preferences,data.theme) ? `<div class="completion-companion">${companionMarkup('celebrate')}</div>` : ''}<p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<dl class="duo-summary-stats"><div class="stat-score"><dt>正答数</dt><dd>${correct}<small> / ${s.ids.length}</small></dd></div><div class="stat-xp"><dt>獲得XP</dt><dd>${reward.xp}<small> XP</small></dd></div><div class="stat-streak"><dt>最高連続正解</dt><dd>${reward.best}<small> 問</small></dd></div></dl>${review.reviewed ? `<p class="review-result">苦手を${review.reviewed}問復習できました。${review.graduated ? ` ${review.graduated}問を克服しました。` : ''}</p>` : ''}<p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
 }
 function review() {
   const config = { ...defaultConfig(), kind: reviewKind, source: 'all', mode: reviewMode, filter: 'weak' };
@@ -293,6 +297,7 @@ function render(focus = false) {
   const route = location.hash.slice(1) || 'home';
   const section = route.split('/')[0];
   document.body.dataset.page = section;
+  document.body.dataset.companion = String(companionVisible(data.preferences,data.theme));
   if (section === 'setup') {
     const [, kind, source] = route.split('/');
     if (setupRoute !== route && ['grammar','vocab'].includes(kind) && ['all', ...Object.keys(BOOKS), 'teppan', 'daily'].includes(source)) {
