@@ -82,3 +82,90 @@
   [data-theme="duolingo"] .result-banner small { display: none; }
   [data-theme="duolingo"] .result-banner { padding-block: 4px; }
 }
+
+/* Duolingo-inspired tactile controls and lesson feedback. */
+.duo-progress, .duo-completion, .duo-summary-stats { display: none; }
+:root[data-theme="duolingo"] {
+  --duo-depth: #0c171b;
+  --duo-green-depth: #3e870e;
+  --duo-blue: #80d6ff;
+  --duo-gold: #ffc677;
+}
+[data-theme="duolingo"] :is(h1, h2, h3) { font-weight: 800; }
+[data-theme="duolingo"] .question-text { font-weight: 600; letter-spacing: .005em; }
+[data-theme="duolingo"] .button,
+[data-theme="duolingo"] .choice,
+[data-theme="duolingo"] .theme-trigger { transition: transform 100ms ease, box-shadow 100ms ease, background-color 150ms ease, border-color 150ms ease; }
+[data-theme="duolingo"] .button:not(.quiet) { border-radius: 16px; min-height: 48px; font-weight: 800; }
+[data-theme="duolingo"] .button.secondary,
+[data-theme="duolingo"] .choice { box-shadow: 0 4px 0 var(--duo-depth); border: 2px solid var(--control-border); }
+[data-theme="duolingo"] .button:not(.secondary):not(.quiet) { box-shadow: 0 4px 0 var(--duo-green-depth); }
+[data-theme="duolingo"] :is(.button, .choice):active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--duo-depth); }
+[data-theme="duolingo"] .choice { border-radius: 16px; }
+[data-theme="duolingo"] .choice.correct { border-color: var(--accent); box-shadow: 0 4px 0 var(--duo-green-depth); }
+[data-theme="duolingo"] .choice.wrong { border-color: #ff8585; }
+[data-theme="duolingo"] .choice.correct .choice-key { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+[data-theme="duolingo"] .choice.wrong .choice-key { color: var(--wrong); border-color: var(--wrong); }
+[data-theme="duolingo"] .choice-state { font-size: .75rem; }
+[data-theme="duolingo"] .theme-trigger { border-width: 2px; font-weight: 700; }
+[data-theme="duolingo"] .exercise-top progress { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+[data-theme="duolingo"] .duo-progress { display: block; height: 18px; border-radius: 999px; background: var(--border); padding: 3px; overflow: hidden; }
+.duo-progress-fill { display: block; height: 100%; width: 100%; transform-origin: left; border-radius: inherit; background: var(--accent); box-shadow: inset 0 4px 0 #8ee848; }
+[data-theme="duolingo"] .exercise-top .duo-rewards { margin: 12px 0 0; gap: 8px; }
+[data-theme="duolingo"] .reward-pill { border: 0; background: transparent; padding: 0 8px 0 0; font-size: .8rem; }
+[data-theme="duolingo"] .exercise-actions { border-top-width: 2px; box-shadow: 0 -8px 30px #00000018; }
+[data-theme="duolingo"] .result-banner { padding: 12px 16px; border-radius: 16px; border-width: 2px; gap: 14px; }
+[data-theme="duolingo"] .result-banner strong { font-size: 1rem; }
+[data-theme="duolingo"] .result-banner.milestone { color: var(--duo-gold); border-color: #b48638; background: #3c3220; }
+[data-theme="duolingo"] .result-mark { flex-shrink: 0; height: 40px; width: 40px; border: 2px solid currentColor; border-radius: 50%; display: grid; place-items: center; line-height: 1; }
+[data-theme="duolingo"] .result-mark svg { height: 24px; width: 24px; }
+.result-copy { min-width: 0; }
+.result-answer { font-size: .85rem; overflow-wrap: anywhere; max-height: 5.25em; overflow-y: auto; }
+[data-theme="duolingo"] body[data-page="exercise"] { padding-bottom: calc(var(--exercise-dock-height, 180px) + 24px); }
+[data-theme="duolingo"] body[data-page="exercise"] :is(button, input, select, summary) { scroll-margin-bottom: calc(var(--exercise-dock-height, 180px) + 24px); }
+[data-theme="duolingo"] .summary-card { border: 0; box-shadow: none; background: transparent; padding: 24px 16px; }
+[data-theme="duolingo"] body[data-page="exercise"]:has(.summary-card) { padding-bottom: 0; }
+[data-theme="duolingo"] .summary-card > :is(.eyebrow, .summary-score, .duo-rewards) { display: none; }
+[data-theme="duolingo"] .duo-completion { display: flex; align-items: center; flex-direction: column; gap: 14px; color: var(--duo-gold); margin-bottom: 20px; }
+.duo-completion svg { width: 112px; height: 112px; filter: drop-shadow(0 6px 0 #8e601e); }
+.duo-completion span { font-size: .75rem; font-weight: 800; letter-spacing: .14em; }
+[data-theme="duolingo"] .summary-card h1 { color: var(--accent); font-size: clamp(1.5rem, 4vw, 2.2rem); }
+[data-theme="duolingo"] .duo-summary-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin: 28px 0; }
+.duo-summary-stats > div { border: 2px solid currentColor; border-radius: 16px; overflow: hidden; background: var(--surface); box-shadow: 0 4px 0 var(--duo-depth); }
+.duo-summary-stats dt { font-size: .75rem; font-weight: 800; background: color-mix(in srgb, currentColor 12%, transparent); padding: 8px 4px; }
+.duo-summary-stats dd { margin: 0; padding: 14px 4px; font-size: 1.8rem; font-weight: 800; line-height: 1.3; }
+.duo-summary-stats small { font-size: .8rem; }
+.stat-score { color: var(--accent); }
+.stat-xp { color: var(--duo-blue); }
+.stat-streak { color: var(--duo-gold); }
+[data-theme="duolingo"] .summary-card > p:not(.subtext):not(.help) { font-size: .9rem; color: var(--muted); }
+[data-theme="duolingo"] .summary-actions { max-width: 380px; margin-inline: auto; gap: 16px; }
+[data-theme="duolingo"] .summary-actions .button { width: 100%; }
+[data-theme="duolingo"] .book-card { border-color: var(--border); }
+[data-theme="duolingo"] .book-card:hover { border-color: var(--accent); }
+[data-theme="duolingo"] .book-glyph { border: 2px solid currentColor; border-radius: 16px; box-shadow: 0 4px 0 var(--duo-depth); transform: rotate(-5deg); }
+[data-theme="duolingo"] [aria-labelledby="library-vocab"] .book-glyph { transform: rotate(5deg); }
+[data-theme="duolingo"] .book-arrow { border: 2px solid var(--accent); color: var(--accent); background: transparent; font-weight: 800; }
+@media (max-width: 768px) {
+  [data-theme="duolingo"] .result-banner { padding: 8px 12px; }
+  [data-theme="duolingo"] .exercise-actions { padding: 12px 16px max(16px, env(safe-area-inset-bottom)); }
+  [data-theme="duolingo"] .action-buttons > div { flex: 1; max-width: 65%; }
+  [data-theme="duolingo"] .action-buttons > div .button { width: 100%; }
+  [data-theme="duolingo"] .duo-summary-stats { gap: 8px; }
+  .duo-summary-stats dt { font-size: .7rem; }
+  .duo-summary-stats dd { font-size: 1.4rem; }
+}
+@media (max-width: 360px) {
+  [data-theme="duolingo"] .duo-summary-stats { grid-template-columns: 1fr; }
+  .duo-summary-stats > div { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+  .duo-summary-stats dt { background: transparent; }
+}
+@media (max-height: 500px) {
+  [data-theme="duolingo"] .result-banner { padding-block: 4px; }
+  [data-theme="duolingo"] .result-mark { width: 28px; height: 28px; font-size: 1rem; }
+  .result-answer { max-height: 2.6em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="duolingo"] :is(.button, .choice, .theme-trigger) { transition: none; }
+  [data-theme="duolingo"] :is(.button, .choice):active:not(:disabled) { transform: none; }
+}

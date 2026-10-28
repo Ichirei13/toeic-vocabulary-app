@@ -7,6 +7,7 @@ const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const arrow = '<span aria-hidden="true">→</span>';
 const bookIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4h6a3 3 0 0 1 3 3v14a3 3 0 0 0-3-3H3V4Zm18 0h-6a3 3 0 0 0-3 3v14a3 3 0 0 1 3-3h6V4Z"/></svg>';
+const starIcon = '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><path d="m32 5 8 17 19 3-14 14 3 19-16-9-16 9 3-19L5 25l19-3Z" fill="currentColor" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="m23 33 6 6 13-14" stroke="var(--bg)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const defaultConfig = () => ({ kind: 'grammar', source: 'kin', mode: 'e2j', filter: 'all', count: '10', chapters: [], pos: [], ranges: [], dates: [] });
 let store;
 try { store = openStore(window.localStorage); } catch { store = openStore(null); }
@@ -24,6 +25,11 @@ let backupMessage = '';
 let fileReadVersion = 0;
 let filterDraft = null;
 let themeGalleryOpen = false;
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const dockObserver = new ResizeObserver(entries => {
+  const dock = entries[0]?.target;
+  if (dock?.isConnected) document.body.style.setProperty('--exercise-dock-height', `${Math.ceil(dock.getBoundingClientRect().height)}px`);
+});
 const compactLayout = window.matchMedia('(max-width: 768px)');
 const FILTERS = [['all', 'すべて'], ['due', '今日の復習'], ['weak', '苦手のみ'], ['weak_unseen', '苦手 ＋ 未学習'], ['unseen', '未学習のみ']];
 
@@ -79,15 +85,20 @@ function home() {
       ${button(active ? `続きから ${arrow}` : `10問から始める ${arrow}`, active ? 'resume' : 'quick-start')}</section>
       <section class="review-card"><h2>今日の復習</h2><div class="count">${due}<small>問</small></div>
         <p class="subtext">${due ? '復習のタイミングが来ています。' : '今、復習が必要な問題はありません。'}<br>文法と単語〈英 → 日〉</p><a class="text-link" href="#review">復習を確認する ${arrow}</a></section></div>
-    <div class="section-heading"><div><p class="eyebrow">Your library</p><h2>あなたの教材</h2></div><small>今日は、どこから始めよう。</small></div>
-    <section class="bookshelf" aria-label="教材一覧">${[
-      ...Object.entries(BOOKS).map(([source, book]) => ({ kind: 'grammar', source, ...book })),
-      { kind: 'vocab', source: 'teppan', title: 'TEPPAN', subtitle: '頻出単語を、確かな語彙に。', color: 'blue' },
-      { kind: 'vocab', source: 'daily', title: '日々の単語', subtitle: '出会った言葉を、自分のものに。', color: 'green' },
-    ].filter(b => catalog.items.some(i => i.kind === b.kind && i.source === b.source)).map((b, index) => {
-      const count = selectItems(catalog, data.records, { ...defaultConfig(), kind: b.kind, source: b.source }).length;
-      return `<a class="book-card ${b.color}" href="#setup/${b.kind}/${b.source}"><span class="book-glyph" aria-hidden="true"><span>${String(index + 1).padStart(2, '0')}</span>${bookIcon}</span><span class="book-info"><small class="book-kind">${b.kind === 'grammar' ? 'GRAMMAR' : 'VOCABULARY'}</small><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>${count.toLocaleString()}${b.kind === 'grammar' ? '問' : '語'}を収録</span><span class="book-arrow" aria-hidden="true">↗</span></span></span></a>`;
-    }).join('')}</section>
+    ${[['vocab', '単語'], ['grammar', '文法']].map(([kind, title]) => {
+      const books = (kind === 'grammar'
+        ? Object.entries(BOOKS).map(([source, book]) => ({ kind, source, ...book }))
+        : [
+          { kind, source: 'teppan', title: 'TEPPAN', subtitle: '頻出単語を、確かな語彙に。', color: 'blue' },
+          { kind, source: 'daily', title: '日々の単語', subtitle: '出会った言葉を、自分のものに。', color: 'green' },
+        ]).filter(b => catalog.items.some(i => i.kind === kind && i.source === b.source));
+      if (!books.length) return '';
+      return `<section aria-labelledby="library-${kind}"><div class="section-heading"><h2 id="library-${kind}">${title}</h2></div>
+        <div class="bookshelf">${books.map((b, index) => {
+          const count = selectItems(catalog, data.records, { ...defaultConfig(), kind, source: b.source }).length;
+          return `<a class="book-card ${b.color}" href="#setup/${kind}/${b.source}"><span class="book-glyph" aria-hidden="true"><span>${String(index + 1).padStart(2, '0')}</span>${bookIcon}</span><span class="book-info"><small class="book-kind">${kind === 'grammar' ? 'GRAMMAR' : 'VOCABULARY'}</small><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>${count.toLocaleString()}${kind === 'grammar' ? '問' : '語'}を収録</span><span class="book-arrow" aria-hidden="true">↗</span></span></span></a>`;
+        }).join('')}</div></section>`;
+    }).join('')}
     <dl class="study-overview"><div><dt>これまでの回答</dt><dd>${counts.answers.toLocaleString()}<small> 回</small></dd></div><div><dt>正答率</dt><dd>${counts.answers ? Math.round(totalCorrect / counts.answers * 100) + '<small> %</small>' : '—'}</dd></div><div><dt>学習済みの文法</dt><dd>${counts.seenGrammar.toLocaleString()}<small> 問</small></dd></div></dl>
     <aside class="trial-note">新しい学習スペースをお試しいただけます。${imported ? `従来版の成績 ${imported}項目をもとに始めています。` : ''}試用版での学習はこの端末に保存され、従来版やGoogle Driveには反映されません。<a href="../">従来版はいつでも使えます。</a></aside>`;
 }
@@ -194,18 +205,37 @@ function exercise() {
       : `<div class="flash-actions">${button('意味を見る', 'reveal', true)}</div>`;
   }
   let prompt = grammar ? esc(item.q).replace(/-{3,}/g, '<span class="blank">_______</span>') : esc(['j2e', 'type'].includes(mode) ? item.m : item.w);
-  return `<div class="exercise-top"><div class="exercise-heading"><a class="back-link" href="#home">← 中断してホームへ</a><button class="theme-trigger" data-action="open-themes" aria-label="演習のテーマを選ぶ">${paletteIcon}<span>テーマ</span></button></div><div class="progress-row"><span>${esc(sourceName(s.config.kind, s.config.source))}</span><span>${s.cursor + 1} / ${s.ids.length} 問</span></div><progress value="${Object.keys(s.answers).length}" max="${s.ids.length}" aria-label="解答済みの問題数"></progress>${rewards(s)}</div>
+  return `<div class="exercise-top"><div class="exercise-heading"><a class="back-link" href="#home">← 中断してホームへ</a><button class="theme-trigger" data-action="open-themes" aria-label="演習のテーマを選ぶ">${paletteIcon}<span>テーマ</span></button></div><div class="progress-row"><span>${esc(sourceName(s.config.kind, s.config.source))}</span><span>${s.cursor + 1} / ${s.ids.length} 問</span></div><progress value="${Object.keys(s.answers).length}" max="${s.ids.length}" aria-label="解答済みの問題数"></progress><div class="duo-progress" aria-hidden="true"><span class="duo-progress-fill" style="transform:scaleX(${Object.keys(s.answers).length / s.ids.length})"></span></div>${rewards(s)}</div>
     <div class="exercise-layout"><section class="panel question-panel"><div class="question-meta"><span>${grammar ? `文法 · No. ${esc(item.key)}` : `単語 · ${MODES[mode]}`}</span><span>${esc(sourceName(item.kind, item.source))}</span></div>
       <h1 class="question-text ${grammar ? '' : 'word-text'}" id="question-heading" tabindex="-1">${prompt}</h1>${interaction}</section>
       ${result ? explanation(item, result) : `<aside class="answer-placeholder">${bookIcon}<p>まずは、自分の力で。</p><p class="subtext">回答すると、正解と解説がここに表示されます。わからないときは、そのまま答えを確認できます。</p></aside>`}</div>
-    <div class="exercise-actions">${result ? `<div class="result-banner ${result.correct ? '' : 'wrong'}"><span class="result-mark" aria-hidden="true">${result.correct ? '✓' : '↻'}</span><div><strong>${result.correct ? 'いい調子！正解です。' : 'ここで覚えれば、大丈夫。'}</strong><small>${result.correct ? `${sessionRewards(s).streak}問連続正解 · 今回 ${sessionRewards(s).xp} XP` : '答えと解説を確認して、次へ進みましょう。'}</small></div></div>` : ''}<div class="action-buttons">${button('← 前の問題', 'previous', true, s.cursor === 0 ? 'disabled' : '')}<div>${result ? button(s.cursor === s.ids.length - 1 ? '結果を見る →' : '次へ →', 'next') : button('わからない', 'dont-know', true)}</div></div></div>
+    <div class="exercise-actions">${result ? resultBanner(s, item, result) : ''}<div class="action-buttons">${button('← 前の問題', 'previous', true, s.cursor === 0 ? 'disabled' : '')}<div>${result ? button(s.cursor === s.ids.length - 1 ? '結果を見る →' : '次へ →', 'next') : button('わからない', 'dont-know', true)}</div></div></div>
     <p class="shortcut-help">${grammar || ['e2j', 'j2e'].includes(mode) ? 'A–E / 1–5：回答　 ·　 ' : ''}0：わからない　 ·　 Enter：次へ</p>`;
+}
+function resultBanner(s, item, result) {
+  const { streak, xp } = sessionRewards(s);
+  const milestone = result.correct && (streak === 3 || streak === 5 || (streak > 0 && streak % 10 === 0));
+  const correctAnswer = item.kind === 'grammar' ? item.c[item.a] : ['e2j', 'flash'].includes(s.config.mode) ? item.m : item.w;
+  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}"><span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span><div class="result-copy"><strong>${milestone ? `${streak}問連続正解！` : result.correct ? '正解！その調子。' : 'ここで覚えよう。'}</strong>${result.correct ? `<small>${milestone ? '集中できています。' : '正解で +10 XP'} · 今回 ${xp} XP</small>` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>`}</div></div>`;
+}
+function animateAnswer(s, correct) {
+  if (data.theme !== 'duolingo' || reducedMotion.matches) return;
+  const answered = Object.keys(s.answers).length;
+  $('.duo-progress-fill')?.animate([
+    { transform: `scaleX(${(answered - 1) / s.ids.length})` },
+    { transform: `scaleX(${answered / s.ids.length})` },
+  ], { duration: 320, easing: 'ease-out' });
+  const feedback = correct ? $('.choice.correct') || $('.result-banner') : $('.result-banner');
+  feedback?.animate(correct ? [
+    { transform: 'translateY(0)' }, { transform: 'translateY(-4px)', offset: .45 }, { transform: 'translateY(0)' },
+  ] : [{ opacity: .3 }, { opacity: 1 }], { duration: 280, easing: 'ease-out' });
 }
 function summary(s) {
   const answers = Object.values(s.answers);
   const correct = answers.filter(a => a.correct).length;
   const wrong = answers.filter(a => !a.correct).length;
-  return `<section class="narrow panel summary-card"><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
+  const reward = sessionRewards(s);
+  return `<section class="narrow panel summary-card"><div class="duo-completion" aria-hidden="true">${starIcon}<span>LESSON COMPLETE</span></div><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<dl class="duo-summary-stats"><div class="stat-score"><dt>正答数</dt><dd>${correct}<small> / ${s.ids.length}</small></dd></div><div class="stat-xp"><dt>獲得XP</dt><dd>${reward.xp}<small> XP</small></dd></div><div class="stat-streak"><dt>最高連続正解</dt><dd>${reward.best}<small> 問</small></dd></div></dl><p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
 }
 function review() {
   const config = { ...defaultConfig(), kind: reviewKind, source: 'all', mode: reviewMode, filter: 'weak' };
@@ -253,6 +283,9 @@ function render(focus = false) {
       (draft.kind !== kind || draft.source !== source)) draft = { ...defaultConfig(), kind, source };
   }
   $('#main').innerHTML = section === 'setup' ? setup() : section === 'exercise' ? exercise() : section === 'review' ? review() : section === 'settings' ? settings() : home();
+  dockObserver.disconnect();
+  document.body.style.removeProperty('--exercise-dock-height');
+  if ($('.exercise-actions')) dockObserver.observe($('.exercise-actions'));
   document.querySelectorAll('[data-nav]').forEach(a => {
     if (a.dataset.nav === section) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   });
@@ -274,6 +307,7 @@ function answer(result) {
     if (data.theme === 'duolingo' && data.sound !== false) playAnswerSound(result.correct);
     save();
     render();
+    animateAnswer(s, result.correct);
     $('[data-action="next"]')?.focus({ preventScroll: true });
     announce(result.correct ? '正解です。解説を確認して、次の問題へ進めます。' : '答えと解説を表示しました。苦手として記録しました。');
   }

@@ -172,3 +172,61 @@ test('desktop multi-selection keeps the filter list scroll position', async t =>
   assert.ok(Math.abs(before - after) < 2, `list jumped from ${before} to ${after}`);
   assert.ok(await target.isChecked());
 });
+
+test('Duolingo feedback celebrates milestones and summary derives real rewards without replay', async t => {
+  const page = await open(t);
+  await page.locator('[data-action="open-themes"]').click();
+  await page.locator('#theme-dialog [data-theme-id="duolingo"]').click();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-action="quick-start"]').click();
+  await page.locator('.choice').first().waitFor();
+  for (let i = 0; i < 10; i++) {
+    const correct = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('toeic_next_v1')).session; return s.choices[s.ids[s.cursor]].correct; });
+    await page.locator('.choice').nth(i < 3 ? correct : (correct + 1) % 4).click();
+    if (i === 2) assert.match(await page.locator('.result-banner').innerText(), /3問連続正解！/);
+    if (i === 3) {
+      assert.match(await page.locator('.result-banner').innerText(), /正解：/);
+      await inside(page, page.locator('[data-action="next"]'));
+      await page.setViewportSize({width:320,height:568});
+      const style = await page.addStyleTag({content:':root {font-size:32px!important}'});
+      await inside(page, page.locator('[data-action="next"]'));
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await style.evaluate(el => el.remove());
+      await page.setViewportSize({width:390,height:844});
+    }
+    assert.equal(await page.evaluate(() => document.getAnimations().filter(a => a.playState === 'running').length), 0);
+    await page.locator('[data-action="next"]').click();
+  }
+  await page.locator('.summary-card').waitFor();
+  assert.match(await page.locator('.duo-summary-stats').innerText(), /30 XP/);
+  assert.match(await page.locator('.duo-summary-stats').innerText(), /3 問/);
+  const saved = await page.evaluate(() => localStorage.getItem('toeic_next_v1'));
+  await page.reload();
+  await page.locator('.summary-card').waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('toeic_next_v1')), saved);
+  assert.equal(await page.evaluate(() => document.getAnimations().length), 0);
+  await page.screenshot({path:'/tmp/study-duo-result.png',fullPage:true});
+  await page.setViewportSize({width:320,height:568});
+  await page.addStyleTag({content:':root {font-size:32px!important}'});
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+ });
+
+test('Duolingo animation runs only for a fresh answer and does not replay on theme change', async t => {
+ const page = await open(t);
+ await page.emulateMedia({reducedMotion:'no-preference'});
+ await page.locator('[data-action="open-themes"]').click();
+ await page.locator('#theme-dialog [data-theme-id="duolingo"]').click();
+ await page.keyboard.press('Escape');
+ await page.locator('[data-action="quick-start"]').click();
+ await page.locator('.choice').first().waitFor();
+ const states = await page.evaluate(() => {
+   document.querySelector('[data-action="dont-know"]').click();
+   return document.querySelector('.duo-progress-fill')?.getAnimations().length || 0;
+ });
+ assert.equal(states, 1);
+ await page.locator('[data-action="open-themes"]').click();
+ await page.locator('#theme-dialog [data-theme-id="light"]').click();
+ await page.locator('#theme-dialog [data-theme-id="duolingo"]').click();
+ await page.keyboard.press('Escape');
+ assert.equal(await page.locator('.duo-progress-fill').evaluate(el => el.getAnimations().length), 0);
+});
