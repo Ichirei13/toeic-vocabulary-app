@@ -10,7 +10,7 @@
 
 **Spec:** [設計案](../specs/2026-10-28-study-continuity-design.md)
 
-**Status:** レビュー用計画。設計の既定値は未承認。製品コードの変更・公開はこの計画に含めてまだ実行していない。
+**Status:** 承認された計画をローカル試用版に実装。全7タスクを完了し、独立レビューの2件を回帰テストで修正。公開は未実施。
 
 ## Global Constraints
 
@@ -95,7 +95,7 @@
 - `mergeActivity(current, incoming) -> Activity`：日付の和集合、同日のanswersはmax、goalはcurrentを優先。入力を変更しない。
 - `migrateSaved(raw, now: Date) -> DataV2`：`core.mjs`内。schema1/2を受け付け、旧形式へ既定値を追加。取り消しスナップショットも1段だけ移行。
 
-- [ ] **Step 1: 失敗する移行・設定・バックアップのテストを書く。** 既存fixtureを使い、実際の保存先の不変性を確認する。
+- [x] **Step 1: 失敗する移行・設定・バックアップのテストを書く。** 既存fixtureを使い、実際の保存先の不変性を確認する。
 
 ```js
 const store = openStore(diskWithSchema1);
@@ -110,8 +110,8 @@ assert.equal(diskWithSchema1.getItem(STORAGE_KEY), originalRaw);
 
 追加ケース：schema2の負の回答数、存在しない2月30日、許容外目標、未知モード、危険なオブジェクトキー、2MB超、format2からの再書き出し、旧format1・従来版1〜5、同じファイルの再統合、容量不足と別タブ更新、取り消しスナップショットの移行。
 
-- [ ] **Step 2: `node --test tests/next-preferences.test.mjs tests/next-activity.test.mjs tests/next-core.test.mjs tests/next-backup.test.mjs` を実行し、新しい期待値で失敗することを確認する。**
-- [ ] **Step 3: 純粋関数、schema2移行、backup format2を実装する。** `openStore`の保存先照合と書込成功後の差し替えを維持する。初回のseedFromLegacyもschema2の既定項目を付け、新規・既存のどちらも同じDataV2を返す。
+- [x] **Step 2: `node --test tests/next-preferences.test.mjs tests/next-activity.test.mjs tests/next-core.test.mjs tests/next-backup.test.mjs` を実行し、新しい期待値で失敗することを確認する。**
+- [x] **Step 3: 純粋関数、schema2移行、backup format2を実装する。** `openStore`の保存先照合と書込成功後の差し替えを維持する。初回のseedFromLegacyもschema2の既定項目を付け、新規・既存のどちらも同じDataV2を返す。
 
 ```js
 // openStoreの読み込み後：既存のvalidSavedを版別の検証へ分ける。
@@ -124,8 +124,8 @@ next.activity = parsed.activity
 
 旧形式には `parsed.activity` がない。統合では現状維持、置換では空にする。旧形式の設定は置換でも現状維持。復元プレビューへその説明を追加する。`createBackup`は引き続き`restoreUndo`を除外する。
 
-- [ ] **Step 4: 上記テストを再実行し、既存の記録保護テストも成功させる。** 新モジュールを`next/sw.js`のASSETSへ追加する。
-- [ ] **Step 5: 関連ファイルを限定して `git commit -m "Add learning preferences and activity backup schema"` で保存する。**
+- [x] **Step 4: 上記テストを再実行し、既存の記録保護テストも成功させる。** 新モジュールを`next/sw.js`のASSETSへ追加する。
+- [x] **Step 5: 関連ファイルを限定して `git commit -m "Add learning preferences and activity backup schema"` で保存する。**
 
 ### Task 2: 前回の条件を覚えて開始する
 
@@ -137,7 +137,7 @@ next.activity = parsed.activity
 - `resolvePreset(preferences, key, catalog) -> {config: Config|null, needsConfirmation: boolean, message: string}`。
 - `begin(config, items, {remember = true} = {})`：通常演習のみプリセットを保存する。復習・retry・repeatのうち通常条件の再演習以外は`remember:false`を渡す。
 
-- [ ] **Step 1: 通常演習・復習・教材更新の回帰テストを書く。**
+- [x] **Step 1: 通常演習・復習・教材更新の回帰テストを書く。**
 
 ```js
 const saved = rememberPreset(defaultPreferences(), config);
@@ -148,8 +148,8 @@ assert.equal(resolvePreset(saved, 'grammar:kin', catalogWithoutChapter2).needsCo
 
 ブラウザでは「章2・20問」で開始→ホーム→再読込→前回条件で開始→session.configを確認する。途中セッションがあるときは続きからが優先。個別復習後に前回条件が変わらないこと、設定の未確定変更が保存されないこと、対象0件で設定へ戻ることも確認する。
 
-- [ ] **Step 2: `node --test tests/next-preferences.test.mjs` と追加ブラウザケースを実行して失敗を確認する。**
-- [ ] **Step 3: 教材を開く経路とホームCTAを接続する。**
+- [x] **Step 2: `node --test tests/next-preferences.test.mjs` と追加ブラウザケースを実行して失敗を確認する。**
+- [x] **Step 3: 教材を開く経路とホームCTAを接続する。**
 
 ```js
 const restored = resolvePreset(data.preferences, presetKey(draft), catalog);
@@ -160,8 +160,8 @@ if (restored.config) draft = restored.config;
 
 `render()`のたびにプリセットを読んで編集中のdraftを上書きしない。教材ルートへ初めて入った時だけ読む。削除された教材はホームで利用可能な教材を案内する。
 
-- [ ] **Step 4: 再読み込みと復習のブラウザケースを通す。**
-- [ ] **Step 5: `git commit -m "Remember exercise settings per textbook"`。**
+- [x] **Step 4: 再読み込みと復習のブラウザケースを通す。**
+- [x] **Step 5: `git commit -m "Remember exercise settings per textbook"`。**
 
 ### Task 3: 教材カードに進捗を表示する
 
@@ -169,7 +169,7 @@ if (restored.config) draft = restored.config;
 
 **Interfaces:** `bookProgress(catalog, records, kind, source) -> {total, seen, unseen}`。保存せず既存記録から計算する。
 
-- [ ] **Step 1: 同語の重複・複数モード・不明IDのテストを書く。**
+- [x] **Step 1: 同語の重複・複数モード・不明IDのテストを書く。**
 
 ```js
 // 手書きfixture：同じ教材にtestが2行、otherが1行。testはe2jとtypeで回答済み。
@@ -180,8 +180,8 @@ assert.deepEqual(bookProgress(catalog, records, 'grammar', 'kin'),
   {total: 2, seen: 1, unseen: 1});
 ```
 
-- [ ] **Step 2: `node --test tests/next-progress.test.mjs` で失敗を確認する。**
-- [ ] **Step 3: selectItems相当の教材内重複排除とseen集合の交差を取り、カード内へ小さなバーと学習済み・未学習数を表示する。**
+- [x] **Step 2: `node --test tests/next-progress.test.mjs` で失敗を確認する。**
+- [x] **Step 3: selectItems相当の教材内重複排除とseen集合の交差を取り、カード内へ小さなバーと学習済み・未学習数を表示する。**
 
 ```js
 const progress = bookProgress(catalog, data.records, kind, source);
@@ -191,8 +191,8 @@ const label = `学習済み ${progress.seen} / ${progress.total}${kind === 'gram
 
 単語カードには「いずれかのモードで回答済み」の説明を付ける。総数0では割り算しない。
 
-- [ ] **Step 4: 単体テスト、320/390/768/1440px・9テーマでのカード表示、回答後と復元後の更新を確認する。** 最初の教材カードが390×844pxで画面内に残るようホームの余白を調整する。
-- [ ] **Step 5: `git commit -m "Show study progress on textbook cards"`。段階Bの画面を示す。**
+- [x] **Step 4: 単体テスト、320/390/768/1440px・9テーマでのカード表示、回答後と復元後の更新を確認する。** 最初の教材カードが390×844pxで画面内に残るようホームの余白を調整する。
+- [x] **Step 5: `git commit -m "Show study progress on textbook cards"`。段階Bの画面を示す。**
 
 ### Task 4: 今日の目標・日別記録・カレンダー
 
@@ -205,7 +205,7 @@ const label = `学習済み ${progress.seen} / ${progress.total}${kind === 'gram
 - `monthModel(activity, month: 'YYYY-MM', now: Date) -> {month, previousMonth, nextMonth, canGoNext, days}`。daysは先頭の空白と実在日（date,answers,goal,active,achieved,today,future）を持つ。
 - `goalMarkup(summary) -> string`, `calendarMarkup(model) -> string`, `learningSettingsMarkup(preferences) -> string`：`learning-ui.mjs`の純粋なHTML描画。
 
-- [ ] **Step 1: 23:59→翌日、うるう年、夏時間を含む日付、目標変更、二重採点のテストを書く。**
+- [x] **Step 1: 23:59→翌日、うるう年、夏時間を含む日付、目標変更、二重採点のテストを書く。**
 
 ```js
 assert.equal(localDateKey(new Date(2026, 9, 28, 23, 59)), '2026-10-28');
@@ -218,8 +218,8 @@ assert.equal(activitySummary(a,10,new Date(2026,9,29)).streak,0);
 
 追加ケース：目標なし、目標を下げたときの達成表示、昨日の目標不変、復元での重複統合、時計を戻しても過去行を消さない、カレンダーの2月29日と未来月禁止。
 
-- [ ] **Step 2: 単体テストとカレンダー開閉・目標到達のブラウザケースを実行し、失敗を確認する。**
-- [ ] **Step 3: recordAnswerの二重採点ガードの内側で日別記録を更新する。**
+- [x] **Step 2: 単体テストとカレンダー開閉・目標到達のブラウザケースを実行し、失敗を確認する。**
+- [x] **Step 3: recordAnswerの二重採点ガードの内側で日別記録を更新する。**
 
 ```js
 // 同一のnowを既存採点と日別集計に渡す。再描画や保存関数には加算処理を置かない。
@@ -229,8 +229,8 @@ data.activity = addDailyAnswer(data.activity, data.preferences.dailyGoal, new Da
 
 ホームには目標行だけを追加する。カレンダーはネイティブdialogで表示し、閉じる・Esc・フォーカス復帰に対応する。日付のラベルに「28日、6問、目標10問」などを入れる。月移動後に見出しを読み上げる。日付ボタンを設ける場合は44px以上を確保する（狭い画面では日付自体は非操作にし月移動ボタンで操作）。設定にも入口を付ける。
 
-- [ ] **Step 4: 表示中のローカル日付が変わるタイマー、visibilitychangeでの再確認を追加し、復元・設定変更から達成アニメーションが発火しないことを確認する。** 日付更新は入力途中のDOMを全描画し直さず、目標行・カレンダーだけを更新する。
-- [ ] **Step 5: `git commit -m "Add daily study goal and activity calendar"`。段階Cの画面を示す。**
+- [x] **Step 4: 表示中のローカル日付が変わるタイマー、visibilitychangeでの再確認を追加し、復元・設定変更から達成アニメーションが発火しないことを確認する。** 日付更新は入力途中のDOMを全描画し直さず、目標行・カレンダーだけを更新する。
+- [x] **Step 5: `git commit -m "Add daily study goal and activity calendar"`。段階Cの画面を示す。**
 
 ### Task 5: 間違い直しの成果を正確に伝える
 
@@ -238,7 +238,7 @@ data.activity = addDailyAnswer(data.activity, data.preferences.dailyGoal, new Da
 
 **Interfaces:** `reviewSummary(session) -> {reviewed, graduated}`。`reviewed`はwasWeakかつ正解の回答数、`graduated`は実際に苦手から削除した回答数。
 
-- [ ] **Step 1: 即日復習と間隔復習完了を分けたテストを書く。**
+- [x] **Step 1: 即日復習と間隔復習完了を分けたテストを書く。**
 
 ```js
 assert.deepEqual(reviewSummary({answers:{
@@ -249,8 +249,8 @@ assert.deepEqual(reviewSummary({answers:{
 // dueが未来なら正解しても削除されない。streak3かつdue到来の正解だけgraduated:true。
 ```
 
-- [ ] **Step 2: `node --test tests/next-core.test.mjs tests/next-progress.test.mjs tests/next-backup.test.mjs` で失敗を確認する。**
-- [ ] **Step 3: 回答前のweakMapの存在をwasWeakとして保存し、既存の削除経路を通った時だけgraduatedをtrueにする。**
+- [x] **Step 2: `node --test tests/next-core.test.mjs tests/next-progress.test.mjs tests/next-backup.test.mjs` で失敗を確認する。**
+- [x] **Step 3: 回答前のweakMapの存在をwasWeakとして保存し、既存の削除経路を通った時だけgraduatedをtrueにする。**
 
 ```js
 const wasWeak = Boolean(map[item.key]);
@@ -261,8 +261,8 @@ session.answers[item.id].graduated = wasWeak && result.correct && !map[item.key]
 
 `safeSession`で両値が未定義またはbooleanであることを検証する。終了画面にはreviewed>0の時だけ成果を追加し、graduated>0なら別に「克服」を表示する。0件なら通常の結果文を使う。
 
-- [ ] **Step 4: 同じ問題の見直し・再読込・旧セッション復元で数値を推測・重複加算しないことを確認する。**
-- [ ] **Step 5: `git commit -m "Report review progress without changing mastery rules"`。**
+- [x] **Step 4: 同じ問題の見直し・再読込・旧セッション復元で数値を推測・重複加算しないことを確認する。**
+- [x] **Step 5: `git commit -m "Report review progress without changing mastery rules"`。**
 
 ### Task 6: オリジナル案内役と演出の統一
 
@@ -273,7 +273,7 @@ session.answers[item.id].graduated = wasWeak && result.correct && !map[item.key]
 - `feedbackModel({correct,goalReached,streak,reviewed,complete}) -> {state,message,detail}`：stateはneutral/encourage/reflect/celebrate。補助detailは目標達成→連続正解の順に最大1件。
 - `companionMarkup(state) -> string`：装飾SVG。任意入力をそのままHTMLへ埋め込まない。
 
-- [ ] **Step 1: 表示設定と同時イベントのテストを書く。**
+- [x] **Step 1: 表示設定と同時イベントのテストを書く。**
 
 ```js
 assert.equal(companionVisible({companion:'auto'},'duolingo'),true);
@@ -286,8 +286,8 @@ assert.ok(!f.detail.includes('連続'));
 
 ブラウザでは目標10問の10問目を正解し、目標達成・連続正解・案内役が1つのバナー内に収まることを確認する。不正解時は正しい答えが優先される。非表示設定でも全情報と操作が残ることを確認する。
 
-- [ ] **Step 2: 単体・ブラウザテストで失敗を確認する。**
-- [ ] **Step 3: しおり型のSVGを4状態で描画し、既存の正誤バナー・終了画面へ組み込む。**
+- [x] **Step 2: 単体・ブラウザテストで失敗を確認する。**
+- [x] **Step 3: しおり型のSVGを4状態で描画し、既存の正誤バナー・終了画面へ組み込む。**
 
 ```js
 const shown = companionVisible(data.preferences, data.theme);
@@ -297,14 +297,14 @@ const artwork = shown ? companionMarkup(model.state) : '';
 
 48〜64px程度から始め、320px幅では装飾を縮める。動きは新規回答・新規完了のみ。既存のanimateAnswerと競合させず1〜2要素に限定する。prefers-reduced-motionで停止し、SVGはaria-hiddenにする。案内役on/offを設定から保存できるようにする。
 
-- [ ] **Step 4: 9テーマ、320px・横向き・200%文字、タップとキーボード、再読込・復元時の演出抑制を確認する。**
-- [ ] **Step 5: `git commit -m "Add optional bookmark companion and unified feedback"`。段階Dの画面を示す。**
+- [x] **Step 4: 9テーマ、320px・横向き・200%文字、タップとキーボード、再読込・復元時の演出抑制を確認する。**
+- [x] **Step 5: `git commit -m "Add optional bookmark companion and unified feedback"`。段階Dの画面を示す。**
 
 ### Task 7: 全体をつないで検証し、公開前の状態を作る
 
 **Files:** 変更 `tests/next-continuity.cjs`, `tests/next-browser.cjs`, `tests/next-responsive.cjs`, `docs/study-desk-preview.md`。必要な修正は所有するタスクのモジュールへ戻す。
 
-- [ ] **Step 1: 一連の利用手順を追加ブラウザテストに固定する。**
+- [x] **Step 1: 一連の利用手順を追加ブラウザテストに固定する。**
 
 ```js
 // 初回→教材選択→条件指定→10問回答→目標達成→結果→ホーム進捗→カレンダー
@@ -316,7 +316,7 @@ assert.equal(afterRestore.preferences.companion, 'off');
 
 従来版キー不変、外部通信ゼロ、Service Worker共存、新モジュールのオフライン再読込も確認する。
 
-- [ ] **Step 2: 全単体テストと3つの試用版ブラウザスイートを実行する。**
+- [x] **Step 2: 全単体テストと3つの試用版ブラウザスイートを実行する。**
 
 ```sh
 node --test tests/next-*.test.mjs
@@ -327,9 +327,9 @@ NODE_PATH=/Users/reiji/.cache/codex-runtimes/codex-primary-runtime/dependencies/
 
 この環境ではPlaywright既定ブラウザを追加ダウンロードせず、テストの起動に`channel:'chrome'`を指定する。従来版の57テストは既存ファイルを変更せず、前回同様に起動設定だけメモリ内でChromeへ置換して実行する。
 
-- [ ] **Step 3: 390×844、320×568、768×375、1440×1000の画像を確認する。** ホームの目標行と進捗で教材選択が再び遠くなっていないか、カレンダーが読めるか、案内役がボタンを覆わないかを確認する。実機iOS/Androidのキーボードは確認できた範囲を区別して記録する。
-- [ ] **Step 4: 記録移行・バックアップ互換性・日別統合の制約・案内役設定を説明書へ記載し、`git diff --check`と従来版の差分ゼロを確認する。**
-- [ ] **Step 5: ローカルでコミットし、完成した試用版のURLと検証結果を提示する。** 公開の了承が得られた場合だけ、最新origin/mainとの差分とPages状態を確認して公開する。
+- [x] **Step 3: 390×844、320×568、768×375、1440×1000の画像を確認する。** ホームの目標行と進捗で教材選択が再び遠くなっていないか、カレンダーが読めるか、案内役がボタンを覆わないかを確認する。実機iOS/Androidのキーボードは確認できた範囲を区別して記録する。
+- [x] **Step 4: 記録移行・バックアップ互換性・日別統合の制約・案内役設定を説明書へ記載し、`git diff --check`と従来版の差分ゼロを確認する。**
+- [x] **Step 5: ローカルでコミットし、完成した試用版のURLと検証結果を提示する。** 公開の了承が得られた場合だけ、最新origin/mainとの差分とPages状態を確認して公開する。
 
 ## 計画のセルフレビュー
 
@@ -345,3 +345,10 @@ NODE_PATH=/Users/reiji/.cache/codex-runtimes/codex-primary-runtime/dependencies/
 実行方法は、このチャットで順に実装する方式を推奨する。保存形式と採点経路を共有する変更が多く、同じ担当が接続部分を追いやすいため。
 サブエージェント方式を選ぶ場合は、タスクごとの実装とレビューを分け、共有するcore/app/backupを同時編集しない。
 承認前に製品コードの実装を始めない。
+
+
+## 実行結果
+
+2026-10-28、`89edb85`から順に実装。単体35件、機能・レスポンシブ操作19件、既存試用版11項目が成功。
+独立レビューで発見された「ドロップダウンでの教材切替時の前回条件」と「横向きの目標達成表示」は、失敗するテストで再現後に修正した。
+日別履歴は導入後から記録。実機iOS/Androidのキーボード・読み上げ操作は未確認で、Chromeの隔離プロファイルと文字拡大で検証した範囲に限る。

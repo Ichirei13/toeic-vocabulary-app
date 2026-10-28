@@ -234,7 +234,7 @@ function resultBanner(s, item, result) {
   const milestone = model.state === 'celebrate';
   const correctAnswer = item.kind === 'grammar' ? item.c[item.a] : ['e2j','flash'].includes(s.config.mode) ? item.m : item.w;
   const shown = companionVisible(data.preferences,data.theme);
-  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}">${shown ? companionMarkup(model.state) : `<span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span>`}<div class="result-copy"><strong>${model.message}</strong>${result.correct ? `<small>${model.detail} · 今回 ${xp} XP</small>` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>${model.detail ? `<small>${model.detail}</small>` : ''}`}</div></div>`;
+  return `<div class="result-banner ${result.correct ? '' : 'wrong'} ${milestone ? 'milestone' : ''}">${shown ? companionMarkup(model.state) : `<span class="result-mark" aria-hidden="true">${milestone ? flameIcon : result.correct ? '✓' : '↻'}</span>`}<div class="result-copy"><strong>${model.message}</strong>${result.correct ? `${goalReached ? `<small class="achievement-detail">${model.detail}</small><small class="reward-detail">今回 ${xp} XP</small>` : `<small class="reward-detail">${model.detail} · 今回 ${xp} XP</small>`}` : `<p class="result-answer">正解：${esc(correctAnswer)}</p>${model.detail ? `<small class="achievement-detail">${model.detail}</small>` : ''}`}</div></div>`;
 }
 
 function animateAnswer(s, correct) {
@@ -494,9 +494,14 @@ document.addEventListener('change', event => {
     else {
       const form = new FormData($('#setup-form'));
       const changedSource = draft.source !== form.get('source');
-      draft = { ...draft, source: form.get('source'), count: form.get('count'), mode: form.get('mode') || 'e2j',
-        chapters: changedSource ? [] : draft.chapters, ranges: changedSource ? [] : draft.ranges, dates: changedSource ? [] : draft.dates };
-      if (changedSource) { history.replaceState(null, '', `#setup/${draft.kind}/${draft.source}`); setupRoute = `setup/${draft.kind}/${draft.source}`; presetNotice = ''; }
+      if (changedSource) {
+        const source = form.get('source');
+        const previous = resolvePreset(data.preferences, `${draft.kind}:${source}`, catalog);
+        draft = previous.config || { ...defaultConfig(), kind: draft.kind, source };
+        presetNotice = previous.message;
+        setupRoute = `setup/${draft.kind}/${source}`;
+        history.replaceState(null, '', `#${setupRoute}`);
+      } else draft = { ...draft, count: form.get('count'), mode: form.get('mode') || 'e2j' };
     }
     render();
     if ($('#filter-inline .filter-fields')) $('#filter-inline .filter-fields').scrollTop = name === 'source' ? 0 : filterScroll;

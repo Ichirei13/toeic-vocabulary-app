@@ -122,6 +122,7 @@ test('calendar allows goal editing, stays readable at 200 percent, and restores 
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.ok(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth));
  await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>document.activeElement===document.querySelector('[data-action="open-calendar"]'));
  assert.ok(await page.locator('[data-action="open-calendar"]').evaluate(el=>document.activeElement===el));
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('toeic_next_v1')).preferences.dailyGoal),20);
 });
@@ -151,4 +152,37 @@ test('complete study journey roundtrips preferences, activity and review facts i
  const result=await restored.evaluate(()=>{const s=JSON.parse(localStorage.getItem('toeic_next_v1')).session;return s.answers[s.ids[0]];});
  // Retry follows the same broad pool, so only assert the fact was recorded as a boolean.
  assert.equal(typeof result.wasWeak,'boolean');assert.equal(result.graduated,false);
+});
+
+test('switching textbook in setup loads that textbooks saved conditions',async t=>{
+ const page=await open(t,'setup/grammar/kin',1280,900);
+ await page.evaluate(()=>{
+  const d=JSON.parse(localStorage.getItem('toeic_next_v1'));
+  const common={kind:'grammar',mode:'e2j',filter:'all',pos:[],ranges:[],dates:[]};
+  d.preferences.presets={'grammar:kin':{...common,source:'kin',count:'20',chapters:[2]},'grammar:sekai':{...common,source:'sekai',count:'10',chapters:[1]}};
+  d.preferences.recentPreset='grammar:kin';localStorage.setItem('toeic_next_v1',JSON.stringify(d));
+ });
+ await page.reload();await page.locator('#count').waitFor();
+ assert.equal(await page.locator('#count').inputValue(),'20');
+ await page.locator('#source').selectOption('sekai');
+ assert.equal(await page.locator('#count').inputValue(),'10');
+ assert.ok(await page.locator('[name="chapters"][value="1"]').isChecked());
+});
+
+test('goal achievement remains visible in a short landscape viewport',async t=>{
+ for (const answerCorrect of [true,false]) {
+ const page=await open(t,'setup/grammar/kin',768,375);
+ await page.evaluate(()=>{
+  const d=JSON.parse(localStorage.getItem('toeic_next_v1')),now=new Date();
+  const date=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+  d.theme='duolingo';d.preferences.dailyGoal=5;d.activity.days[date]={answers:4,goal:5};
+  localStorage.setItem('toeic_next_v1',JSON.stringify(d));
+ });
+ await page.reload();await page.locator('#setup-form [type="submit"]').click();await page.locator('.choice').first().waitFor();
+ const correct=await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('toeic_next_v1')).session;return s.choices[s.ids[0]].correct;});
+ await page.locator('.choice').nth(answerCorrect ? correct : (correct+1)%4).click();
+ assert.match(await page.locator('.result-banner .achievement-detail').innerText(),/目標達成/);
+ assert.ok(await page.locator('.result-banner .achievement-detail').isVisible());
+ await inside(page,page.locator('[data-action="next"]'));
+ }
 });
