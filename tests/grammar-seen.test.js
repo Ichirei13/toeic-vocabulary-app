@@ -8,7 +8,7 @@ const assert = require('assert');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.webmanifest': 'application/json', '.png': 'image/png' };
+const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.webmanifest': 'application/json', '.png': 'image/png' };
 
 function startServer() {
   const server = http.createServer((req, res) => {

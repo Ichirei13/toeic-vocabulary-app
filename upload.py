@@ -24,6 +24,8 @@ REPO = "Ichirei13/toeic-vocabulary-app"
 BRANCH = "main"
 FILES = [
     "index.html",
+    "home.css",
+    "home.js",
     "data/words.js",
     "data/grammar.js",
     "manifest.webmanifest",

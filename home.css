@@ -1,0 +1,623 @@
+/* ==================== 3ページ構成（ホーム・演習・設定） & ホーム画面 ==================== */
+
+/* 上部ページナビゲーションバー */
+.top-page-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px 6px;
+  border-bottom: 1px solid var(--ui-border);
+  background: rgba(0, 0, 0, 0.14);
+  flex-shrink: 0;
+  gap: 10px;
+}
+[data-theme="light"] .top-page-nav {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.top-page-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--text-page);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.top-page-brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.top-page-tabs {
+  display: flex;
+  align-items: center;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 11px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.top-page-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.top-page-tab:active {
+  transform: scale(0.96);
+}
+.top-page-tab.active {
+  background: var(--accent);
+  color: var(--accent-btn-text, #181512);
+  font-weight: 800;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+[data-theme="duolingo"] .top-page-tab.active {
+  background: #58cc02;
+  color: #ffffff;
+}
+
+/* 3ページの表示切り替えコンテナ */
+.app-page-view {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+.app-page-view.active {
+  display: flex;
+}
+
+/* ==================== ホーム画面 ==================== */
+#home-page {
+  padding: 10px 20px max(14px, env(safe-area-inset-bottom, 14px));
+  gap: 10px;
+  overflow-y: auto;
+}
+
+/* 1. メッセージ枠（連続日数バッジ ＆ ここがすごい！切り替え対応） */
+.home-message-bar {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--accent);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-page);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+.home-message-bar:hover {
+  border-color: var(--accent);
+}
+.home-message-bar:active {
+  transform: scale(0.99);
+}
+.home-streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(135deg, rgba(255, 150, 0, 0.22), rgba(212, 167, 89, 0.18));
+  border: 1px solid rgba(255, 150, 0, 0.45);
+  color: #ffb340;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+[data-theme="light"] .home-streak-badge {
+  background: rgba(217, 119, 6, 0.14);
+  border-color: rgba(217, 119, 6, 0.4);
+  color: #b45309;
+}
+.home-message-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.home-message-text {
+  flex: 1;
+  font-weight: 500;
+  min-width: 0;
+}
+.home-message-text b {
+  color: var(--accent);
+  font-weight: 700;
+}
+.home-message-next {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+/* ==================== 演習画面の解答ペース表示 ==================== */
+.pace-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.card-pace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text-card);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+[data-theme="duolingo"] .card-pace-badge,
+[data-theme="quizlet"] .card-pace-badge {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+.card-pace-badge.fast {
+  background: rgba(61, 122, 99, 0.18);
+  color: var(--correct);
+  border: 1px solid rgba(61, 122, 99, 0.45);
+}
+[data-theme="duolingo"] .card-pace-badge.fast {
+  background: rgba(88, 204, 2, 0.22);
+  color: #58cc02;
+  border-color: rgba(88, 204, 2, 0.5);
+}
+
+/* 2. 単語 / 文法 切り替えスイッチ */
+.home-switch-segments {
+  margin: 0 !important;
+  flex-shrink: 0;
+}
+
+/* 3. 学習中の参考書（メインカード） */
+.home-main-book-card {
+  background: var(--bg-card);
+  color: var(--text-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 20px;
+  padding: 15px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex-shrink: 0;
+  position: relative;
+}
+[data-theme="duolingo"] .home-main-book-card {
+  border: 2px solid #37464f;
+  border-radius: 22px;
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.25);
+}
+
+.home-main-book-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.home-main-book-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-card-muted);
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.home-main-book-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-card);
+  margin: 0;
+  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-main-book-total {
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--text-card-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+[data-theme="duolingo"] .home-main-book-total,
+[data-theme="quizlet"] .home-main-book-total {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 3色進行度バー（習得 / 苦手 / 未出題） */
+.home-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.home-progress-bar {
+  height: 12px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+[data-theme="duolingo"] .home-progress-bar,
+[data-theme="quizlet"] .home-progress-bar {
+  background: rgba(255, 255, 255, 0.12);
+}
+.home-progress-seg {
+  height: 100%;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.home-progress-seg.mastered {
+  background: var(--correct);
+}
+.home-progress-seg.weak {
+  background: var(--wrong);
+}
+.home-progress-seg.unseen {
+  background: transparent;
+}
+
+.home-progress-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-card-muted);
+  font-weight: 600;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.home-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.home-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.home-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.home-legend-dot.mastered { background: var(--correct); }
+.home-legend-dot.weak { background: var(--wrong); }
+.home-legend-dot.unseen {
+  background: rgba(128, 128, 128, 0.35);
+}
+
+.home-preset-summary {
+  font-size: 11.5px;
+  color: var(--text-card-muted);
+  background: rgba(0, 0, 0, 0.045);
+  border-radius: 9px;
+  padding: 6px 10px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+[data-theme="duolingo"] .home-preset-summary,
+[data-theme="quizlet"] .home-preset-summary {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.home-main-actions {
+  display: flex;
+  gap: 9px;
+  margin-top: 2px;
+}
+.home-btn-secondary {
+  flex: 1;
+  min-height: 42px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(0, 0, 0, 0.18);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-card);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+[data-theme="duolingo"] .home-btn-secondary,
+[data-theme="quizlet"] .home-btn-secondary {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+.home-btn-secondary:active {
+  transform: scale(0.98);
+}
+
+.home-btn-primary {
+  flex: 1.25;
+  min-height: 42px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent-btn-bg, var(--accent));
+  color: var(--accent-btn-text, #181512);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px var(--accent-glow);
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+[data-theme="duolingo"] .home-btn-primary {
+  box-shadow: 0 4px 0 #46a302;
+}
+.home-btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* 4. 苦手問題バー */
+.home-weak-bar {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  padding: 10px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.home-weak-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.home-weak-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--text-page);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-weak-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.home-weak-sub strong {
+  color: var(--wrong);
+}
+.home-weak-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.home-weak-btn {
+  border: 1px solid var(--ui-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-page);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 11px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+}
+.home-weak-btn:active {
+  transform: scale(0.97);
+}
+.home-weak-btn.solve {
+  background: var(--wrong-bg, var(--wrong));
+  border-color: var(--wrong-border, var(--wrong));
+  color: #ffffff;
+  box-shadow: 0 2px 8px var(--wrong-glow);
+}
+.home-weak-btn.solve:disabled {
+  opacity: 0.45;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* 5. 他の参考書（スクロール可能ボックス） */
+.home-others-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 120px;
+  gap: 6px;
+}
+.home-others-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.home-others-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid var(--ui-border);
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 16px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+[data-theme="light"] .home-others-scroll {
+  background: rgba(0, 0, 0, 0.03);
+}
+.home-others-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.home-others-scroll::-webkit-scrollbar-thumb {
+  background: var(--ui-border);
+  border-radius: 999px;
+}
+
+.home-other-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 13px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.home-other-card:hover {
+  border-color: var(--accent);
+}
+.home-other-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.home-other-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-page);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.home-other-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.home-other-bar {
+  height: 7px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+}
+[data-theme="light"] .home-other-bar {
+  background: rgba(0, 0, 0, 0.08);
+}
+.home-other-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.home-other-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.home-other-btn {
+  border: 1px solid var(--ui-border);
+  background: transparent;
+  color: var(--text-page);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.home-other-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-btn-text, #181512);
+  font-weight: 800;
+}
+[data-theme="duolingo"] .home-other-btn.primary {
+  background: #58cc02;
+  border-color: #58cc02;
+  color: #ffffff;
+}
+
+/* ==================== 設定画面（ページ版） ==================== */
+#settings-page {
+  padding: 14px 20px max(20px, env(safe-area-inset-bottom, 20px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#settings-page .settings-page-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0 0 12px;
+  color: var(--text-page);
+}
+
+/* 閉じているシートの端や影が画面上下にはみ出さないようにする */
+.bottom-sheet:not(.open) {
+  transform: translateY(calc(100% + 16px)) !important;
+  pointer-events: none;
+}
+.top-sheet:not(.open) {
+  transform: translateY(calc(-100% - 16px)) !important;
+  pointer-events: none;
+}

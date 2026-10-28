@@ -5,6 +5,8 @@ const CACHE = 'toeic-drill-v1';
 const ASSETS = [
   './',
   'index.html',
+  'home.css',
+  'home.js',
   'data/words.js',
   'data/grammar.js',
   'manifest.webmanifest',

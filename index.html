@@ -14,6 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="home.css">
 <!-- Google Identity Services (Google Drive連携) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
@@ -2223,6 +2224,24 @@ body {
 </head>
 <body>
 <div id="app">
+  <!-- ヘッダー上部 3ページ切り替えナビゲーション -->
+  <nav class="top-page-nav" aria-label="ページ切り替え">
+    <div class="top-page-brand" role="button" tabindex="0" aria-label="TOEIC Practice ホームへ">
+      <span class="top-page-brand-dot"></span>
+      <span>TOEIC Practice</span>
+    </div>
+    <div class="top-page-tabs" role="tablist">
+      <button type="button" class="top-page-tab" data-page="home" role="tab" aria-selected="false">ホーム</button>
+      <button type="button" class="top-page-tab active" data-page="practice" role="tab" aria-selected="true">演習</button>
+      <button type="button" class="top-page-tab" data-page="settings" role="tab" aria-selected="false">設定</button>
+    </div>
+  </nav>
+
+  <!-- 1. ホーム画面 -->
+  <div id="home-page" class="app-page-view"></div>
+
+  <!-- 2. 演習画面（現行UIをそのまま存続） -->
+  <div id="practice-page" class="app-page-view active">
   <div class="header">
     <div class="title-wrap">
       <div class="eyebrow">TOEIC Drill</div>
@@ -2283,6 +2302,13 @@ body {
       <span style="cursor:pointer; text-decoration:underline;" onclick="toggleSettings()">設定</span>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+  </div>
+
+  <!-- 3. 設定画面（ボトムシートの設定カードを踏襲） -->
+  <div id="settings-page" class="app-page-view">
+    <h2 class="settings-page-title">設定</h2>
+    <div id="settings-page-content"></div>
   </div>
 
     <!-- 絞り込み促進オーバーレイモーダル -->
@@ -3683,6 +3709,10 @@ function checkFilterNudge() {
   const modal = document.getElementById('filter-nudge-modal');
   const toggleBtn = document.getElementById('filter-toggle');
   if (!modal) return;
+  if (typeof currentAppPage !== 'undefined' && currentAppPage !== 'practice') {
+    modal.classList.remove('open');
+    return;
+  }
 
   const poolCount = getCurrentPoolCount();
 
@@ -5873,6 +5903,7 @@ document.addEventListener('keydown', e => {
   const t = e.target;
   // テキスト入力中はキーボードショートカットを発火させない
   if ((t.tagName === 'INPUT' && !t.disabled) || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+  if (typeof currentAppPage !== 'undefined' && currentAppPage !== 'practice') return;
 
   const dk = document.getElementById('dont-know-btn');
   const nextBtn = document.getElementById('next-btn');
@@ -5960,5 +5991,6 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   });
 }
 </script>
+<script src="home.js"></script>
 </body>
 </html>
