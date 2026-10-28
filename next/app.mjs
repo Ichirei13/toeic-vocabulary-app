@@ -1,5 +1,6 @@
 import { STORAGE_KEY, MODES, BOOKS, openStore, makeCatalog, weakMap, selectItems,
   choicesFor, startSession, validSession, recordAnswer } from './core.mjs';
+import { rememberPreset, resolvePreset, presetKey } from './preferences.mjs';
 import { THEMES, themeById, sessionRewards, playAnswerSound } from './themes.mjs';
 import { createBackup, parseBackup, recordCounts, prepareRestore, prepareUndo, MAX_BACKUP_BYTES } from './backup.mjs';
 
@@ -25,6 +26,8 @@ let backupMessage = '';
 let fileReadVersion = 0;
 let filterDraft = null;
 let themeGalleryOpen = false;
+let setupRoute = '';
+let presetNotice = '';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const dockObserver = new ResizeObserver(entries => {
   const dock = entries[0]?.target;
@@ -74,15 +77,16 @@ function dueCount(kind, mode = 'e2j') {
 function home() {
   const s = currentSession();
   const active = s && !complete(s);
+  const previous = data.preferences.recentPreset ? data.preferences.presets[data.preferences.recentPreset] : null;
   const due = dueCount('grammar') + dueCount('vocab');
   const imported = data.importedItems || 0;
   const counts = recordCounts(data.records);
   const totalCorrect = [...Object.values(data.records.wordStats), ...Object.values(data.records.grammarStats)].reduce((n, x) => n + x.c, 0);
   return `<div class="home-heading"><div><p class="eyebrow">${today()} · Your study space</p><h1>おかえりなさい。</h1></div><button class="theme-trigger" data-action="open-themes">${paletteIcon}<span>${themeById(data.theme).name}</span></button></div>
     <div class="hero-grid"><section class="study-card"><p class="eyebrow">${active ? 'Continue learning' : 'A little progress, every day'}</p>
-      <h2>${active ? `${esc(sourceName(s.config.kind, s.config.source))}<br>前回の続きから。` : '今日も、10問から。'}</h2>
-      <p class="subtext">${active ? `${s.ids.length}問中 ${Object.keys(s.answers).length}問を解答済み` : '金の文法からランダムに出題します。'}</p>
-      ${button(active ? `続きから ${arrow}` : `10問から始める ${arrow}`, active ? 'resume' : 'quick-start')}</section>
+      <h2>${active ? `${esc(sourceName(s.config.kind, s.config.source))}<br>前回の続きから。` : previous ? `${esc(sourceName(previous.kind, previous.source))}<br>いつもの条件で。` : '今日も、10問から。'}</h2>
+      <p class="subtext">${active ? `${s.ids.length}問中 ${Object.keys(s.answers).length}問を解答済み` : previous ? esc(filterSummary(previous) + ' · ' + (previous.count === 'all' ? '対象すべて' : previous.count + '問')) : '金の文法からランダムに出題します。'}</p>
+      ${button(active ? `続きから ${arrow}` : previous ? `前回の条件で開始 ${arrow}` : `10問から始める ${arrow}`, active ? 'resume' : previous ? 'previous-start' : 'quick-start')}</section>
       <section class="review-card"><h2>今日の復習</h2><div class="count">${due}<small>問</small></div>
         <p class="subtext">${due ? '復習のタイミングが来ています。' : '今、復習が必要な問題はありません。'}<br>文法と単語〈英 → 日〉</p><a class="text-link" href="#review">復習を確認する ${arrow}</a></section></div>
     ${[['vocab', '単語'], ['grammar', '文法']].map(([kind, title]) => {
@@ -130,7 +134,7 @@ function setup() {
   const pool = selectItems(catalog, data.records, draft);
   const sources = grammar ? Object.entries(BOOKS).filter(([id]) => catalog.items.some(i => i.kind === 'grammar' && i.source === id)).map(([id, b]) => [id, b.title]) : [['teppan', 'TEPPAN'], ['daily', '日々の単語']];
   return `<div class="setup-page"><a class="back-link" href="#home">← 教材を選び直す</a><div class="page-title"><p class="eyebrow">Set your pace</p><h1>${esc(sourceName(draft.kind, draft.source))}</h1><p>自分に合う範囲で、始めよう。</p></div>
-    <form id="setup-form"><div class="setup-columns"><section class="panel setup-basics" aria-label="基本設定"><h2>今回の学習</h2><div class="form-grid">
+    <form id="setup-form"><div class="setup-columns"><section class="panel setup-basics" aria-label="基本設定"><div class="filter-title"><h2>今回の学習</h2><button class="button quiet" type="button" data-action="default-settings">標準に戻す</button></div>${presetNotice ? `<p class="help" role="status">${esc(presetNotice)}</p>` : ''}<div class="form-grid">
       <div class="field source-field"><label for="source">教材</label><select id="source" name="source">${option('all', 'すべて', draft.source)}${sources.map(([v, l]) => option(v, l, draft.source)).join('')}</select></div>
       <div class="field"><label for="count">今回の問題数</label><select id="count" name="count">${[['10', '10問'], ['20', '20問'], ['all', '対象すべて']].map(([v, l]) => option(v, l, draft.count)).join('')}</select></div>
       ${!grammar ? `<div class="field"><label for="mode">答え方</label><select id="mode" name="mode">${Object.entries(MODES).map(([v, l]) => option(v, l, draft.mode)).join('')}</select></div>` : ''}
@@ -279,9 +283,14 @@ function render(focus = false) {
   document.body.dataset.page = section;
   if (section === 'setup') {
     const [, kind, source] = route.split('/');
-    if (['grammar', 'vocab'].includes(kind) && ['all', ...Object.keys(BOOKS), 'teppan', 'daily'].includes(source) &&
-      (draft.kind !== kind || draft.source !== source)) draft = { ...defaultConfig(), kind, source };
-  }
+    if (setupRoute !== route && ['grammar','vocab'].includes(kind) && ['all', ...Object.keys(BOOKS), 'teppan', 'daily'].includes(source)) {
+      const previous = resolvePreset(data.preferences, `${kind}:${source}`, catalog);
+      draft = previous.config || { ...defaultConfig(), kind, source };
+      presetNotice = previous.message;
+      setupRoute = route;
+    }
+  } else setupRoute = '';
+
   $('#main').innerHTML = section === 'setup' ? setup() : section === 'exercise' ? exercise() : section === 'review' ? review() : section === 'settings' ? settings() : home();
   dockObserver.disconnect();
   document.body.style.removeProperty('--exercise-dock-height');
@@ -292,9 +301,11 @@ function render(focus = false) {
   document.title = `${({ home: 'ホーム', setup: '出題設定', exercise: '演習', review: '復習', settings: '設定' }[section] || 'ホーム')} — Study Desk 試用版`;
   if (focus) { $('#main').focus({ preventScroll: true }); window.scrollTo(0, 0); }
 }
-function begin(config, items) {
+function begin(config, items, { remember = true } = {}) {
   if (!items.length) return;
   data.session = startSession(items, config, catalog);
+  data.session.reviewOnly = !remember;
+  if (remember) data.preferences = rememberPreset(data.preferences, config);
   flashRevealed = false;
   save();
   navigate('exercise');
@@ -357,6 +368,16 @@ document.addEventListener('click', event => {
       $('#filter-body').innerHTML = filterFields(filterDraft); refreshFilterCount();
     } else { draft = reset(draft); render(); $('[data-action="reset-filters"]')?.focus({ preventScroll: true }); }
   }
+  if (action === 'default-settings') { draft = { ...defaultConfig(), kind: draft.kind, source: draft.source }; presetNotice = ''; render(); $('[data-action="default-settings"]').focus({ preventScroll: true }); }
+  if (action === 'previous-start') {
+    const previous = resolvePreset(data.preferences, data.preferences.recentPreset, catalog);
+    if (previous.config && !previous.needsConfirmation && selectItems(catalog,data.records,previous.config).length) begin(previous.config,selectItems(catalog,data.records,previous.config));
+    else {
+      const config = previous.config || data.preferences.presets[data.preferences.recentPreset];
+      navigate(`setup/${config.kind}/${config.source}`);
+      presetNotice = previous.message || '条件に合う問題がありません。絞り込みを見直してください。';
+    }
+  }
   if (action === 'resume') navigate('exercise');
   if (action === 'answer' && s) {
     const item = catalog.byId.get(s.ids[s.cursor]);
@@ -370,19 +391,19 @@ document.addEventListener('click', event => {
     s.cursor++; flashRevealed = false; save(); render(true);
   }
   if (action === 'previous' && s && s.cursor > 0) { s.cursor--; flashRevealed = false; save(); render(true); }
-  if (action === 'retry' && s) begin({ ...s.config, count: 'all' }, s.ids.filter(id => s.answers[id] && !s.answers[id].correct).map(id => catalog.byId.get(id)));
+  if (action === 'retry' && s) begin({ ...s.config, count: 'all' }, s.ids.filter(id => s.answers[id] && !s.answers[id].correct).map(id => catalog.byId.get(id)), { remember: false });
   if (action === 'repeat' && s) {
     const items = selectItems(catalog, data.records, s.config);
-    if (items.length) begin(s.config, items);
+    if (items.length) begin(s.config, items, { remember: !s.reviewOnly });
     else { draft = structuredClone(s.config); navigate(`setup/${draft.kind}/${draft.source}`); }
   }
   if (action === 'review-due') {
     const config = { ...defaultConfig(), kind: reviewKind, mode: reviewMode, source: 'all', filter: 'due', count: '20' };
-    begin(config, selectItems(catalog, data.records, config));
+    begin(config, selectItems(catalog, data.records, config), { remember: false });
   }
   if (action === 'review-one') {
     const item = catalog.byId.get(target.dataset.id);
-    begin({ ...defaultConfig(), kind: reviewKind, mode: reviewMode, source: item.source, count: 'all' }, [item]);
+    begin({ ...defaultConfig(), kind: reviewKind, mode: reviewMode, source: item.source, count: 'all' }, [item], { remember: false });
   }
   if (action === 'more-review') { reviewLimit += 20; render(); $('[data-action="more-review"]')?.focus({ preventScroll: true }); }
   if (action === 'export') exportData();
@@ -434,7 +455,7 @@ document.addEventListener('change', event => {
       const changedSource = draft.source !== form.get('source');
       draft = { ...draft, source: form.get('source'), count: form.get('count'), mode: form.get('mode') || 'e2j',
         chapters: changedSource ? [] : draft.chapters, ranges: changedSource ? [] : draft.ranges, dates: changedSource ? [] : draft.dates };
-      if (changedSource) history.replaceState(null, '', `#setup/${draft.kind}/${draft.source}`);
+      if (changedSource) { history.replaceState(null, '', `#setup/${draft.kind}/${draft.source}`); setupRoute = `setup/${draft.kind}/${draft.source}`; presetNotice = ''; }
     }
     render();
     if ($('#filter-inline .filter-fields')) $('#filter-inline .filter-fields').scrollTop = name === 'source' ? 0 : filterScroll;

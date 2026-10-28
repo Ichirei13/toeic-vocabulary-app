@@ -22,3 +22,25 @@ export function validatePreferences(raw) {
   if (raw.recentPreset !== null && (typeof raw.recentPreset !== 'string' || !Object.hasOwn(presets, raw.recentPreset))) throw new Error('前回の教材設定が正しくありません。');
   return { dailyGoal: raw.dailyGoal, companion: raw.companion, recentPreset: raw.recentPreset, presets };
 }
+export const presetKey = config => `${config.kind}:${config.source}`;
+export function rememberPreset(preferences, config) {
+  const out = structuredClone(preferences), clean = validateConfig(config), key = presetKey(clean);
+  out.presets[key] = clean; out.recentPreset = key; return out;
+}
+export function resolvePreset(preferences, key, catalog) {
+  if (!key || !Object.hasOwn(preferences.presets,key)) return { config: null, needsConfirmation: false, message: '' };
+  const config = structuredClone(preferences.presets[key]);
+  const items = catalog.items.filter(i => i.kind === config.kind && (config.source === 'all' || i.source === config.source));
+  const message = '教材更新により一部の条件を見直してください。';
+  if (!items.length) return { config: null, needsConfirmation: true, message };
+  let changed = false;
+  const available = {
+    chapters: new Set(items.map(i => i.ch)), pos: new Set(items.map(i => i.p)), dates: new Set(items.map(i => i.d)),
+    ranges: new Set(items.filter(i => Number.isFinite(i.no)).map(i => Math.floor((i.no - 1) / 100) * 100 + 1)),
+  };
+  for (const field of ['chapters','pos','dates','ranges']) {
+    const kept = config[field].filter(value => available[field].has(value));
+    changed ||= kept.length !== config[field].length; config[field] = kept;
+  }
+  return { config, needsConfirmation: changed, message: changed ? message : '' };
+}
