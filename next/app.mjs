@@ -1,5 +1,7 @@
 import { STORAGE_KEY, MODES, BOOKS, openStore, makeCatalog, weakMap, selectItems,
   choicesFor, startSession, validSession, recordAnswer } from './core.mjs';
+import { THEMES, themeById, sessionRewards, playAnswerSound } from './themes.mjs';
+import { createBackup, parseBackup, recordCounts, prepareRestore, prepareUndo, MAX_BACKUP_BYTES } from './backup.mjs';
 
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -15,6 +17,11 @@ let reviewKind = 'grammar';
 let reviewMode = 'e2j';
 let reviewLimit = 20;
 let flashRevealed = false;
+let pendingBackup = null;
+let restoreMode = 'merge';
+let undoPreview = false;
+let backupMessage = '';
+let fileReadVersion = 0;
 
 const sourceName = (kind, source) => kind === 'grammar'
   ? BOOKS[source]?.title || 'すべての文法教材'
@@ -36,7 +43,20 @@ function navigate(route) {
   else location.hash = route;
 }
 function applyTheme() {
-  document.documentElement.dataset.theme = data.theme === 'dark' ? 'dark' : 'light';
+  const theme = themeById(data.theme);
+  document.documentElement.dataset.theme = theme.id;
+  document.documentElement.dataset.scheme = theme.scheme;
+  $('meta[name="theme-color"]').content = theme.bg;
+}
+const paletteIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>';
+const flameIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3c1 5-5 5-5 9 0 2 1 3 2 3-1-4 4-4 4-7 3 3 5 6 5 9a6 6 0 0 1-12 0C4 12 8 8 12 3Z"/></svg>';
+const diamondIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 9 4-5h10l4 5-9 12L3 9ZM3 9h18M7 4l5 17 5-17"/></svg>';
+function rewards(s) {
+  const reward = sessionRewards(s);
+  return `<div class="duo-rewards" aria-label="今回の演習の記録"><span class="reward-pill">${flameIcon}<span>${reward.streak} 連続正解</span></span><span class="reward-pill xp">${diamondIcon}<span>${reward.xp} XP</span></span></div>`;
+}
+function themePicker() {
+  return `<div class="theme-grid" aria-label="テーマ一覧">${THEMES.map(theme => `<button class="theme-option" data-theme-id="${theme.id}" aria-pressed="${themeById(data.theme).id === theme.id}" style="--sample-bg:${theme.bg};--sample-surface:${theme.surface};--sample-accent:${theme.accent}"><span class="theme-preview" aria-hidden="true"><span class="sample-line"></span><span class="sample-card"><i></i><i></i></span><span class="sample-button"></span></span><span class="theme-name">${theme.name}<span class="theme-check" aria-hidden="true">${themeById(data.theme).id === theme.id ? '✓' : ''}</span></span><span class="theme-note">${theme.note}</span></button>`).join('')}</div>`;
 }
 function dueCount(kind, mode = 'e2j') {
   return selectItems(catalog, data.records, { ...defaultConfig(), kind, mode, source: 'all', filter: 'due' }).length;
@@ -46,21 +66,24 @@ function home() {
   const active = s && !complete(s);
   const due = dueCount('grammar') + dueCount('vocab');
   const imported = data.importedItems || 0;
-  return `<div class="home-heading"><div><p class="eyebrow">Your daily study space</p><h1>おかえりなさい。</h1></div><span class="date-label">${today()}</span></div>
+  const counts = recordCounts(data.records);
+  const totalCorrect = [...Object.values(data.records.wordStats), ...Object.values(data.records.grammarStats)].reduce((n, x) => n + x.c, 0);
+  return `<div class="home-heading"><div><p class="eyebrow">${today()} · Your study space</p><h1>おかえりなさい。</h1></div><button class="theme-trigger" data-action="open-themes">${paletteIcon}<span>${themeById(data.theme).name}</span></button></div>
     <div class="hero-grid"><section class="study-card"><p class="eyebrow">${active ? 'Continue learning' : 'A little progress, every day'}</p>
       <h2>${active ? `${esc(sourceName(s.config.kind, s.config.source))}<br>前回の続きから。` : '今日の一問が、<br>明日の自信に。'}</h2>
       <p class="subtext">${active ? `${s.ids.length}問中 ${Object.keys(s.answers).length}問を解答済み` : '教材を開いて、まずは10問。自分のペースで始めよう。'}</p>
       ${button(active ? `続きから ${arrow}` : `10問から始める ${arrow}`, active ? 'resume' : 'quick-start')}</section>
       <section class="review-card"><h2>今日の復習</h2><div class="count">${due}<small>問</small></div>
         <p class="subtext">${due ? '復習のタイミングが来ています。' : '今、復習が必要な問題はありません。'}<br>文法と単語〈英 → 日〉</p><a class="text-link" href="#review">復習を確認する ${arrow}</a></section></div>
-    <div class="section-heading"><h2>あなたの教材</h2><small>今日は、どこから始めよう。</small></div>
+    <dl class="study-overview"><div><dt>これまでの回答</dt><dd>${counts.answers.toLocaleString()}<small> 回</small></dd></div><div><dt>正答率</dt><dd>${counts.answers ? Math.round(totalCorrect / counts.answers * 100) + '<small> %</small>' : '—'}</dd></div><div><dt>学習済みの文法</dt><dd>${counts.seenGrammar.toLocaleString()}<small> 問</small></dd></div></dl>
+    <div class="section-heading"><div><p class="eyebrow">Your library</p><h2>あなたの教材</h2></div><small>今日は、どこから始めよう。</small></div>
     <section class="bookshelf" aria-label="教材一覧">${[
       ...Object.entries(BOOKS).map(([source, book]) => ({ kind: 'grammar', source, ...book })),
       { kind: 'vocab', source: 'teppan', title: 'TEPPAN', subtitle: '頻出単語を、確かな語彙に。', color: 'blue' },
       { kind: 'vocab', source: 'daily', title: '日々の単語', subtitle: '出会った言葉を、自分のものに。', color: 'green' },
     ].filter(b => catalog.items.some(i => i.kind === b.kind && i.source === b.source)).map((b, index) => {
       const count = selectItems(catalog, data.records, { ...defaultConfig(), kind: b.kind, source: b.source }).length;
-      return `<a class="book-card ${b.color}" href="#setup/${b.kind}/${b.source}"><span class="book-glyph" aria-hidden="true">${String(index + 1).padStart(2, '0')}</span><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>${b.kind === 'grammar' ? '文法' : '単語'} · ${count.toLocaleString()}${b.kind === 'grammar' ? '問' : '語'}</span>${arrow}</span></a>`;
+      return `<a class="book-card ${b.color}" href="#setup/${b.kind}/${b.source}"><span class="book-glyph" aria-hidden="true"><span>${String(index + 1).padStart(2, '0')}</span>${bookIcon}</span><span class="book-info"><small class="book-kind">${b.kind === 'grammar' ? 'GRAMMAR' : 'VOCABULARY'}</small><h3>${b.title}</h3><p>${b.subtitle}</p><span class="book-bottom"><span>${count.toLocaleString()}${b.kind === 'grammar' ? '問' : '語'}を収録</span><span class="book-arrow" aria-hidden="true">↗</span></span></span></a>`;
     }).join('')}</section>
     <aside class="trial-note">新しい学習スペースをお試しいただけます。${imported ? `従来版の成績 ${imported}項目をもとに始めています。` : ''}試用版での学習はこの端末に保存され、従来版やGoogle Driveには反映されません。<a href="../">従来版はいつでも使えます。</a></aside>`;
 }
@@ -135,18 +158,18 @@ function exercise() {
       : `<div class="flash-actions">${button('意味を見る', 'reveal', true)}</div>`;
   }
   let prompt = grammar ? esc(item.q).replace(/-{3,}/g, '<span class="blank">_______</span>') : esc(['j2e', 'type'].includes(mode) ? item.m : item.w);
-  return `<div class="exercise-top"><a class="back-link" href="#home">← 中断してホームへ</a><div class="progress-row"><span>${esc(sourceName(s.config.kind, s.config.source))}</span><span>${s.cursor + 1} / ${s.ids.length} 問</span></div><progress value="${Object.keys(s.answers).length}" max="${s.ids.length}" aria-label="解答済みの問題数"></progress></div>
+  return `<div class="exercise-top"><div class="exercise-heading"><a class="back-link" href="#home">← 中断してホームへ</a><button class="theme-trigger" data-action="open-themes" aria-label="演習のテーマを選ぶ">${paletteIcon}<span>テーマ</span></button></div><div class="progress-row"><span>${esc(sourceName(s.config.kind, s.config.source))}</span><span>${s.cursor + 1} / ${s.ids.length} 問</span></div><progress value="${Object.keys(s.answers).length}" max="${s.ids.length}" aria-label="解答済みの問題数"></progress>${rewards(s)}</div>
     <div class="exercise-layout"><section class="panel question-panel"><div class="question-meta"><span>${grammar ? `文法 · No. ${esc(item.key)}` : `単語 · ${MODES[mode]}`}</span><span>${esc(sourceName(item.kind, item.source))}</span></div>
       <h1 class="question-text ${grammar ? '' : 'word-text'}" id="question-heading" tabindex="-1">${prompt}</h1>${interaction}</section>
       ${result ? explanation(item, result) : `<aside class="answer-placeholder">${bookIcon}<p>まずは、自分の力で。</p><p class="subtext">回答すると、正解と解説がここに表示されます。わからないときは、そのまま答えを確認できます。</p></aside>`}</div>
-    <div class="exercise-actions">${button('← 前の問題', 'previous', true, s.cursor === 0 ? 'disabled' : '')}<div>${result ? button(s.cursor === s.ids.length - 1 ? '結果を見る →' : '次へ →', 'next') : button('わからない', 'dont-know', true)}</div></div>
+    <div class="exercise-actions">${result ? `<div class="result-banner ${result.correct ? '' : 'wrong'}"><span class="result-mark" aria-hidden="true">${result.correct ? '✓' : '↻'}</span><div><strong>${result.correct ? 'いい調子！正解です。' : 'ここで覚えれば、大丈夫。'}</strong><small>${result.correct ? `${sessionRewards(s).streak}問連続正解 · 今回 ${sessionRewards(s).xp} XP` : '答えと解説を確認して、次へ進みましょう。'}</small></div></div>` : ''}<div class="action-buttons">${button('← 前の問題', 'previous', true, s.cursor === 0 ? 'disabled' : '')}<div>${result ? button(s.cursor === s.ids.length - 1 ? '結果を見る →' : '次へ →', 'next') : button('わからない', 'dont-know', true)}</div></div></div>
     <p class="shortcut-help">${grammar || ['e2j', 'j2e'].includes(mode) ? 'A–E / 1–5：回答　 ·　 ' : ''}0：わからない　 ·　 Enter：次へ</p>`;
 }
 function summary(s) {
   const answers = Object.values(s.answers);
   const correct = answers.filter(a => a.correct).length;
   const wrong = answers.filter(a => !a.correct).length;
-  return `<section class="narrow panel summary-card"><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div><p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
+  return `<section class="narrow panel summary-card"><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
 }
 function review() {
   const config = { ...defaultConfig(), kind: reviewKind, source: 'all', mode: reviewMode, filter: 'weak' };
@@ -159,15 +182,35 @@ function review() {
       ${items.length > reviewLimit ? `<div class="summary-actions">${button('さらに20問を見る', 'more-review', true)}</div>` : ''}</div>`;
 }
 function settings() {
-  return `<div class="narrow"><a class="back-link" href="#home">← ホームに戻る</a><div class="page-title"><p class="eyebrow">Your preferences</p><h1>試用版の設定</h1></div>
-    <section class="panel settings-section"><h2>Study Desk の表示</h2><p>落ち着いた紙の色と、夜に使いやすいダーク表示。</p><div class="setting-buttons">${button('ライト', 'light', data.theme !== 'light', `aria-pressed="${data.theme !== 'dark'}"`)}${button('ダーク', 'dark', data.theme !== 'dark', `aria-pressed="${data.theme === 'dark'}"`)}</div></section>
-    <section class="panel settings-section"><h2>学習記録について</h2><p>初回に、このブラウザにある従来版の成績・苦手・学習済み記録をコピーしています。その後は試用版専用の記録として、この端末内に保存します。従来版の途中の演習や出題設定は引き継ぎません。</p><p>試用版からGoogle DriveやObsidianへの同期は行いません。別の端末への自動同期もありません。従来版へ戻っても、試用版で解いた結果は従来版に反映されません。</p><p>コピー日時：${new Date(data.importedAt).toLocaleString('ja-JP')}</p>${button('試用版の記録を書き出す', 'export', true)}<p class="help">JSONファイルとして保存します。従来版の復元用ファイルとは形式が異なります。試用版への取り込み機能は今後追加予定です。</p></section>
-    <section class="panel settings-section"><h2>いつでも、いつもの学習へ</h2><p>従来版はこれまでと同じURLで使えます。</p><a class="button secondary" href="../">従来版を開く ↗</a></section></div>`;
+  return `<div class="settings-page"><div class="page-title"><p class="eyebrow">Make it yours</p><h1>あなたの学びやすさに。</h1><p>いつものテーマも、新しい見た目も。気分に合わせて選べます。</p></div>
+    <section class="panel settings-section"><div class="section-intro"><div><h2>テーマを選ぶ</h2><p>従来の7テーマと、Study Deskの2つの表情。</p></div><span class="selected-theme">選択中：${themeById(data.theme).name}</span></div>${themePicker()}
+      <label class="sound-setting"><span><strong>Duolingoの効果音</strong><small>正解・不正解を音でもお知らせします。</small></span><input type="checkbox" id="sound-enabled" ${data.sound !== false ? 'checked' : ''}></label></section>
+    <section class="panel settings-section" id="backup-section"><div class="section-intro"><div><p class="eyebrow">Keep your progress</p><h2>記録のバックアップ・復元</h2><p>学習の積み重ねを、ファイルとして手元に残せます。</p></div><span class="local-badge">この端末に保存</span></div>
+      <div class="backup-actions"><div><h3>記録を書き出す</h3><p>成績・苦手・学習済み・テーマ・演習の続きを保存します。</p>${button('バックアップを書き出す', 'export', true)}</div><div><h3>ファイルから復元する</h3><p>試用版と従来版のJSONに対応。内容を確認してから反映します。</p>${button('ファイルを選ぶ', 'import', true)}</div></div>
+      <p id="backup-message" role="status" tabindex="-1">${esc(backupMessage)}</p>
+      ${pendingBackup || undoPreview ? restorePreview() : ''}
+      ${data.restoreUndo && !pendingBackup && !undoPreview ? `<div class="undo-row"><p>直前の復元：${new Date(data.restoreUndo.at).toLocaleString('ja-JP')}</p>${button('直前の復元を取り消す', 'preview-undo', true)}</div>` : ''}
+      <details class="backup-details"><summary>保存先と互換性について</summary><p>復元先は試用版だけです。従来版の記録やGoogle Driveのデータは変更しません。試用版のバックアップは試用版へ、従来版のバックアップはどちらへも復元できます。</p><p>Google Driveへの自動同期とObsidian連携は、試用版ではまだ利用できません。必要な場合は従来版を使えます。</p><p>初回コピー日時：${new Date(data.importedAt).toLocaleString('ja-JP')}</p></details></section>
+    <div class="legacy-note"><div><h2>いつもの学習も、そのまま。</h2><p>従来版のテーマ・記録・同期機能は引き続き使えます。</p></div><a class="button secondary" href="../">従来版を開く ↗</a></div></div>`;
+}
+
+function restorePreview() {
+  const candidate = undoPreview ? prepareUndo(data) : prepareRestore(data, pendingBackup.parsed, restoreMode);
+  const before = recordCounts(data.records), after = recordCounts(candidate.records);
+  const labels = { answers: '通算の回答数', weakWords: '苦手な単語（モード別）', weakGrammar: '苦手な文法', seenWords: '学習済み単語（モード別）', seenGrammar: '学習済み文法' };
+  return `<div class="restore-preview"><h3 id="restore-title" tabindex="-1">${undoPreview ? '復元前の状態に戻します' : '取り込む内容を確認'}</h3>
+    ${!undoPreview ? `<p class="file-name">${esc(pendingBackup.name)} · ${pendingBackup.parsed.source}</p><fieldset class="restore-modes"><legend>復元方法</legend><label class="check-label"><input type="radio" name="restore-mode" value="merge" ${restoreMode === 'merge' ? 'checked' : ''}>今の記録に統合</label><label class="check-label"><input type="radio" name="restore-mode" value="replace" ${restoreMode === 'replace' ? 'checked' : ''}>ファイルの記録で置き換え</label></fieldset>` : ''}
+    <table class="restore-table"><caption class="sr-only">現在と反映後の記録の比較</caption><thead><tr><th>項目</th><th>現在</th><th>反映後</th></tr></thead><tbody>${Object.entries(labels).map(([key, label]) => `<tr><th scope="row">${label}</th><td>${before[key].toLocaleString()}</td><td>${after[key].toLocaleString()}</td></tr>`).join('')}</tbody></table>
+    <p class="restore-explanation">${undoPreview ? '復元後の学習や設定変更も取り消し、復元直前の状態へ戻します。' : restoreMode === 'merge' ? '学習済みをまとめ、同じ成績は重複加算しません。今のテーマと演習の続きは保ちます。' : '試用版の学習記録を置き換えます。試用版のファイルならテーマと演習の続きも復元します。'}</p>
+    ${!undoPreview ? pendingBackup.parsed.warnings.map(w => `<p class="help">${esc(w)}</p>`).join('') : ''}
+    <p class="help">従来版とGoogle Driveの記録には影響しません。</p>
+    <div class="setting-buttons">${button(undoPreview ? '復元前に戻す' : 'この内容で復元する', 'confirm-restore')}${button('キャンセル', 'cancel-restore', true)}</div></div>`;
 }
 
 function render(focus = false) {
   const route = location.hash.slice(1) || 'home';
   const section = route.split('/')[0];
+  document.body.dataset.page = section;
   if (section === 'setup') {
     const [, kind, source] = route.split('/');
     if (['grammar', 'vocab'].includes(kind) && ['all', ...Object.keys(BOOKS), 'teppan', 'daily'].includes(source) &&
@@ -192,6 +235,7 @@ function answer(result) {
   if (!s || s.cursor >= s.ids.length) return;
   const item = catalog.byId.get(s.ids[s.cursor]);
   if (recordAnswer(data, item, result)) {
+    if (data.theme === 'duolingo' && data.sound !== false) playAnswerSound(result.correct);
     save();
     render();
     $('[data-action="next"]')?.focus({ preventScroll: true });
@@ -199,7 +243,7 @@ function answer(result) {
   }
 }
 function exportData() {
-  const blob = new Blob([JSON.stringify({ app: 'toeic-study-desk-preview', exportedAt: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(createBackup(data), null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -208,10 +252,23 @@ function exportData() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 document.addEventListener('click', event => {
+  const themeOption = event.target.closest('[data-theme-id]');
+  if (themeOption) {
+    data.theme = themeOption.dataset.themeId; save(); applyTheme();
+    const inDialog = $('#theme-dialog').open;
+    render();
+    if (inDialog) $('#dialog-themes').innerHTML = themePicker();
+    const container = inDialog ? $('#dialog-themes') : $('#main');
+    container.querySelector(`[data-theme-id="${data.theme}"]`)?.focus({ preventScroll: true });
+    announce(`${themeById(data.theme).name}に切り替えました。`);
+    return;
+  }
   const target = event.target.closest('[data-action]');
   if (!target || target.disabled) return;
   const action = target.dataset.action;
   const s = currentSession();
+  if (action === 'open-themes') { $('#dialog-themes').innerHTML = themePicker(); $('#theme-dialog').showModal(); }
+  if (action === 'close-themes') $('#theme-dialog').close();
   if (action === 'quick-start') { draft = defaultConfig(); navigate('setup/grammar/kin'); }
   if (action === 'resume') navigate('exercise');
   if (action === 'answer' && s) {
@@ -241,8 +298,21 @@ document.addEventListener('click', event => {
     begin({ ...defaultConfig(), kind: reviewKind, mode: reviewMode, source: item.source, count: 'all' }, [item]);
   }
   if (action === 'more-review') { reviewLimit += 20; render(); $('[data-action="more-review"]')?.focus({ preventScroll: true }); }
-  if (action === 'light' || action === 'dark') { data.theme = action; save(); applyTheme(); render(); $(`[data-action="${action}"]`)?.focus({ preventScroll: true }); }
   if (action === 'export') exportData();
+  if (action === 'import') { $('#backup-file').value = ''; $('#backup-file').click(); }
+  if (action === 'cancel-restore') { pendingBackup = null; undoPreview = false; render(); $('[data-action="import"]').focus(); }
+  if (action === 'preview-undo') { undoPreview = true; pendingBackup = null; render(); $('#restore-title').focus(); }
+  if (action === 'confirm-restore' && (pendingBackup || undoPreview)) {
+    const next = undoPreview ? prepareUndo(data) : prepareRestore(data, pendingBackup.parsed, restoreMode);
+    if (store.replace(next)) {
+      backupMessage = undoPreview ? '復元前の状態に戻しました。' : '試用版の記録を復元しました。';
+      pendingBackup = null; undoPreview = false; flashRevealed = false; applyTheme();
+      $('#storage-notice').hidden = true;
+    } else {
+      backupMessage = `復元できませんでした。記録は元のままです。${store.notice}`;
+    }
+    render(); $('#backup-message').focus();
+  }
 });
 document.addEventListener('submit', event => {
   if (event.target.id === 'setup-form') {
@@ -261,6 +331,10 @@ document.addEventListener('submit', event => {
 });
 document.addEventListener('change', event => {
   const el = event.target;
+  if (el.id === 'sound-enabled') { data.sound = el.checked; save(); }
+  if (el.name === 'restore-mode') {
+    restoreMode = el.value; render(); $(`[name="restore-mode"][value="${restoreMode}"]`).focus({ preventScroll: true });
+  }
   if (el.closest('#setup-form')) {
     const form = new FormData($('#setup-form'));
     const changedSource = draft.source !== form.get('source');
@@ -279,7 +353,7 @@ document.addEventListener('change', event => {
 });
 document.addEventListener('keydown', event => {
   if (event.isComposing || event.repeat || event.ctrlKey || event.metaKey || event.altKey ||
-      /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable || location.hash !== '#exercise') return;
+      /INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable || $('#theme-dialog').open || location.hash !== '#exercise') return;
   const s = currentSession();
   if (!s || s.cursor >= s.ids.length) return;
   if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('button, a, summary')) return;
@@ -289,7 +363,27 @@ document.addEventListener('keydown', event => {
     ['Enter', ' '].includes(event.key) ? $('[data-action="next"]') || $('[data-action="reveal"]') : null;
   if (target && !target.disabled) { event.preventDefault(); target.click(); }
 });
-window.addEventListener('hashchange', () => { flashRevealed = false; render(true); });
+window.addEventListener('hashchange', () => {
+  flashRevealed = false;
+  if (location.hash !== '#settings') { pendingBackup = null; undoPreview = false; fileReadVersion++; }
+  render(true);
+});
+$('#theme-dialog').addEventListener('close', () => $('[data-action="open-themes"]')?.focus({ preventScroll: true }));
+$('#backup-file').addEventListener('change', async event => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const version = ++fileReadVersion;
+  pendingBackup = null; undoPreview = false; backupMessage = '';
+  try {
+    if (!file.size || file.size > MAX_BACKUP_BYTES) throw new Error('空でない、2MB以下のJSONファイルを選んでください。');
+    const text = await file.text();
+    if (version !== fileReadVersion) return;
+    pendingBackup = { name: file.name, parsed: parseBackup(text, catalog) };
+    restoreMode = 'merge';
+  } catch (error) { if (version === fileReadVersion) backupMessage = error.message; }
+  if (version !== fileReadVersion) return;
+  render(); (pendingBackup ? $('#restore-title') : $('#backup-message'))?.focus();
+});
 window.addEventListener('storage', event => {
   if (event.key === STORAGE_KEY || event.key === null) {
     $('#storage-notice').textContent = '別のタブで試用版の記録が更新されました。続ける前に、この画面を再読み込みしてください。';

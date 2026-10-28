@@ -1,0 +1,84 @@
+/* Shared dark tokens keep every screen readable, not just the question card. */
+:root[data-scheme="dark"] {
+  color-scheme: dark;
+  --text: #f0f3f6; --muted: #b3bfca; --border: #485660; --control-border: #7f929f;
+  --wrong: #ffb4a4; --wrong-bg: #492e2a;
+  --gold: #e0c48b; --gold-bg: #3c382a; --blue: #b6d4eb; --blue-bg: #2c3a43;
+  --clay: #e2b6a4; --clay-bg: #40322e;
+  --hero-text: #f0f3f6; --hero-muted: #c7d3d9;
+  --hero-button: var(--accent); --hero-button-text: var(--on-accent);
+}
+:root[data-theme="duolingo"] {
+  --bg: #131f24; --surface: #202f36; --text: #f2f7fa; --muted: #b6c3ca;
+  --border: #3d515c; --control-border: #8398a3; --accent: #58cc02; --accent-hover: #70df1b;
+  --on-accent: #102900; --tint: #243b22; --hero: #202f36; --focus: #a7ed78; --radius: 20px;
+  --wrong: #ffb4b4; --wrong-bg: #492c32;
+  font-family: ui-rounded, "Hiragino Maru Gothic ProN", -apple-system, sans-serif;
+}
+:root[data-theme="ink"] {
+  --bg: #181512; --surface: #2b251d; --text: #f4ecdc; --muted: #c1b59e;
+  --border: #554938; --control-border: #9a8b74; --accent: #d4a759; --accent-hover: #e6bd77;
+  --on-accent: #181512; --tint: #403320; --hero: #30271b; --focus: #e6bd77;
+}
+:root[data-theme="navy"] {
+  --bg: #0b1329; --surface: #182342; --accent: #93b8ff; --accent-hover: #b4ceff;
+  --on-accent: #101d35; --tint: #233457; --hero: #182b52; --focus: #b4ceff;
+}
+:root[data-theme="quizlet"] {
+  --bg: #0a092d; --surface: #1b1a44; --accent: #b3baff; --accent-hover: #cdd2ff;
+  --on-accent: #1a1748; --tint: #30305b; --hero: #26215e; --focus: #cdd2ff;
+  --border: #555378; --control-border: #9290b2;
+}
+:root[data-theme="forest"] {
+  --bg: #0a1713; --surface: #172c24; --accent: #6ee7b7; --accent-hover: #a4f2d2;
+  --on-accent: #102a20; --tint: #243e32; --hero: #1b382c; --focus: #a4f2d2;
+}
+:root[data-theme="nordic"] {
+  --bg: #18181b; --surface: #27272a; --accent: #d4d4d8; --accent-hover: #f4f4f5;
+  --on-accent: #18181b; --tint: #3f3f46; --hero: #303034; --focus: #e4e4e7;
+  --border: #52525b; --control-border: #8b8b96;
+}
+:root[data-theme="sepia"] {
+  --bg: #f6f3ed; --surface: #fffcf5; --text: #352b21; --muted: #71604d;
+  --border: #e0d5c2; --control-border: #9b886e; --accent: #98500c; --accent-hover: #7c3e06;
+  --on-accent: #fff; --tint: #f5e7cc; --hero: #654422; --focus: #98500c;
+  --hero-button: #fffcf5; --hero-button-text: #654422;
+}
+[data-theme="ink"] .question-panel {
+  --surface: #fbf7ee; --text: #181512; --muted: #6b6152; --accent: #785317;
+  --border: #ded3be; --control-border: #8c7b62; --tint: #eee5d1;
+  --wrong: #a83b30; --wrong-bg: #fff0ec;
+  color: var(--text);
+}
+[data-theme="duolingo"] .brand, [data-theme="duolingo"] .study-card h2,
+[data-theme="duolingo"] .question-text, [data-theme="duolingo"] .count {
+  font-family: inherit; font-weight: 800;
+}
+[data-theme="duolingo"] .panel, [data-theme="duolingo"] .book-card,
+[data-theme="duolingo"] .review-card, [data-theme="duolingo"] .answer-panel {
+  border-width: 2px; box-shadow: 0 4px 0 #0c171b; border-radius: 20px;
+}
+[data-theme="duolingo"] .button:not(.secondary):not(.quiet) { box-shadow: 0 4px 0 #3e870e; font-weight: 800; border-radius: 14px; }
+[data-theme="duolingo"] .button.secondary, [data-theme="duolingo"] .choice { border-width: 2px; box-shadow: 0 4px 0 #0c171b; border-radius: 14px; }
+[data-theme="duolingo"] .button:active:not(:disabled), [data-theme="duolingo"] .choice:active:not(:disabled) { box-shadow: 0 1px 0 #0c171b; }
+[data-theme="duolingo"] .choice.correct { background: #263f25; border-color: #58cc02; }
+[data-theme="duolingo"] .choice.wrong { border-color: #ff8585; }
+[data-theme="duolingo"] progress { height: 16px; border: 3px solid var(--surface); outline: 1px solid var(--border); }
+[data-theme="duolingo"] progress::-webkit-progress-value { border-radius: 12px; box-shadow: inset 0 4px 0 #8ee848; }
+[data-theme="duolingo"] .choice-key { border-width: 2px; font-weight: 800; }
+.duo-rewards { display: none; }
+[data-theme="duolingo"] .duo-rewards { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.reward-pill { display: inline-flex; gap: 8px; align-items: center; border: 2px solid var(--border); background: var(--surface); border-radius: 12px; padding: 6px 12px; color: #ffc677; font-size: .85rem; font-weight: 700; }
+.reward-pill.xp { color: #80d6ff; }
+.reward-pill svg { width: 20px; height: 20px; }
+.result-banner { display: none; }
+[data-theme="duolingo"] .result-banner { display: flex; align-items: center; gap: 12px; color: #9be477; background: #243b22; border: 1px solid #6e9c57; padding: 8px 16px; border-radius: 14px; margin: 0; font-size: .85rem; }
+[data-theme="duolingo"] .result-banner.wrong { color: #ffc2b6; background: #492e2a; border-color: #bb8074; }
+.result-banner small { display: block; color: inherit; font-weight: 400; }
+.result-mark { font-size: 1.5rem; font-weight: 800; }
+[data-theme="duolingo"] body[data-page="exercise"] { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
+[data-theme="duolingo"] body[data-page="exercise"] :is(button, input, select, summary) { scroll-margin-bottom: 210px; }
+@media (max-height: 500px) {
+  [data-theme="duolingo"] .result-banner small { display: none; }
+  [data-theme="duolingo"] .result-banner { padding-block: 4px; }
+}

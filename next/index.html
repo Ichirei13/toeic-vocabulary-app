@@ -8,6 +8,7 @@
   <title>Study Desk — TOEIC Drill 試用版</title>
   <link rel="icon" href="../icons/icon-192.png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="themes.css">
   <script src="../data/words.js" defer></script>
   <script src="../data/grammar.js" defer></script>
   <script type="module" src="app.mjs"></script>
@@ -22,6 +23,7 @@
     <nav aria-label="メインメニュー">
       <a href="#home" data-nav="home">ホーム</a>
       <a href="#review" data-nav="review">復習</a>
+      <a href="#settings" data-nav="settings">設定</a>
     </nav>
     <div class="header-tools"><span class="preview-label">試用版</span><a class="legacy-link" href="../">従来版へ <span aria-hidden="true">↗</span></a></div>
   </header>
@@ -30,6 +32,11 @@
   <main id="main" tabindex="-1"><p>教材を読み込んでいます…</p></main>
   <footer class="site-footer"><span>自分のペースで、一問ずつ。</span><a href="#settings">試用版の記録・表示設定</a></footer>
   <div class="sr-only" id="announcement" role="status" aria-live="polite" aria-atomic="true"></div>
+  <input type="file" id="backup-file" accept=".json,application/json" hidden>
+  <dialog id="theme-dialog" aria-labelledby="theme-dialog-title">
+    <div class="dialog-header"><div><p class="eyebrow">Make it yours</p><h2 id="theme-dialog-title">好きな見た目で、続けよう。</h2></div><button class="button quiet" data-action="close-themes" aria-label="テーマ選択を閉じる">閉じる</button></div>
+    <div id="dialog-themes"></div>
+  </dialog>
   <noscript>このアプリの演習にはJavaScriptが必要です。<a href="../">従来版へ戻る</a></noscript>
 </body>
 </html>

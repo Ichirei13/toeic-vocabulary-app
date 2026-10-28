@@ -1,4 +1,5 @@
 // This module is deliberately independent of the legacy application and Google APIs.
+import { legacyTheme } from './themes.mjs';
 export const STORAGE_KEY = 'toeic_next_v1';
 export const MODES = { e2j: '英 → 日', j2e: '日 → 英', flash: 'カード', type: 'タイプ' };
 export const BOOKS = {
@@ -23,13 +24,15 @@ function weak(raw, tombs, prefix) {
     if (!safeKey(k) || !object(v) || (tombs[prefix + k] > 0 && (v.u || 0) <= tombs[prefix + k])) return [];
     if (v.due !== undefined && (!Number.isFinite(v.due) || v.due < 0)) return [];
     return [[k, { added: Number(v.added) || Date.now(), due: v.due ?? 0,
-      streak: Number.isInteger(v.streak) ? Math.max(0, Math.min(3, v.streak)) : 0 }]];
+      streak: Number.isInteger(v.streak) ? Math.max(0, Math.min(3, v.streak)) : 0,
+      u: Number.isFinite(v.u) ? v.u : 0 }]];
   }));
 }
 const strings = value => Array.isArray(value) ? [...new Set(value.filter(x => typeof x === 'string' && safeKey(x)))] : [];
 
 export function seedFromLegacy(storage) {
-  const tombs = read(storage, 'toeic_weak_deleted', {}) || {};
+  const rawTombs = read(storage, 'toeic_weak_deleted', {});
+  const tombs = Object.fromEntries(Object.entries(object(rawTombs) ? rawTombs : {}).filter(([k, v]) => safeKey(k) && Number.isFinite(v) && v >= 0));
   const byMode = read(storage, 'toeic_weak_words_by_mode', null);
   const seenMode = read(storage, 'toeic_seen_words_by_mode', null);
   const oldWeak = read(storage, 'toeic_weak_words', {});
@@ -40,11 +43,11 @@ export function seedFromLegacy(storage) {
   const grammarSeen = read(storage, 'toeic_seen_grammar', null);
   return {
     schema: 1, importedAt: Date.now(), importedItems: Object.keys(wordStats).length + Object.keys(grammarStats).length,
-    theme: 'light', session: null,
+    theme: legacyTheme(storage.getItem('toeic_app_theme')), sound: true, session: null,
     records: {
       weakWords: Object.fromEntries(Object.keys(MODES).map(m => [m, weak(object(byMode) ? byMode[m] : oldWeak, tombs, `w:${m}:`)])),
       seenWords: Object.fromEntries(Object.keys(MODES).map(m => [m, strings(object(seenMode) ? seenMode[m] : oldSeen)])),
-      wordStats, grammarWeak, grammarStats,
+      wordStats, grammarWeak, grammarStats, weakDeleted: tombs,
       grammarSeen: [...new Set((Array.isArray(grammarSeen) ? grammarSeen : grammarSeen === null
         ? [...Object.keys(grammarStats), ...Object.keys(grammarWeak)].map(Number) : []).filter(x => Number.isInteger(x) && x > 0))],
     },
@@ -76,25 +79,32 @@ export function openStore(storage) {
     notice = '保存済みの記録を読み込めませんでした。元の記録は保持しています。この画面での学習は保存されません。';
     data = seedFromLegacy(emptyStorage);
   }
-  return {
-    data, get notice() { return notice; },
-    save() {
-      if (blocked) return false;
-      try {
-        if (storage.getItem(STORAGE_KEY) !== lastRaw) {
-          blocked = true;
-          notice = '別のタブで試用版の記録が更新されました。上書きを防ぐため保存を停止しています。再読み込みしてください。';
-          return false;
-        }
-        const nextRaw = JSON.stringify(data);
-        storage.setItem(STORAGE_KEY, nextRaw);
-        lastRaw = nextRaw;
-        notice = '';
-        return true;
-      } catch {
-        notice = '端末に記録を保存できません。空き容量やブラウザの設定を確認してください。今の記録は設定から書き出せます。';
+  function persist(value) {
+    if (blocked) return false;
+    try {
+      if (storage.getItem(STORAGE_KEY) !== lastRaw) {
+        blocked = true;
+        notice = '別のタブで試用版の記録が更新されました。上書きを防ぐため保存を停止しています。再読み込みしてください。';
         return false;
       }
+      const nextRaw = JSON.stringify(value);
+      storage.setItem(STORAGE_KEY, nextRaw);
+      lastRaw = nextRaw;
+      notice = '';
+      return true;
+    } catch {
+      notice = '端末に記録を保存できません。空き容量やブラウザの設定を確認してください。今の記録は設定から書き出せます。';
+      return false;
+    }
+  }
+  return {
+    data, get notice() { return notice; },
+    save() { return persist(data); },
+    replace(next) {
+      if (!validSaved(next) || !persist(next)) return false;
+      Object.keys(data).forEach(key => delete data[key]);
+      Object.assign(data, next);
+      return true;
     },
   };
 }
@@ -175,12 +185,18 @@ export function recordAnswer(data, item, result, now = Date.now()) {
   const seenKey = item.kind === 'grammar' ? Number(item.key) : item.key;
   if (!seen.includes(seenKey)) seen.push(seenKey);
   const map = weakMap(r, item.kind, session.config.mode);
+  r.weakDeleted ??= {};
+  const tombKey = item.kind === 'grammar' ? `g:${item.key}` : `w:${session.config.mode}:${item.key}`;
   const entry = map[item.key];
-  if (!result.correct) map[item.key] = { streak: 0, added: entry?.added || now, due: now };
+  if (!result.correct) {
+    map[item.key] = { streak: 0, added: entry?.added || now, due: now, u: now };
+    delete r.weakDeleted[tombKey];
+  }
   else if (entry && entry.due <= now) {
-    if (entry.streak >= 3) delete map[item.key];
+    if (entry.streak >= 3) { delete map[item.key]; r.weakDeleted[tombKey] = now; }
     else {
       entry.streak++;
+      entry.u = now;
       const date = new Date(now);
       date.setHours(0, 0, 0, 0);
       date.setDate(date.getDate() + [1, 3, 7][entry.streak - 1]);
