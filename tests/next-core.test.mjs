@@ -123,3 +123,11 @@ test('only a new answer increments the activity day',()=>{
  recordAnswer(data,catalog.byId.get('g:1'),{correct:true},now);
  assert.equal(data.activity.days['2026-10-28'].answers,1);
 });
+test('same-day review is not graduation but a due final review is',()=>{
+ const data=openStore(storage()).data,catalog=makeCatalog(words,grammar),item=catalog.byId.get('g:1'),now=Date.now();
+ data.records.grammarWeak['1']={added:1,due:now+10000,streak:3};
+ data.session=startSession([item],config,catalog);recordAnswer(data,item,{correct:true},now);
+ assert.equal(data.session.answers['g:1'].wasWeak,true);assert.equal(data.session.answers['g:1'].graduated,false);
+ data.session=startSession([item],config,catalog);recordAnswer(data,item,{correct:true},now+20000);
+ assert.equal(data.session.answers['g:1'].graduated,true);assert.equal(data.records.grammarWeak['1'],undefined);
+});

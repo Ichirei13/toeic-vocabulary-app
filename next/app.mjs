@@ -2,7 +2,7 @@ import { STORAGE_KEY, MODES, BOOKS, openStore, makeCatalog, weakMap, selectItems
   choicesFor, startSession, validSession, recordAnswer } from './core.mjs';
 import { activitySummary, monthModel, setDailyGoal, localDateKey } from './activity.mjs';
 import { goalMarkup, calendarMarkup, learningSettingsMarkup } from './learning-ui.mjs';
-import { bookProgress } from './progress.mjs';
+import { bookProgress, reviewSummary } from './progress.mjs';
 import { rememberPreset, resolvePreset, presetKey } from './preferences.mjs';
 import { THEMES, themeById, sessionRewards, playAnswerSound } from './themes.mjs';
 import { createBackup, parseBackup, recordCounts, prepareRestore, prepareUndo, MAX_BACKUP_BYTES } from './backup.mjs';
@@ -249,7 +249,8 @@ function summary(s) {
   const correct = answers.filter(a => a.correct).length;
   const wrong = answers.filter(a => !a.correct).length;
   const reward = sessionRewards(s);
-  return `<section class="narrow panel summary-card"><div class="duo-completion" aria-hidden="true">${starIcon}<span>LESSON COMPLETE</span></div><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<dl class="duo-summary-stats"><div class="stat-score"><dt>正答数</dt><dd>${correct}<small> / ${s.ids.length}</small></dd></div><div class="stat-xp"><dt>獲得XP</dt><dd>${reward.xp}<small> XP</small></dd></div><div class="stat-streak"><dt>最高連続正解</dt><dd>${reward.best}<small> 問</small></dd></div></dl><p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
+  const review = reviewSummary(s);
+  return `<section class="narrow panel summary-card"><div class="duo-completion" aria-hidden="true">${starIcon}<span>LESSON COMPLETE</span></div><p class="eyebrow">Session complete</p><h1>おつかれさまでした。</h1><p class="subtext">${esc(sourceName(s.config.kind, s.config.source))} · ${s.ids.length}問の演習</p><div class="summary-score">${correct}<small> / ${s.ids.length}</small></div>${rewards(s)}<dl class="duo-summary-stats"><div class="stat-score"><dt>正答数</dt><dd>${correct}<small> / ${s.ids.length}</small></dd></div><div class="stat-xp"><dt>獲得XP</dt><dd>${reward.xp}<small> XP</small></dd></div><div class="stat-streak"><dt>最高連続正解</dt><dd>${reward.best}<small> 問</small></dd></div></dl>${review.reviewed ? `<p class="review-result">苦手を${review.reviewed}問復習できました。${review.graduated ? ` ${review.graduated}問を克服しました。` : ''}</p>` : ''}<p>${wrong ? `${wrong}問を苦手リストに記録しました。もう一度解いて、理解を確かめましょう。` : 'すべて正解です。次の学習も、自分のペースで。'}</p><div class="summary-actions">${wrong ? button(`間違えた${wrong}問をもう一度`, 'retry') : button('同じ条件で新しく解く', 'repeat')}<a class="button secondary" href="#home">ホームへ</a></div><p class="help">この結果は試用版の記録として保存されます。</p></section>`;
 }
 function review() {
   const config = { ...defaultConfig(), kind: reviewKind, source: 'all', mode: reviewMode, filter: 'weak' };

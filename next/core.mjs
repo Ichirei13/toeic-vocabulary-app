@@ -205,6 +205,7 @@ export function recordAnswer(data, item, result, now = Date.now()) {
   r.weakDeleted ??= {};
   const tombKey = item.kind === 'grammar' ? `g:${item.key}` : `w:${session.config.mode}:${item.key}`;
   const entry = map[item.key];
+  session.answers[item.id].wasWeak = Boolean(entry);
   if (!result.correct) {
     map[item.key] = { streak: 0, added: entry?.added || now, due: now, u: now };
     delete r.weakDeleted[tombKey];
@@ -220,5 +221,6 @@ export function recordAnswer(data, item, result, now = Date.now()) {
       entry.due = date.getTime();
     }
   }
+  session.answers[item.id].graduated = Boolean(entry) && result.correct && !map[item.key];
   return true;
 }

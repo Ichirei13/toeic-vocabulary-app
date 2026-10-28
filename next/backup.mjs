@@ -85,6 +85,7 @@ function legacyRecords(backup) {
 
 function safeSession(s, catalog) {
   if (!validSession(s, catalog) || new Set(s.ids).size !== s.ids.length) return null;
+  if (s.reviewOnly !== undefined && typeof s.reviewOnly !== 'boolean') return null;
   const c = s.config;
   if (!['10', '20', 'all'].includes(c.count) || !['all', 'due', 'weak', 'weak_unseen', 'unseen'].includes(c.filter) ||
     typeof c.source !== 'string' || !['chapters', 'pos', 'dates', 'ranges'].every(k => Array.isArray(c[k])) ||
@@ -96,6 +97,7 @@ function safeSession(s, catalog) {
   }
   for (const [id, answer] of Object.entries(s.answers)) {
     if (!s.ids.includes(id) || !object(answer) || typeof answer.correct !== 'boolean' || !Number.isFinite(answer.at) ||
+      ['wasWeak','graduated'].some(k => answer[k] !== undefined && typeof answer[k] !== 'boolean') ||
       (answer.typed !== undefined && typeof answer.typed !== 'string') ||
       (answer.selected !== undefined && (!s.choices[id] || !Number.isInteger(answer.selected) || answer.selected < 0 || answer.selected >= s.choices[id].labels.length))) return null;
   }

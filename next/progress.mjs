@@ -6,3 +6,8 @@ export function bookProgress(catalog, records, kind, source) {
   const seen = items.filter(item => seenKeys.has(item.key)).length;
   return { total: items.length, seen, unseen: items.length - seen };
 }
+export function reviewSummary(session) {
+  const answers = Object.values(session?.answers || {});
+  return { reviewed: answers.filter(a => a.correct && a.wasWeak === true).length,
+    graduated: answers.filter(a => a.correct && a.wasWeak === true && a.graduated === true).length };
+}
