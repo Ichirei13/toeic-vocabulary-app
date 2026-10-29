@@ -635,3 +635,50 @@
   text-align: center;
 }
 .filter-zero-note[hidden] { display: none; }
+
+/* ==================== ホーム：ラッパー（狭い画面では何もしない） ==================== */
+.home-layout,
+.home-top,
+.home-col-main,
+.home-col-side {
+  display: contents;
+}
+
+/* ==================== ホーム：PC の広い画面で 2 カラム ==================== */
+@media (min-width: 1024px) {
+  #app.page-home {
+    max-width: 1080px;
+  }
+  #app.page-home #home-page {
+    padding: 18px 28px 28px;
+  }
+  #app.page-home .home-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 14px 22px;
+    align-items: start;
+  }
+  #app.page-home .home-top {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    grid-column: 1 / -1;
+  }
+  #app.page-home .home-col-main,
+  #app.page-home .home-col-side {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  /* 他の参考書は PC では内側スクロールをやめ、そのまま並べる */
+  #app.page-home .home-others-section {
+    flex: none;
+    min-height: 0;
+  }
+  #app.page-home .home-others-scroll {
+    flex: none;
+    overflow: visible;
+    max-height: none;
+  }
+}

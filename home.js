@@ -636,6 +636,8 @@ function renderHomePage() {
     : `<span class="home-message-icon">${msgItem.icon}</span>`;
 
   container.innerHTML = `
+    <div class="home-layout">
+    <div class="home-top">
     <!-- 1. メッセージ枠（タップで他の褒めポイントへ切り替え） -->
     <div class="home-message-bar" role="status" data-home-action="rotate-praise" title="タップで別のメッセージを表示">
       ${streakBadgeHtml}
@@ -649,6 +651,8 @@ function renderHomePage() {
       <div class="segment ${kind === 'grammar' ? 'active' : ''}" data-home-switch="grammar" role="tab" aria-selected="${kind === 'grammar'}">文法</div>
     </div>
 
+    </div>
+    <div class="home-col-main">
     <!-- 3. 学習中の参考書（前回解いた1冊） -->
     <section class="home-main-book-card" aria-label="学習中の参考書">
       <div class="home-main-book-top">
@@ -712,6 +716,8 @@ function renderHomePage() {
       </div>
     </section>
 
+    </div>
+    <div class="home-col-side">
     <!-- 5. 他の参考書（スクロール可能ボックス） -->
     <section class="home-others-section" aria-label="他の参考書">
       <h3 class="home-others-heading">
@@ -747,6 +753,8 @@ function renderHomePage() {
         }).join('')}
       </div>
     </section>
+    </div>
+    </div>
   `;
 }
 
@@ -846,6 +854,8 @@ function renderSettingsPage() {
 function switchAppPage(page, options = {}) {
   if (!['home', 'practice', 'settings'].includes(page)) page = 'home';
   currentAppPage = page;
+  const appEl = document.getElementById('app');
+  if (appEl) appEl.classList.toggle('page-home', page === 'home');
 
   // シートが開いていれば閉じる（オプションで維持指定がない場合）
   if (!options.keepSheets) {
