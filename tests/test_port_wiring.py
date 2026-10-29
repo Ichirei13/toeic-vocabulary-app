@@ -89,3 +89,20 @@ def test_pace_and_goal_settings_are_wired():
     # バックアップの prefs は正しい項目だけ取り込み、無い項目は今のまま
     assert "StudyCore.paceTargetPatch(" in HTML
     assert "StudyCore.isGoal(" in HTML
+
+
+def test_minor_fixes_are_wired():
+    home = (ROOT / "home.js").read_text(encoding="utf-8")
+    css = (ROOT / "home.css").read_text(encoding="utf-8")
+    # 復習できた数は単語・文法で別に持ち、出題プールを作り直すときだけ戻す
+    assert "window.resetReview = function" not in home
+    assert "window.applyFilters = function" in home
+    assert "window.applyGrammarFilters = function" in home
+    assert "sessionReviewHtml('grammar')" in HTML and "sessionReviewHtml('vocab')" in HTML
+    # ダイアログは枠の外（背景）をタップしたときだけ閉じる
+    assert "getBoundingClientRect()" in home[home.index("function ensureGoalDialog"):home.index("function renderGoalDialog")]
+    # 苦手一覧のシートを閉じたら、復習画面の件数を描き直す
+    assert "window.closeSheet = function" in home
+    # 目標行はメッセージ枠の直後に置く（DOM 順 = 見た目の順）。order での入れ替えはしない
+    assert home.index("${goalRowHtml}") < home.index("<!-- 2. 単語 / 文法 切り替えスイッチ -->")
+    assert "order: -1" not in css and "order: -2" not in css

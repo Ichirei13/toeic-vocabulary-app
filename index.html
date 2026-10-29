@@ -3116,7 +3116,7 @@ function renderCurrentGrammar() {
   }
 
   if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
-    container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml() : ''}</div>`;
+    container.innerHTML = `<div class="card"><div class="meaning-display">文法ドリル完了！ 🎉</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}</div>`;
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
     updateFooter();
@@ -3804,7 +3804,7 @@ function renderCurrent() {
   }
 
   if (!review && state.currentIndex >= state.pool.length) {
-    container.innerHTML = `<div class="card"><div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml() : ''}</div>`;
+    container.innerHTML = `<div class="card"><div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('vocab') : ''}</div>`;
     choicesDiv.innerHTML = '';
     updateFooter();
     return;

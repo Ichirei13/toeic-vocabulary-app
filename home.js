@@ -48,8 +48,8 @@ let praiseRotationIndex = 0;
 let lastRenderedDate = '';
 let goalCalendarMonth = '';
 let goalDialogTrigger = null;
-// 今の演習（出題し直すたびにリセット）で、苦手を復習・克服できた数
-let sessionReview = StudyCore.createSessionReview();
+// 今の演習で、苦手を復習・克服できた数。単語と文法で別に持ち、その種類の出題プールを作り直すときだけ戻す
+let sessionReview = { vocab: StudyCore.createSessionReview(), grammar: StudyCore.createSessionReview() };
 
 function localDateStr(ms = Date.now()) {
   const d = new Date(ms);
@@ -121,8 +121,8 @@ function reloadHomeExtras() {
 }
 
 // 回答のあとに呼ぶ。苦手だった問題に正解したら集計し、苦手から外れたらその日の克服数 gr も増やす
-function noteSessionReview(wasWeak, isWeakNow, isCorrect) {
-  StudyCore.noteReviewAnswer(sessionReview, { wasWeak, isWeakNow, isCorrect });
+function noteSessionReview(kind, wasWeak, isWeakNow, isCorrect) {
+  StudyCore.noteReviewAnswer(sessionReview[kind], { wasWeak, isWeakNow, isCorrect });
   if (wasWeak && !isWeakNow && isCorrect) {
     const entry = dailyActivity.days[localDateStr()];
     if (entry) {
@@ -133,8 +133,8 @@ function noteSessionReview(wasWeak, isWeakNow, isCorrect) {
 }
 
 // 演習の完了画面に足す 1 行（復習できた問題が無ければ何も出さない）
-function sessionReviewHtml() {
-  const text = StudyCore.reviewSummaryText(sessionReview);
+function sessionReviewHtml(kind) {
+  const text = StudyCore.reviewSummaryText(sessionReview[kind]);
   return text ? `<div class="review-result">${escapeHtml(text)}</div>` : '';
 }
 
@@ -745,6 +745,7 @@ function renderHomePage() {
       <div class="home-message-text">${msgItem.html}</div>
       ${praiseModel.list.length > 1 ? '<span class="home-message-next" aria-hidden="true">↻</span>' : ''}
     </div>
+    ${goalRowHtml}
 
     <!-- 2. 単語 / 文法 切り替えスイッチ -->
     <div class="segments home-switch-segments" role="tablist" aria-label="単語と文法の切り替え">
@@ -819,7 +820,6 @@ function renderHomePage() {
 
     </div>
     <div class="home-col-side">
-    ${goalRowHtml}
     <!-- 5. 他の参考書（スクロール可能ボックス） -->
     <section class="home-others-section" aria-label="他の参考書">
       <h3 class="home-others-heading">
@@ -864,6 +864,7 @@ function renderHomePage() {
 function renderReviewPage() {
   const container = document.getElementById('review-page');
   if (!container) return;
+  lastRenderedDate = localDateStr();
   const today = dailyActivity.days[localDateStr()] || {};
   const mastered = today.gr || 0;
   const block = (kind, title, sub) => {
@@ -1244,7 +1245,11 @@ function ensureGoalDialog() {
   dlg.className = 'goal-dialog';
   dlg.setAttribute('aria-labelledby', 'goal-dialog-title');
   dlg.addEventListener('click', e => {
-    if (e.target === dlg) dlg.close(); // 背景タップで閉じる
+    if (e.target === dlg) {
+      // dialog の余白（padding）や段落の間をタップしても e.target は dialog 自身になるので、枠の外（背景）のときだけ閉じる
+      const r = dlg.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dlg.close();
+    }
     const act = e.target.closest('[data-goal-action]');
     if (!act) return;
     const name = act.dataset.goalAction;
@@ -1274,6 +1279,11 @@ function renderGoalDialog() {
   const model = StudyCore.monthModel(dailyActivity.days, goalCalendarMonth, today);
   const streak = getStreakSummary();
   const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  // 作り直すとフォーカスが外れるので、今フォーカスのあるボタン・選択欄を覚えておいて、描き直したあとに戻す
+  const active = document.activeElement;
+  const focusSelector = dlg.contains(active)
+    ? (active.dataset.goalAction ? `[data-goal-action="${active.dataset.goalAction}"]` : (active.id ? `#${active.id}` : ''))
+    : '';
   const cells = [
     ...Array.from({ length: model.leading }, () => '<span class="goal-cal-cell empty"></span>'),
     ...model.cells.map(c => {
@@ -1306,6 +1316,11 @@ function renderGoalDialog() {
     </div>
     <p class="goal-dialog-legend"><span>● 学習した日</span><span>✓ 目標達成の日</span></p>
     <p class="goal-dialog-note">日別の記録は、この機能を入れた日から残ります。</p>`;
+  if (focusSelector) {
+    let target = dlg.querySelector(focusSelector);
+    if (target && target.disabled) target = dlg.querySelector('[data-goal-action="prev"]'); // 最後の月で「›」が使えなくなったとき
+    if (target) target.focus();
+  }
 }
 
 function openGoalDialog(trigger) {
@@ -1318,7 +1333,9 @@ function openGoalDialog(trigger) {
 
 // アプリを開いたまま日付が変わったとき、ホームの「今日 N / M問」を作り直す
 function refreshForNewDay() {
-  if (lastRenderedDate && lastRenderedDate !== localDateStr() && currentAppPage === 'home') renderHomePage();
+  if (!lastRenderedDate || lastRenderedDate === localDateStr()) return;
+  if (currentAppPage === 'home') renderHomePage();
+  else if (currentAppPage === 'review') renderReviewPage();
 }
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') refreshForNewDay();
@@ -1378,7 +1395,7 @@ function initHomeAndPages() {
       const wasWeak = Boolean(wordWeak()[word.w]);
       const res = origRecordWeak.apply(this, arguments);
       recordAnswerPaceAndActivity('vocab', isCorrect);
-      noteSessionReview(wasWeak, Boolean(wordWeak()[word.w]), isCorrect);
+      noteSessionReview('vocab', wasWeak, Boolean(wordWeak()[word.w]), isCorrect);
       return res;
     };
   }
@@ -1389,17 +1406,35 @@ function initHomeAndPages() {
       const wasWeak = Boolean(state.grammarWeakData[ex.id]);
       const res = origRecordWeakGrammar.apply(this, arguments);
       recordAnswerPaceAndActivity('grammar', isCorrect);
-      noteSessionReview(wasWeak, Boolean(state.grammarWeakData[ex.id]), isCorrect);
+      noteSessionReview('grammar', wasWeak, Boolean(state.grammarWeakData[ex.id]), isCorrect);
       return res;
     };
   }
 
-  // 出題プールを作り直す（絞り込み・モード変更・苦手ドリルなど）たびに、今の演習の集計をやり直す
-  const origResetReview = window.resetReview;
-  if (typeof origResetReview === 'function') {
-    window.resetReview = function () {
-      sessionReview = StudyCore.createSessionReview();
-      return origResetReview.apply(this, arguments);
+  // 出題プールを作り直す（絞り込み・モード変更・苦手ドリルなど）たびに、その種類の集計だけやり直す。
+  // 単語 ⇄ 文法の切り替えや、保存した続きの復元では作り直さないので、戻ったときに続きから数えられる
+  const origApplyFilters = window.applyFilters;
+  if (typeof origApplyFilters === 'function') {
+    window.applyFilters = function () {
+      sessionReview.vocab = StudyCore.createSessionReview();
+      return origApplyFilters.apply(this, arguments);
+    };
+  }
+  const origApplyGrammarFilters = window.applyGrammarFilters;
+  if (typeof origApplyGrammarFilters === 'function') {
+    window.applyGrammarFilters = function () {
+      sessionReview.grammar = StudyCore.createSessionReview();
+      return origApplyGrammarFilters.apply(this, arguments);
+    };
+  }
+
+  // 苦手一覧のシートを閉じたとき、復習画面にいたら件数を描き直す（シートの中で苦手を外せるため）
+  const origCloseSheet = window.closeSheet;
+  if (typeof origCloseSheet === 'function') {
+    window.closeSheet = function () {
+      const res = origCloseSheet.apply(this, arguments);
+      if (currentAppPage === 'review') renderReviewPage();
+      return res;
     };
   }
 

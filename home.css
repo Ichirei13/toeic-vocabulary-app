@@ -658,11 +658,25 @@
     gap: 14px 22px;
     align-items: start;
   }
+  /* メッセージ枠・目標行・切り替えは DOM 上で並んだまま、grid の配置で目標行だけ右カラムの上に出す */
   #app.page-home .home-top {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    display: contents;
+  }
+  #app.page-home .home-message-bar,
+  #app.page-home .home-switch-segments {
     grid-column: 1 / -1;
+  }
+  #app.page-home .home-col-main {
+    grid-column: 1;
+    grid-row: 3 / span 2;
+  }
+  #app.page-home .home-goal-row {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  #app.page-home .home-col-side {
+    grid-column: 2;
+    grid-row: 4;
   }
   #app.page-home .home-col-main,
   #app.page-home .home-col-side {
@@ -685,7 +699,6 @@
 
 /* ==================== 今日の目標（ホームの 1 行） ==================== */
 .home-goal-row {
-  order: -1; /* 狭い画面では、メッセージ枠の次に出す */
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas: "label count" "track track";
@@ -702,7 +715,6 @@
   text-align: left;
   cursor: pointer;
 }
-.home-message-bar { order: -2; }
 .home-goal-label { grid-area: label; font-weight: 700; }
 .home-goal-count { grid-area: count; justify-self: end; font-weight: 800; color: var(--accent); }
 .home-goal-track {
@@ -718,10 +730,6 @@
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
-}
-@media (min-width: 1024px) {
-  #app.page-home .home-goal-row,
-  #app.page-home .home-message-bar { order: 0; }
 }
 
 /* ==================== 目標・カレンダーのダイアログ ==================== */
