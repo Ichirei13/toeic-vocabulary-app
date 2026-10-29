@@ -2320,18 +2320,9 @@ body {
       </div>
     </div>
 
-    <!-- 4つの答えかたの切り替え（単語ドリル時のみ表示） -->
-    <div class="filter-section-group" id="sheet-mode-group">
-      <div class="filter-section-label">出題モード</div>
-      <div class="segments mode-segments" id="sheet-mode-segments" style="margin-bottom: 4px;">
-        <div class="segment active" data-mode="e2j">英→日</div>
-        <div class="segment" data-mode="j2e">日→英</div>
-        <div class="segment" data-mode="flash">カード</div>
-        <div class="segment" data-mode="type">タイプ</div>
-      </div>
-    </div>
-
-    <div id="vocab-filters">
+    <!-- 参考書と範囲 -->
+    <div class="filter-section-group" id="vocab-filters">
+      <div class="filter-section-label">参考書・範囲</div>
       <div class="segments" id="source-segments" style="margin-bottom: 4px;">
         <div class="segment active" data-source="all">すべて</div>
         <div class="segment" data-source="daily">日々の単語</div>
@@ -2347,14 +2338,9 @@ body {
         <button class="chip" data-pos="句・表現">句・表現</button>
       </div>
       <div class="filter-row" id="range-filters" style="display:none;"></div>
-      <div class="segments" id="weak-segments">
-        <div class="segment active" data-weak="all">すべて</div>
-        <div class="segment" data-weak="weak_unlearned">苦手+未</div>
-        <div class="segment" data-weak="weak_only">苦手のみ<span id="weak-badge" class="weak-badge" style="display:none">0</span></div>
-        <div class="segment" data-weak="due">要復習<span id="due-badge" class="weak-badge" style="display:none">0</span></div>
-      </div>
     </div>
-    <div id="grammar-filters" style="display:none;">
+    <div class="filter-section-group" id="grammar-filters" style="display:none;">
+      <div class="filter-section-label">参考書・章</div>
       <div class="segments" id="grammar-book-segments" style="margin-bottom: 6px;">
         <div class="segment active" data-gbook="all">すべて <span style="font-size:10px;opacity:0.8;">(983)</span></div>
         <div class="segment" data-gbook="kin">👑 金の文法 <span style="font-size:10px;opacity:0.8;">(160)</span></div>
@@ -2363,7 +2349,31 @@ body {
         <div class="segment" data-gbook="toplevel">🎓 トップレベル <span style="font-size:10px;opacity:0.8;">(348)</span></div>
       </div>
       <div class="filter-row" id="grammar-chapter-filters"></div>
-      <div class="segments" id="grammar-weak-segments" style="margin-top: 4px;">
+    </div>
+    <!-- 4つの答えかたの切り替え（単語ドリル時のみ表示） -->
+    <div class="filter-section-group" id="sheet-mode-group">
+      <div class="filter-section-label">出題モード</div>
+      <div class="segments mode-segments" id="sheet-mode-segments" style="margin-bottom: 4px;">
+        <div class="segment active" data-mode="e2j">英→日</div>
+        <div class="segment" data-mode="j2e">日→英</div>
+        <div class="segment" data-mode="flash">カード</div>
+        <div class="segment" data-mode="type">タイプ</div>
+      </div>
+    </div>
+
+    <!-- 出題する問題（すべて／苦手+未／苦手のみ／要復習） -->
+    <div class="filter-section-group" id="vocab-weak-group">
+      <div class="filter-section-label">出題する問題</div>
+      <div class="segments" id="weak-segments">
+        <div class="segment active" data-weak="all">すべて</div>
+        <div class="segment" data-weak="weak_unlearned">苦手+未</div>
+        <div class="segment" data-weak="weak_only">苦手のみ<span id="weak-badge" class="weak-badge" style="display:none">0</span></div>
+        <div class="segment" data-weak="due">要復習<span id="due-badge" class="weak-badge" style="display:none">0</span></div>
+      </div>
+    </div>
+    <div class="filter-section-group" id="grammar-weak-group" style="display:none;">
+      <div class="filter-section-label">出題する問題</div>
+      <div class="segments" id="grammar-weak-segments">
         <div class="segment active" data-gweak="all">すべて</div>
         <div class="segment" data-gweak="weak_unlearned">苦手+未</div>
         <div class="segment" data-gweak="weak_only">苦手のみ<span id="grammar-weak-badge" class="weak-badge" style="display:none">0</span></div>
@@ -3338,6 +3348,8 @@ function setApp(app) {
   resetActionBar();
 
   if (isGrammar) {
+  document.getElementById('vocab-weak-group').style.display = isGrammar ? 'none' : 'block';
+  document.getElementById('grammar-weak-group').style.display = isGrammar ? 'block' : 'none';
     if (!restoreSession('grammar')) return applyGrammarFilters();
     updateGrammarWeakBadge();
     updateFilterSummary();

@@ -1248,6 +1248,8 @@ function startBookFromHome(kind, bookId) {
     if (sheetModeGroup) sheetModeGroup.style.display = 'none';
     document.getElementById('vocab-filters').style.display = 'none';
     document.getElementById('grammar-filters').style.display = 'block';
+    document.getElementById('vocab-weak-group').style.display = 'none';
+    document.getElementById('grammar-weak-group').style.display = 'block';
     resetActionBar();
 
     if (!restoreBookSessionSnapshot('grammar', bookId) && !restoreSession('grammar')) {
@@ -1265,6 +1267,8 @@ function startBookFromHome(kind, bookId) {
     if (sheetModeGroup) sheetModeGroup.style.display = 'block';
     document.getElementById('vocab-filters').style.display = 'block';
     document.getElementById('grammar-filters').style.display = 'none';
+    document.getElementById('vocab-weak-group').style.display = 'block';
+    document.getElementById('grammar-weak-group').style.display = 'none';
     resetActionBar();
 
     if (!restoreBookSessionSnapshot('vocab', bookId) && !restoreSession('vocab')) {
