@@ -621,3 +621,17 @@
   transform: translateY(calc(-100% - 16px)) !important;
   pointer-events: none;
 }
+
+/* 絞り込みシート：対象 0 件の案内 */
+.filter-zero-note {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+.filter-zero-note[hidden] { display: none; }
