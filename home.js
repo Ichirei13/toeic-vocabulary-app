@@ -1,5 +1,24 @@
 // ==================== 3ページ構成（ホーム・演習・設定） & ホーム画面制御 ====================
 
+// src/*.js のどれかが読み込めなかったときでも、ホームと演習が止まらないようにする。
+// 足りない関数だけ、目標・カレンダー・復習の集計なしの代わりで補う。
+// 日別記録の検証と統合は代わりを作らず、呼ばれたら例外にする（空で上書きして記録を失わないため）
+const STUDY_CORE_FALLBACK = {
+  GOALS: [0, 5, 10, 20, 30],
+  normalizeGoal: v => ([0, 5, 10, 20, 30].includes(v) ? v : 10),
+  goalProgress: () => ({ answered: 0, goal: 10, hasGoal: false, reached: false, ratio: 0 }),
+  monthModel: (days, ym) => ({ ym, label: ym, leading: 0, cells: [], canNext: false }),
+  shiftMonth: ym => ym,
+  studiedDays: () => 0,
+  sanitizeActivity: () => { throw new Error('src/activity.js を読み込めていません'); },
+  mergeActivity: () => { throw new Error('src/activity.js を読み込めていません'); },
+  filterCountLabel: () => ({ label: 'この条件で解く', empty: false }),
+  createSessionReview: () => ({ reviewed: 0, graduated: 0 }),
+  noteReviewAnswer: counter => counter,
+  reviewSummaryText: () => '',
+};
+window.StudyCore = Object.assign({}, STUDY_CORE_FALLBACK, window.StudyCore || {});
+
 const HOME_PRESETS_KEY = 'toeic_home_presets_v1';
 const BOOK_SESSIONS_KEY = 'toeic_book_sessions_v1';
 const DAILY_ACTIVITY_KEY = 'toeic_daily_activity_v1';

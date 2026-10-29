@@ -5462,7 +5462,9 @@ function replaceRecords(rawByKey, saveUndo, label) {
   let before;
   let undoBefore; // 前の復元で残した取り消し用の記録。失敗したときはこれも元に戻す
   try {
-    before = Object.fromEntries(LOCAL_BACKUP_KEYS.map(k => [k, localStorage.getItem(k)]));
+    // 日別記録・表示設定は、この復元が書き換えるときだけ取っておく（触らないものまで取り消しで巻き戻さない）
+    const beforeKeys = [...RECORD_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS.filter(k => Object.hasOwn(rawByKey, k))];
+    before = Object.fromEntries(beforeKeys.map(k => [k, localStorage.getItem(k)]));
     undoBefore = localStorage.getItem(BACKUP_UNDO_KEY);
   } catch (e) {
     throw new Error(`このブラウザでは記録を読み書きできないため、${label}できません。`);

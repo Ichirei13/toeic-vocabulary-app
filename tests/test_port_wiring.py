@@ -56,3 +56,19 @@ def test_review_page_is_wired():
     # ナビは「ホーム / 演習 / 復習 / 設定」の順
     nav = HTML[HTML.index('class="top-page-tabs"'):]
     assert nav.index('data-page="practice"') < nav.index('data-page="review"') < nav.index('data-page="settings"')
+
+
+def test_home_js_survives_missing_src_scripts():
+    # src/*.js が読み込めなくても home.js が起動時に止まらないよう、足りない関数を補う
+    home = (ROOT / "home.js").read_text(encoding="utf-8")
+    assert "const STUDY_CORE_FALLBACK = {" in home
+    assert "window.StudyCore = Object.assign({}, STUDY_CORE_FALLBACK, window.StudyCore || {});" in home
+    # 日別記録の検証・統合は、空で上書きして記録を失わないよう例外にする
+    assert "sanitizeActivity: () => { throw" in home
+    assert "mergeActivity: () => { throw" in home
+
+
+def test_undo_snapshot_only_keeps_extra_keys_the_restore_writes():
+    # 復元が触らない日別記録・表示設定を取り消し用の記録に入れると、取り消しでその後の学習が巻き戻る
+    assert "Object.hasOwn(rawByKey, k)" in HTML
+    assert "before = Object.fromEntries(LOCAL_BACKUP_KEYS.map(" not in HTML
