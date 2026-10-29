@@ -5,15 +5,33 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else Object.assign(root.StudyCore = root.StudyCore || {}, api);
 })(typeof self !== 'undefined' ? self : this, function () {
-  const GOALS = [0, 5, 10, 20, 30];
+  const GOALS = [0, 5, 10, 20, 30]; // ワンタップの選択肢。保存できる目標は 0〜MAX_GOAL の整数
+  const MAX_GOAL = 200;
   const DEFAULT_GOAL = 10;
   const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
   const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
   const toInt = v => (Number.isFinite(Number(v)) ? Math.max(0, Math.floor(Number(v))) : 0);
 
-  // 数値で、許可された目標のときだけ通す。文字列や未知の値は初期値の 10 問
+  // 0〜200 の整数（0 は目標なし）だけ通す。文字列や範囲外の値は初期値の 10 問
+  function isGoal(v) {
+    return Number.isInteger(v) && v >= 0 && v <= MAX_GOAL;
+  }
+
   function normalizeGoal(v) {
-    return GOALS.includes(v) ? v : DEFAULT_GOAL;
+    return isGoal(v) ? v : DEFAULT_GOAL;
+  }
+
+  // 入力欄の値（文字列も可）を 0〜200 の整数に直す。数として読めなければ null
+  function clampGoal(raw) {
+    if (raw === null || raw === undefined || (typeof raw === 'string' && raw.trim() === '')) return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return Math.min(MAX_GOAL, Math.max(0, Math.round(n)));
+  }
+
+  // 目標の選択肢（既定の選択肢に今の値を足して昇順）
+  function goalChoices(current) {
+    return [...new Set([...GOALS, ...(isGoal(current) ? [current] : [])])].sort((a, b) => a - b);
   }
 
   function goalProgress(day, goal) {
@@ -46,7 +64,7 @@
         fast: Math.min(a, toInt(e.fast)),
         sec: Math.max(0, Number(e.sec) || 0),
       };
-      if (GOALS.includes(e.g)) entry.g = e.g;
+      if (isGoal(e.g)) entry.g = e.g;
       if (toInt(e.gr) > 0) entry.gr = toInt(e.gr);
       days[k] = entry;
     });
@@ -84,7 +102,7 @@
       const key = `${ym}-${String(d).padStart(2, '0')}`;
       const day = (days || {})[key];
       const answered = toInt(day && day.a);
-      const goal = day && GOALS.includes(day.g) ? day.g : 0;
+      const goal = day && isGoal(day.g) ? day.g : 0;
       cells.push({
         day: d,
         key,
@@ -109,5 +127,5 @@
     return Object.keys(days || {}).filter(k => DATE_KEY.test(k) && toInt(days[k] && days[k].a) > 0).length;
   }
 
-  return { GOALS, normalizeGoal, goalProgress, sanitizeActivity, mergeActivity, monthModel, shiftMonth, studiedDays };
+  return { GOALS, MAX_GOAL, isGoal, clampGoal, goalChoices, normalizeGoal, goalProgress, sanitizeActivity, mergeActivity, monthModel, shiftMonth, studiedDays };
 });

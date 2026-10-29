@@ -5,7 +5,23 @@
 // 日別記録の検証と統合は代わりを作らず、呼ばれたら例外にする（空で上書きして記録を失わないため）
 const STUDY_CORE_FALLBACK = {
   GOALS: [0, 5, 10, 20, 30],
-  normalizeGoal: v => ([0, 5, 10, 20, 30].includes(v) ? v : 10),
+  MAX_GOAL: 200,
+  isGoal: v => Number.isInteger(v) && v >= 0 && v <= 200,
+  normalizeGoal: v => (Number.isInteger(v) && v >= 0 && v <= 200 ? v : 10),
+  clampGoal: () => null,
+  goalChoices: () => [0, 5, 10, 20, 30],
+  DEFAULT_PACE: { vocab: 5, grammar: 20 },
+  PACE_RANGE: { vocab: { min: 1, max: 30, step: 0.5 }, grammar: { min: 5, max: 120, step: 1 } },
+  normalizePace: kind => (kind === 'grammar' ? 20 : 5),
+  clampPace: () => null,
+  normalizePaceTarget: () => ({ vocab: 5, grammar: 20 }),
+  paceTargetPatch: () => null,
+  isFastAnswer: (sec, isCorrect, target) => Boolean(isCorrect) && sec <= target,
+  paceTier: (kind, sec, isCorrect) => {
+    if (!isCorrect) return 'none';
+    const [top, ok] = kind === 'grammar' ? [10, 20] : [3.5, 6];
+    return sec <= top ? 'top' : sec <= ok ? 'ok' : 'none';
+  },
   goalProgress: () => ({ answered: 0, goal: 10, hasGoal: false, reached: false, ratio: 0 }),
   monthModel: (days, ym) => ({ ym, label: ym, leading: 0, cells: [], canNext: false }),
   shiftMonth: ym => ym,
@@ -88,7 +104,10 @@ let dailyActivity = loadDailyActivity();
 const PREFS_KEY = 'toeic_prefs_v1';
 function loadPrefs() {
   const raw = loadJSON(PREFS_KEY, {});
-  return { dailyGoal: StudyCore.normalizeGoal(raw.dailyGoal) };
+  return {
+    dailyGoal: StudyCore.normalizeGoal(raw.dailyGoal),
+    paceTarget: StudyCore.normalizePaceTarget(raw.paceTarget), // 即答の目標タイム（秒）{ vocab, grammar }
+  };
 }
 let prefs = loadPrefs();
 function savePrefs() {
@@ -145,8 +164,8 @@ function recordAnswerPaceAndActivity(kind, isCorrect) {
   paceSession[kind === 'grammar' ? 'grammar' : 'vocab'].push(sec);
   lastAnswerPace = { kind, sec, isCorrect };
 
-  // 目標ペース判定（単語: 5秒以内、文法Part5: 20秒以内）
-  const isFast = isCorrect && (kind === 'grammar' ? sec <= 20.0 : sec <= 5.0);
+  // 即答の判定（正解で、設定した目標タイム以内。初期値は単語 5 秒・文法 20 秒）
+  const isFast = StudyCore.isFastAnswer(sec, isCorrect, prefs.paceTarget[kind === 'grammar' ? 'grammar' : 'vocab']);
 
   const today = localDateStr();
   if (!dailyActivity.days[today]) {
@@ -243,25 +262,11 @@ function renderPaceFeedback(kind, sec, isCorrect) {
   const card = document.getElementById('main-card');
   if (!card) return;
 
-  let badgeLabel = `⏱ ${sec.toFixed(1)}秒`;
-  let isFast = false;
-  if (kind === 'grammar') {
-    if (isCorrect && sec <= 10.0) {
-      badgeLabel = `⚡ 爆速！ ${sec.toFixed(1)}秒`;
-      isFast = true;
-    } else if (isCorrect && sec <= 20.0) {
-      badgeLabel = `⚡ 本番ペース！ ${sec.toFixed(1)}秒`;
-      isFast = true;
-    }
-  } else {
-    if (isCorrect && sec <= 3.5) {
-      badgeLabel = `⚡ 瞬殺！ ${sec.toFixed(1)}秒`;
-      isFast = true;
-    } else if (isCorrect && sec <= 6.0) {
-      badgeLabel = `⚡ ナイスペース！ ${sec.toFixed(1)}秒`;
-      isFast = true;
-    }
-  }
+  // バッジの段階は、設定した目標タイムからの割合で決まる（StudyCore.paceTier）
+  const tier = StudyCore.paceTier(kind, sec, isCorrect, prefs.paceTarget[kind === 'grammar' ? 'grammar' : 'vocab']);
+  const tierWord = kind === 'grammar' ? { top: '爆速！', ok: '本番ペース！' } : { top: '瞬殺！', ok: 'ナイスペース！' };
+  const isFast = tier !== 'none';
+  const badgeLabel = isFast ? `⚡ ${tierWord[tier]} ${sec.toFixed(1)}秒` : `⏱ ${sec.toFixed(1)}秒`;
 
   let existing = card.querySelector('.card-pace-badge');
   if (!existing) {
@@ -933,6 +938,37 @@ function renderSettingsPage() {
         </div>
       </section>
 
+      <!-- 学習の目標設定 -->
+      <section class="settings-section">
+        <div class="settings-section-header">
+          <span class="settings-icon">🎯</span>
+          <h3 class="settings-section-title">学習の目標</h3>
+        </div>
+        <p class="settings-desc">今日の目標問題数と、「即答」とみなす目標タイムを変更します。</p>
+        <div class="settings-field">
+          <label for="setting-goal">今日の目標（問）</label>
+          <input id="setting-goal" class="settings-number" type="number" inputmode="numeric" min="0" max="${StudyCore.MAX_GOAL}" step="1" value="${prefs.dailyGoal}" onchange="handleGoalSetting(this)">
+        </div>
+        <div class="settings-chips" role="group" aria-label="目標のかんたん設定">
+          ${StudyCore.GOALS.filter(g => g > 0).map(g => `<button type="button" class="settings-chip${prefs.dailyGoal === g ? ' active' : ''}" data-goal="${g}" onclick="setGoalFromChip(${g})">${g}問</button>`).join('')}
+          <button type="button" class="settings-chip${prefs.dailyGoal === 0 ? ' active' : ''}" data-goal="0" onclick="setGoalFromChip(0)">目標なし</button>
+        </div>
+        <p class="settings-hint">0 のときは目標なしです（0〜${StudyCore.MAX_GOAL}）。</p>
+        <div class="settings-field">
+          <label for="setting-pace-vocab">単語の即答タイム（秒以内）</label>
+          <input id="setting-pace-vocab" class="settings-number" type="number" inputmode="decimal" min="${StudyCore.PACE_RANGE.vocab.min}" max="${StudyCore.PACE_RANGE.vocab.max}" step="${StudyCore.PACE_RANGE.vocab.step}" value="${prefs.paceTarget.vocab}" onchange="handlePaceSetting('vocab', this)">
+        </div>
+        <div class="settings-field">
+          <label for="setting-pace-grammar">文法の即答タイム（秒以内）</label>
+          <input id="setting-pace-grammar" class="settings-number" type="number" inputmode="numeric" min="${StudyCore.PACE_RANGE.grammar.min}" max="${StudyCore.PACE_RANGE.grammar.max}" step="${StudyCore.PACE_RANGE.grammar.step}" value="${prefs.paceTarget.grammar}" onchange="handlePaceSetting('grammar', this)">
+        </div>
+        <p class="settings-hint">単語は ${StudyCore.PACE_RANGE.vocab.min}〜${StudyCore.PACE_RANGE.vocab.max} 秒、文法は ${StudyCore.PACE_RANGE.grammar.min}〜${StudyCore.PACE_RANGE.grammar.max} 秒。バッジ（瞬殺・爆速など）の境界もこのタイムに合わせて変わります。変更はこれからの回答に効きます。</p>
+        <div class="settings-actions-row">
+          <button type="button" class="settings-action-btn" onclick="resetLearningGoals()">標準に戻す</button>
+        </div>
+        <p class="settings-hint" id="setting-goal-msg" role="status" aria-live="polite"></p>
+      </section>
+
       <!-- データ管理設定 -->
       <section class="settings-section">
         <div class="settings-section-header">
@@ -980,6 +1016,68 @@ function renderSettingsPage() {
       </section>
     </div>
   `;
+}
+
+// ==================== 設定ページ：学習の目標 ====================
+
+function showGoalSettingMessage(text) {
+  const el = document.getElementById('setting-goal-msg');
+  if (el) el.textContent = text;
+}
+
+function syncGoalChips() {
+  document.querySelectorAll('.settings-chip[data-goal]').forEach(chip => {
+    chip.classList.toggle('active', Number(chip.dataset.goal) === prefs.dailyGoal);
+  });
+}
+
+// 今日の目標の入力欄。範囲外は範囲内に直し、数でなければ元の値に戻す
+function handleGoalSetting(input) {
+  const v = StudyCore.clampGoal(input.value);
+  if (v === null) {
+    input.value = prefs.dailyGoal;
+    showGoalSettingMessage('数字で入力してください。');
+    return;
+  }
+  const typed = Number(input.value);
+  setDailyGoal(v);
+  input.value = v;
+  syncGoalChips();
+  if (v !== typed) showGoalSettingMessage(`0〜${StudyCore.MAX_GOAL}問の範囲に直しました（${v}問）。`);
+  else showGoalSettingMessage(v === 0 ? '今日の目標をなしにしました。' : `今日の目標を ${v}問 にしました。`);
+}
+
+function setGoalFromChip(goal) {
+  const input = document.getElementById('setting-goal');
+  if (!input) return;
+  input.value = goal;
+  handleGoalSetting(input);
+}
+
+// 即答の目標タイム（単語・文法）。範囲外は範囲内に直し、数でなければ元の値に戻す
+function handlePaceSetting(kind, input) {
+  const v = StudyCore.clampPace(kind, input.value);
+  if (v === null) {
+    input.value = prefs.paceTarget[kind];
+    showGoalSettingMessage('数字で入力してください。');
+    return;
+  }
+  const typed = Number(input.value);
+  prefs.paceTarget[kind] = v;
+  savePrefs();
+  input.value = v;
+  const range = StudyCore.PACE_RANGE[kind];
+  const label = kind === 'grammar' ? '文法' : '単語';
+  if (v !== typed) showGoalSettingMessage(`${v}秒に直しました（${range.min}〜${range.max}秒、${range.step}秒刻み）。`);
+  else showGoalSettingMessage(`${label}の即答タイムを ${v}秒 にしました。`);
+}
+
+function resetLearningGoals() {
+  setDailyGoal(StudyCore.normalizeGoal(undefined));
+  prefs.paceTarget = StudyCore.normalizePaceTarget(undefined);
+  savePrefs();
+  renderSettingsPage();
+  showGoalSettingMessage('目標を標準（10問・単語 5秒・文法 20秒）に戻しました。');
 }
 
 // 3ページの切り替え関数
@@ -1194,7 +1292,7 @@ function renderGoalDialog() {
     <div class="goal-dialog-field">
       <label for="goal-select">今日の目標</label>
       <select id="goal-select">
-        ${StudyCore.GOALS.map(g => `<option value="${g}" ${g === prefs.dailyGoal ? 'selected' : ''}>${g === 0 ? '目標なし' : `${g}問`}</option>`).join('')}
+        ${StudyCore.goalChoices(prefs.dailyGoal).map(g => `<option value="${g}" ${g === prefs.dailyGoal ? 'selected' : ''}>${g === 0 ? '目標なし' : `${g}問`}</option>`).join('')}
       </select>
     </div>
     <div class="goal-cal-nav">

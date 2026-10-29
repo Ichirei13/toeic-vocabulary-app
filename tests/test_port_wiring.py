@@ -72,3 +72,20 @@ def test_undo_snapshot_only_keeps_extra_keys_the_restore_writes():
     # 復元が触らない日別記録・表示設定を取り消し用の記録に入れると、取り消しでその後の学習が巻き戻る
     assert "Object.hasOwn(rawByKey, k)" in HTML
     assert "before = Object.fromEntries(LOCAL_BACKUP_KEYS.map(" not in HTML
+
+
+def test_pace_and_goal_settings_are_wired():
+    home = (ROOT / "home.js").read_text(encoding="utf-8")
+    assert '<script src="src/pace.js"></script>' in HTML
+    assert "'src/pace.js'" in SW
+    assert HTML.index('<script src="src/pace.js"></script>') < HTML.index('<script src="home.js"></script>')
+    # 設定ページの入力欄
+    for ident in ('id="setting-goal"', 'id="setting-pace-vocab"', 'id="setting-pace-grammar"'):
+        assert ident in home
+    # 即答・バッジの判定は目標タイムから（固定の 5 秒 / 20 秒は使わない）
+    assert "StudyCore.isFastAnswer(" in home
+    assert "StudyCore.paceTier(" in home
+    assert "sec <= 20.0" not in home
+    # バックアップの prefs は正しい項目だけ取り込み、無い項目は今のまま
+    assert "StudyCore.paceTargetPatch(" in HTML
+    assert "StudyCore.isGoal(" in HTML

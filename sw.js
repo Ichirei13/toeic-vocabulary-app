@@ -10,6 +10,7 @@ const ASSETS = [
   'src/filter-count.js',
   'src/activity.js',
   'src/review.js',
+  'src/pace.js',
   'data/words.js',
   'data/grammar.js',
   'manifest.webmanifest',

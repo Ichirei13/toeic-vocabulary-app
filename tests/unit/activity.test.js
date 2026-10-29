@@ -2,15 +2,45 @@ const test = require('node:test');
 const assert = require('node:assert');
 const A = require('../../src/activity.js');
 
-test('normalizeGoal: 許可された数値だけ通し、それ以外は 10', () => {
+test('normalizeGoal: 0〜200 の整数だけ通し、それ以外は 10', () => {
   assert.strictEqual(A.normalizeGoal(0), 0);
   assert.strictEqual(A.normalizeGoal(5), 5);
-  assert.strictEqual(A.normalizeGoal(30), 30);
+  assert.strictEqual(A.normalizeGoal(7), 7);
+  assert.strictEqual(A.normalizeGoal(15), 15);
+  assert.strictEqual(A.normalizeGoal(200), 200);
+  assert.strictEqual(A.normalizeGoal(201), 10);
+  assert.strictEqual(A.normalizeGoal(-1), 10);
+  assert.strictEqual(A.normalizeGoal(5.5), 10);
   assert.strictEqual(A.normalizeGoal(undefined), 10);
   assert.strictEqual(A.normalizeGoal(null), 10);
   assert.strictEqual(A.normalizeGoal('5'), 10);
-  assert.strictEqual(A.normalizeGoal(7), 10);
   assert.strictEqual(A.normalizeGoal(NaN), 10);
+});
+
+test('isGoal: normalizeGoal と同じ判定を真偽で返す', () => {
+  assert.strictEqual(A.isGoal(0), true);
+  assert.strictEqual(A.isGoal(200), true);
+  assert.strictEqual(A.isGoal(201), false);
+  assert.strictEqual(A.isGoal('5'), false);
+  assert.strictEqual(A.isGoal(2.5), false);
+});
+
+test('clampGoal: 入力値を 0〜200 の整数に直す。数でなければ null', () => {
+  assert.strictEqual(A.clampGoal(15), 15);
+  assert.strictEqual(A.clampGoal('25'), 25);
+  assert.strictEqual(A.clampGoal(7.6), 8);
+  assert.strictEqual(A.clampGoal(-4), 0);
+  assert.strictEqual(A.clampGoal(999), 200);
+  assert.strictEqual(A.clampGoal(''), null);
+  assert.strictEqual(A.clampGoal('abc'), null);
+  assert.strictEqual(A.clampGoal(null), null);
+  assert.strictEqual(A.clampGoal(undefined), null);
+});
+
+test('goalChoices: 既定の選択肢に今の値を足して昇順にする', () => {
+  assert.deepStrictEqual(A.goalChoices(10), [0, 5, 10, 20, 30]);
+  assert.deepStrictEqual(A.goalChoices(15), [0, 5, 10, 15, 20, 30]);
+  assert.deepStrictEqual(A.goalChoices(150), [0, 5, 10, 20, 30, 150]);
 });
 
 test('goalProgress: 達成・未達・目標なし', () => {
@@ -42,7 +72,9 @@ test('sanitizeActivity: 壊れた入力は空にする', () => {
   assert.deepStrictEqual(A.sanitizeActivity(null), { days: {}, invalid: 0 });
   assert.deepStrictEqual(A.sanitizeActivity([]), { days: {}, invalid: 0 });
   assert.deepStrictEqual(A.sanitizeActivity({ days: [] }), { days: {}, invalid: 0 });
-  assert.deepStrictEqual(A.sanitizeActivity({ days: { '2026-10-28': { a: 1, g: 7 } } }).days['2026-10-28'].g, undefined);
+  assert.deepStrictEqual(A.sanitizeActivity({ days: { '2026-10-28': { a: 1, g: 7 } } }).days['2026-10-28'].g, 7);
+  assert.deepStrictEqual(A.sanitizeActivity({ days: { '2026-10-28': { a: 1, g: 300 } } }).days['2026-10-28'].g, undefined);
+  assert.deepStrictEqual(A.sanitizeActivity({ days: { '2026-10-28': { a: 1, g: '5' } } }).days['2026-10-28'].g, undefined);
 });
 
 test('mergeActivity: a の大きい方・g は現在優先・gr は大きい方', () => {
@@ -82,6 +114,12 @@ test('monthModel: 2026年10月（10/1 は木曜）', () => {
   assert.strictEqual(c('2026-10-29').today, true);
   assert.strictEqual(c('2026-10-30').future, true);
   assert.strictEqual(c('2026-10-01').studied, false);
+});
+
+test('monthModel: 自由に入力した目標（15 問）でも達成を判定する', () => {
+  const m = A.monthModel({ '2026-10-27': { a: 15, c: 9, fast: 0, sec: 5, g: 15 }, '2026-10-26': { a: 14, c: 9, fast: 0, sec: 5, g: 15 } }, '2026-10', '2026-10-29');
+  assert.strictEqual(m.cells.find(x => x.key === '2026-10-27').reached, true);
+  assert.strictEqual(m.cells.find(x => x.key === '2026-10-26').reached, false);
 });
 
 test('monthModel: 過去の月は次へ進める', () => {

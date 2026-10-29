@@ -2421,6 +2421,7 @@ body {
 <script src="src/filter-count.js"></script>
 <script src="src/activity.js"></script>
 <script src="src/review.js"></script>
+<script src="src/pace.js"></script>
 <script>
 // テーマ切替機能（プレビュー用）
 function setAppTheme(theme) {
@@ -5428,7 +5429,11 @@ function parseBackup(text) {
     // 日別の学習記録と表示設定。キーが無いファイル（版5以前など）は undefined のまま＝復元しても今のまま
     extras: {
       activity: activity ? { days: activity.days } : undefined,
-      prefs: d.prefs === undefined ? undefined : { dailyGoal: StudyCore.normalizeGoal(d.prefs.dailyGoal) },
+      // 正しい項目だけ取り込む。ファイルに無い項目・壊れた項目は「今のまま」にする
+      prefs: d.prefs === undefined ? undefined : {
+        ...(StudyCore.isGoal(d.prefs.dailyGoal) ? { dailyGoal: d.prefs.dailyGoal } : {}),
+        ...(StudyCore.paceTargetPatch(d.prefs.paceTarget) ? { paceTarget: StudyCore.paceTargetPatch(d.prefs.paceTarget) } : {}),
+      },
     },
     invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration + (activity ? activity.invalid : 0),
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
@@ -5541,7 +5546,13 @@ function runRestore() {
     rawByKey[EXTRA_KEYS.activity] = JSON.stringify({ days });
   }
   if (extras.prefs !== undefined) {
-    rawByKey[EXTRA_KEYS.prefs] = JSON.stringify(isOverwrite ? extras.prefs : { ...extras.prefs, ...loadJSON(EXTRA_KEYS.prefs, {}) });
+    // ファイルに無い項目は今のまま。同じ項目は、上書きならファイルの値、統合なら今の値を使う
+    const curPrefs = loadJSON(EXTRA_KEYS.prefs, {});
+    const mergedPrefs = isOverwrite ? { ...curPrefs, ...extras.prefs } : { ...extras.prefs, ...curPrefs };
+    if (extras.prefs.paceTarget && curPrefs.paceTarget) {
+      mergedPrefs.paceTarget = isOverwrite ? { ...curPrefs.paceTarget, ...extras.prefs.paceTarget } : { ...extras.prefs.paceTarget, ...curPrefs.paceTarget };
+    }
+    rawByKey[EXTRA_KEYS.prefs] = JSON.stringify(mergedPrefs);
   }
   try {
     replaceRecords(rawByKey, true, isOverwrite ? '上書き復元' : '統合復元');

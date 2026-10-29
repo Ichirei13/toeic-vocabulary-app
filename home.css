@@ -839,3 +839,40 @@
 @media (min-width: 1024px) {
   #app.page-review { max-width: 720px; }
 }
+
+/* ==================== 設定ページ：学習の目標 ==================== */
+.settings-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.settings-field label { flex: 1; color: var(--text-page); }
+.settings-number {
+  width: 96px;
+  padding: 7px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: var(--ui-surface);
+  color: var(--text-page);
+  font-family: inherit;
+  font-size: 14px;
+  text-align: right;
+}
+.settings-number:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.settings-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.settings-chip {
+  padding: 5px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--text-page);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.settings-chip.active { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.settings-hint { margin: 6px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+.settings-hint:empty { display: none; }
