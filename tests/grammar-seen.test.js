@@ -667,7 +667,7 @@ test('grammar_chapters_across_books', () => withPage({}, async page => {
   assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), ['kin:2', 'sekai:2']);
   const r = await page.evaluate(() => ({
     n: state.grammarPool.length,
-    expected: RAW_GRAMMAR.filter(g => g.ch === 2).length,
+    expected: RAW_GRAMMAR.filter(g => g.ch === 2 && ['kin', 'sekai'].includes(g.b || 'sekai')).length, // 選んだのは金の文法と世界一の第2章（ポラリス2・トップレベルの第2章は含まない）
     books: [...new Set(state.grammarPool.map(g => g.b || 'sekai'))].sort(),
     chs: [...new Set(state.grammarPool.map(g => g.ch))],
   }));
@@ -678,6 +678,32 @@ test('grammar_chapters_across_books', () => withPage({}, async page => {
   assert.deepStrictEqual(await page.evaluate(() => [...new Set(state.grammarPool.map(g => g.b || 'sekai'))]), ['sekai']);
   await page.click('#grammar-chapter-filters [data-gchapter="all"]');
   assert.deepStrictEqual(await page.evaluate(() => state.grammarChapter), []);
+}));
+
+test('grammar_chapters_list_all_four_books_when_all_is_selected', () => withPage({}, async page => {
+  await openGrammar(page);
+  await openFilters(page);
+  const keys = await page.$$eval('#grammar-chapter-filters [data-gchapter]', els => els.map(e => e.dataset.gchapter));
+  const per = book => keys.filter(k => k.startsWith(book + ':')).length;
+  assert.deepStrictEqual([per('kin'), per('sekai'), per('polaris2'), per('toplevel')], [7, 14, 6, 24], keys.join(','));
+  assert.strictEqual(keys.length, 1 + 7 + 14 + 6 + 24);
+  // 本の並びは 金の文法 → 世界一 → ポラリス2 → トップレベル
+  assert(keys.indexOf('kin:1') < keys.indexOf('sekai:1') && keys.indexOf('sekai:1') < keys.indexOf('polaris2:1') && keys.indexOf('polaris2:1') < keys.indexOf('toplevel:1'));
+  // チップの文言に本の名前が入る（章の番号は本ごとに重なるため）
+  const title = await page.$eval('#grammar-chapter-filters [data-gchapter="toplevel:2"]', e => e.textContent);
+  assert(/トップレベル/.test(title) && /Lecture 2/.test(title), title);
+  await page.click('#grammar-chapter-filters [data-gchapter="polaris2:2"]');
+  await page.click('#grammar-chapter-filters [data-gchapter="toplevel:3"]');
+  const r = await page.evaluate(() => ({
+    chapters: state.grammarChapter,
+    books: [...new Set(state.grammarPool.map(g => g.b || 'sekai'))].sort(),
+    n: state.grammarPool.length,
+    expected: RAW_GRAMMAR.filter(g => ((g.b === 'polaris2') && g.ch === 2) || ((g.b === 'toplevel') && g.ch === 3)).length,
+  }));
+  assert.deepStrictEqual(r.chapters, ['polaris2:2', 'toplevel:3']); // 一覧の並び順にそろう
+  assert.deepStrictEqual(r.books, ['polaris2', 'toplevel']);
+  assert.strictEqual(r.n, r.expected);
+  assert(r.n > 0);
 }));
 
 test('grammar_book_change_resets_chapters', () => withPage(settings({ app: 'grammar', grammarChapter: ['kin:2', 'sekai:2'] }), async page => {

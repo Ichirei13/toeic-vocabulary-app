@@ -2949,7 +2949,20 @@ function getGrammarChaptersList(b) {
   const book = b || state.grammarBook || 'all';
   const pool = book === 'all' ? RAW_GRAMMAR : RAW_GRAMMAR.filter(g => (g.b || 'sekai') === book);
   if (book === 'all') {
-    return [{ key: 'all', ch: 'all', title: `全問 (${pool.length}問)` }];
+    // 「すべて」のときは、4 冊の章を本の名前つきで並べる（本をまたいで複数選べる）。key は「本:章」
+    const BOOK_NAMES = { kin: '👑 金の文法', sekai: '📖 世界一', polaris2: '🧭 ポラリス2', toplevel: '🎓 トップレベル' };
+    const all = [{ key: 'all', ch: 'all', title: `全問 (${pool.length}問)` }];
+    Object.keys(BOOK_NAMES).forEach(bk => {
+      const bookPool = RAW_GRAMMAR.filter(g => (g.b || 'sekai') === bk);
+      const seenCh = new Set();
+      bookPool.forEach(g => {
+        if (seenCh.has(g.ch)) return;
+        seenCh.add(g.ch);
+        const count = bookPool.filter(x => x.ch === g.ch).length;
+        all.push({ key: `${bk}:${g.ch}`, ch: g.ch, title: `${BOOK_NAMES[bk]} ${getChapterLabel(bk, g.ch, g.ch_title)} (${count}問)` });
+      });
+    });
+    return all;
   }
   const chapters = [];
   const seen = new Set();

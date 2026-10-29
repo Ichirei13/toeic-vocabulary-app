@@ -69,8 +69,6 @@ NODE_PATH=$(npm root -g) node tests/practice-chrome.test.js
 NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
 ```
 
-`tests/grammar-seen.test.js` の `grammar_chapters_across_books` と `grammar_book_change_resets_chapters` は、4冊構成の統合（`1b2a17e`）以降失敗している（既知）。統合で、文法の本に「すべて」を選んだときの章の選択肢が「全問」の 1 つだけになり、本をまたいだ章の複数選択ができなくなったため。
-
 ### 検証項目
 - `data/grammar.js` の Python / Node.js 双方での正常構文解析
 - 全1,155問のID重複ゼロ、ID範囲適合、問題文・選択肢（3〜5択）・正解インデックス境界値保証
