@@ -39,3 +39,9 @@ def test_backup_format_6_is_wired_and_drive_is_untouched():
     # Drive 同期が作るファイルは従来どおり（版 5・日別記録なし）
     assert HTML.count("buildBackup({ forDrive: true })") == 2
     assert "format: forDrive ? 5 : BACKUP_FORMAT" in HTML
+
+
+def test_review_module_is_wired():
+    assert '<script src="src/review.js"></script>' in HTML
+    assert "'src/review.js'" in SW
+    assert HTML.index('<script src="src/review.js"></script>') < HTML.index('<script src="home.js"></script>')
