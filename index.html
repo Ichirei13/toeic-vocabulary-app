@@ -4685,8 +4685,8 @@ function removeWeak(key) {
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む / 版5: 苦手から外した記録（weakDeleted）と苦手の最終更新時刻（u）を含む
-const BACKUP_FORMAT = 5;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む / 版5: 苦手から外した記録（weakDeleted）と苦手の最終更新時刻（u）を含む / 版6: 日別の学習記録（activity）と表示設定（prefs）を含む
+const BACKUP_FORMAT = 6;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。
@@ -4742,6 +4742,8 @@ const BACKUP_MIGRATIONS = {
       data: isPlainObject(d) ? { ...d, weakDeleted: isPlainObject(d.weakDeleted) ? d.weakDeleted : {} } : d
     };
   },
+  // 日別の学習記録と表示設定は版5までに無かった。無いものは「今のまま」にしたいので、空で補わず版だけ上げる
+  5: backup => ({ ...backup, format: 6 }),
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // ファイルの中の名前 → この端末の保存先
@@ -4757,6 +4759,12 @@ const RECORD_KEYS = {
   session: SESSION_KEY,
 };
 const RECORD_STORAGE_KEYS = Object.values(RECORD_KEYS);
+// 日別の学習記録と表示設定。バックアップと復元の取り消しには含めるが、
+// Google ドライブ同期の対象（RECORD_KEYS / RECORD_STORAGE_KEYS）には含めない。
+// 値は home.js の DAILY_ACTIVITY_KEY / PREFS_KEY と同じ文字列
+const EXTRA_KEYS = { activity: 'toeic_daily_activity_v1', prefs: 'toeic_prefs_v1' };
+const EXTRA_STORAGE_KEYS = Object.values(EXTRA_KEYS);
+const LOCAL_BACKUP_KEYS = [...RECORD_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS];
 const BACKUP_UNDO_KEY = 'toeic_backup_undo';     // 直前の復元を取り消すための、復元する前の記録（1回分）
 const BACKUP_META_KEY = 'toeic_backup_meta';     // 最後に書き出した日時
 const RESTORE_STAMP_KEY = 'toeic_restore_stamp'; // 復元したことを別のタブに知らせる
@@ -5058,7 +5066,7 @@ async function syncWithGoogleDrive({ interactive = false, silent = false } = {})
       }
 
       // 4. 合算された完全な最新データをクラウドへ上書き保存 (PATCH)
-      const mergedBackupData = buildBackup();
+      const mergedBackupData = buildBackup({ forDrive: true });
       const mergedBackupJson = JSON.stringify(mergedBackupData, null, 2);
 
       const patchRes = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=media`, {
@@ -5076,7 +5084,7 @@ async function syncWithGoogleDrive({ interactive = false, silent = false } = {})
       }
     } else {
       // 初回：クラウドにファイルが無いので新規作成 (POST)
-      const backupData = buildBackup();
+      const backupData = buildBackup({ forDrive: true });
       const backupJson = JSON.stringify(backupData, null, 2);
       const metadata = {
         name: GDRIVE_BACKUP_FILENAME,
@@ -5209,23 +5217,30 @@ async function checkGoogleDriveOnStartup() {
 
 // ---- 書き出し ----
 
-function buildBackup() {
+// forDrive: Google ドライブ同期用。同期の対象を増やさず、まだ更新していない端末が読めるよう、
+// 従来どおり版 5・日別記録と表示設定なしで作る。ファイルへの書き出しとコピーは版 6（日別記録・表示設定つき）
+function buildBackup({ forDrive = false } = {}) {
+  const data = {
+    weakWords: state.weakByMode,
+    weakGrammar: state.grammarWeakData,
+    weakDeleted: state.weakDeleted,
+    seenWords: seenSnapshot(),
+    wordStats: state.wordStats,
+    grammarStats: state.grammarStats,
+    seenGrammar: [...state.grammarSeen],
+    settings: settingsSnapshot(),
+    session: sessionSnapshot(),
+  };
+  if (!forDrive) {
+    data.activity = loadJSON(EXTRA_KEYS.activity, {});
+    data.prefs = loadJSON(EXTRA_KEYS.prefs, {});
+  }
   return {
     app: BACKUP_APP_ID,
-    format: BACKUP_FORMAT,
+    format: forDrive ? 5 : BACKUP_FORMAT,
     exportedAt: new Date().toISOString(),
     appData: { words: RAW_WORDS.length, grammar: RAW_GRAMMAR.length },
-    data: {
-      weakWords: state.weakByMode,
-      weakGrammar: state.grammarWeakData,
-      weakDeleted: state.weakDeleted,
-      seenWords: seenSnapshot(),
-      wordStats: state.wordStats,
-      grammarStats: state.grammarStats,
-      seenGrammar: [...state.grammarSeen],
-      settings: settingsSnapshot(),
-      session: sessionSnapshot(),
-    },
+    data,
   };
 }
 
@@ -5375,6 +5390,8 @@ function parseBackup(text) {
   if (!isPlainObject(d.weakDeleted)) return fail('苦手から外した記録が欠けているか、形が正しくありません。');
   if (d.settings !== undefined && !isPlainObject(d.settings)) return fail('設定の記録の形が正しくありません。');
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
+  if (d.activity !== undefined && !isPlainObject(d.activity)) return fail('日別の学習記録の形が正しくありません。');
+  if (d.prefs !== undefined && !isPlainObject(d.prefs)) return fail('表示設定の形が正しくありません。');
 
   const words = sanitizeWeakByMode(d.weakWords);
   const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
@@ -5383,6 +5400,7 @@ function parseBackup(text) {
   const grammarStats = sanitizeStatsMap(d.grammarStats);
   const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
   const weakDeleted = sanitizeWeakDeleted(d.weakDeleted);
+  const activity = d.activity === undefined ? null : StudyCore.sanitizeActivity(d.activity);
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -5402,7 +5420,12 @@ function parseBackup(text) {
       settings: d.settings,
       session: d.session,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration,
+    // 日別の学習記録と表示設定。キーが無いファイル（版5以前など）は undefined のまま＝復元しても今のまま
+    extras: {
+      activity: activity ? { days: activity.days } : undefined,
+      prefs: d.prefs === undefined ? undefined : { dailyGoal: StudyCore.normalizeGoal(d.prefs.dailyGoal) },
+    },
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration + (activity ? activity.invalid : 0),
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: [...new Set([...Object.keys(grammar.data).map(Number), ...seenGrammar.data])].filter(id => !GRAMMAR_BY_ID.has(id)).length,
@@ -5434,7 +5457,7 @@ function replaceRecords(rawByKey, saveUndo, label) {
   let before;
   let undoBefore; // 前の復元で残した取り消し用の記録。失敗したときはこれも元に戻す
   try {
-    before = Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, localStorage.getItem(k)]));
+    before = Object.fromEntries(LOCAL_BACKUP_KEYS.map(k => [k, localStorage.getItem(k)]));
     undoBefore = localStorage.getItem(BACKUP_UNDO_KEY);
   } catch (e) {
     throw new Error(`このブラウザでは記録を読み書きできないため、${label}できません。`);
@@ -5476,6 +5499,7 @@ function reloadRecordsFromStorage(isRestore = true) {
     restoreSettings();
     syncFilterUI();
     setApp(state.app);
+    if (typeof reloadHomeExtras === 'function') reloadHomeExtras();
   }
   updateWeakBadge();
   updateGrammarWeakBadge();
@@ -5502,6 +5526,16 @@ function runRestore() {
   Object.entries(RECORD_KEYS).forEach(([name, key]) => {
     if (targetRecords[name] !== undefined) rawByKey[key] = JSON.stringify(targetRecords[name]);
   });
+  // 日別の学習記録と表示設定。ファイルに無ければ今のまま。統合では同じ日の回答数の大きい方・目標は今の値を優先
+  const extras = pending.extras || {};
+  if (extras.activity !== undefined) {
+    const curDays = StudyCore.sanitizeActivity(loadJSON(EXTRA_KEYS.activity, {})).days;
+    const days = isOverwrite ? extras.activity.days : StudyCore.mergeActivity(curDays, extras.activity.days);
+    rawByKey[EXTRA_KEYS.activity] = JSON.stringify({ days });
+  }
+  if (extras.prefs !== undefined) {
+    rawByKey[EXTRA_KEYS.prefs] = JSON.stringify(isOverwrite ? extras.prefs : { ...extras.prefs, ...loadJSON(EXTRA_KEYS.prefs, {}) });
+  }
   try {
     replaceRecords(rawByKey, true, isOverwrite ? '上書き復元' : '統合復元');
   } catch (e) {
@@ -5520,7 +5554,9 @@ function loadUndo() {
   // 文法の出題済みを足す前に残した記録には、このキーが無い（復元前に保存が無かったのと同じ扱いにする）
   const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string'
     || ((k === GRAMMAR_SEEN_KEY || k === WEAK_DELETED_KEY) && undo.records[k] === undefined));
-  return valid ? undo : null;
+  // 日別の学習記録・表示設定は、以前の取り消し用の記録には無い（undefined なら取り消しでも触らない）
+  const extrasValid = EXTRA_STORAGE_KEYS.every(k => undo.records[k] === undefined || undo.records[k] === null || typeof undo.records[k] === 'string');
+  return valid && extrasValid ? undo : null;
 }
 
 function runUndo() {
@@ -5530,7 +5566,9 @@ function runUndo() {
     return renderBackupSheet();
   }
   try {
-    replaceRecords(Object.fromEntries(RECORD_STORAGE_KEYS.map(k => [k, undo.records[k] === undefined ? null : undo.records[k]])), false, '取り消し');
+    // 本体の記録は、無ければ「保存が無かった」として外す。日別記録・表示設定は、取り消し用の記録に無ければ触らない
+    const restoreKeys = [...RECORD_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS.filter(k => undo.records[k] !== undefined)];
+    replaceRecords(Object.fromEntries(restoreKeys.map(k => [k, undo.records[k] === undefined ? null : undo.records[k]])), false, '取り消し');
   } catch (e) {
     backupView = { step: 'home', error: e.message };
     return renderBackupSheet();
@@ -5721,7 +5759,8 @@ function backupConfirmHtml(v) {
     <div class="backup-note">書き出した日時: ${p.exportedAt ? formatDateTime(p.exportedAt) : '不明'}</div>
     ${compareTable('今の記録', 'ファイル・テキスト', currentCounts(), fileCounts,
       `<tr><td>設定</td><td>あり</td><td>${fromFile('settings')}</td></tr>
-       <tr><td>出題の続き</td><td>あり</td><td>${fromFile('session')}</td></tr>`)}
+       <tr><td>出題の続き</td><td>あり</td><td>${fromFile('session')}</td></tr>
+       <tr><td>日別の学習記録・目標</td><td>あり</td><td>${p.extras && p.extras.activity ? 'あり' : 'なし（今のまま）'}</td></tr>`)}
     ${notes.length ? `<ul class="backup-notes">${notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>` : ''}
     
     <div class="guide-label" style="margin-top:12px;">復元方法</div>
@@ -5732,7 +5771,7 @@ function backupConfirmHtml(v) {
     <div class="backup-note" style="margin-bottom:10px;">
       ${isOverwrite
         ? '⚠️ この端末の記録はバックアップの内容に完全に入れ替わります。'
-        : '💡 苦手・学習済み・問題ごとの正誤カウントを両方合わせ、より進んでいる記録を残します。'}
+        : '💡 苦手・学習済み・問題ごとの正誤カウントを両方合わせ、より進んでいる記録を残します。日別の記録は、同じ日の回答数が多い方を残します（端末どうしの合算ではありません）。'}
     </div>
 
     <div class="backup-msg warn">${isOverwrite ? '復元すると、この端末の学習記録はバックアップの内容に置き換わります。' : '復元すると、バックアップのデータが現在の記録に合算・統合されます。'}</div>

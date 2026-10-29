@@ -73,6 +73,13 @@ let prefs = loadPrefs();
 function savePrefs() {
   saveJSON(PREFS_KEY, prefs);
 }
+// バックアップの復元・取り消しのあとに、日別記録と表示設定を保存し直した内容で読み込み直す
+function reloadHomeExtras() {
+  dailyActivity = loadDailyActivity();
+  prefs = loadPrefs();
+  if (currentAppPage === 'home') renderHomePage();
+}
+
 // 目標を変える。今日の分にも反映し、昨日以前の日には触れない
 function setDailyGoal(goal) {
   prefs.dailyGoal = StudyCore.normalizeGoal(goal);

@@ -24,3 +24,18 @@ def test_activity_module_is_wired():
     assert '<script src="src/activity.js"></script>' in HTML
     assert "'src/activity.js'" in SW
     assert HTML.index('<script src="src/activity.js"></script>') < HTML.index('<script src="home.js"></script>')
+
+
+def test_backup_format_6_is_wired_and_drive_is_untouched():
+    assert "const BACKUP_FORMAT = 6;" in HTML
+    assert "const EXTRA_KEYS = {" in HTML
+    assert "const LOCAL_BACKUP_KEYS =" in HTML
+    # Drive 同期の対象（RECORD_KEYS）には新しいキーを入れない
+    start = HTML.index("const RECORD_KEYS = {")
+    end = HTML.index("};", start)
+    block = HTML[start:end]
+    assert "toeic_prefs_v1" not in block
+    assert "toeic_daily_activity_v1" not in block
+    # Drive 同期が作るファイルは従来どおり（版 5・日別記録なし）
+    assert HTML.count("buildBackup({ forDrive: true })") == 2
+    assert "format: forDrive ? 5 : BACKUP_FORMAT" in HTML
