@@ -328,7 +328,7 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
   if (allProg.due > 0) {
     list.push({
       icon: '💡',
-      html: `現在、${kind === 'grammar' ? '文法' : '単語'}の<b>要復習問題が ${allProg.due}${allProg.unit}</b>あります。復習で記憶をロックしましょう！`,
+      html: `現在、${kind === 'grammar' ? '文法' : '単語'}の<b>要復習問題が ${allProg.due}${allProg.unit}</b>あります。<button type="button" class="home-inline-link" data-home-action="open-review">復習へ</button>`,
     });
   }
 
@@ -364,7 +364,8 @@ const WEAK_FILTER_LABELS = {
   due: '要復習のみ',
 };
 
-let currentAppPage = 'home'; // 'home' | 'practice' | 'settings'
+const APP_PAGES = ['home', 'practice', 'review', 'settings'];
+let currentAppPage = 'home'; // APP_PAGES のどれか
 let homeCategory = 'vocab';  // ホーム画面上の切り替えスイッチ ('vocab' | 'grammar')
 let pendingFilterJumpToPractice = false;
 
@@ -835,6 +836,41 @@ function renderHomePage() {
   `;
 }
 
+// 復習画面：今日の復習の件数、苦手ドリルと一覧への入口、今日克服できた数
+function renderReviewPage() {
+  const container = document.getElementById('review-page');
+  if (!container) return;
+  const today = dailyActivity.days[localDateStr()] || {};
+  const mastered = today.gr || 0;
+  const block = (kind, title, sub) => {
+    const p = getBookProgress(kind, 'all');
+    return `
+      <section class="review-block" aria-label="${title}の復習">
+        <div class="review-block-head">
+          <h3>${title}</h3>
+          <span class="review-block-sub">${sub}</span>
+        </div>
+        <div class="review-block-stats">
+          <div><b>${p.due}</b><small>今日の要復習（${p.unit}）</small></div>
+          <div><b>${p.weak}</b><small>苦手に登録（${p.unit}）</small></div>
+        </div>
+        <div class="review-block-actions">
+          <button type="button" class="home-weak-btn solve" data-home-action="solve-weak" data-kind="${kind}" ${p.weak === 0 ? 'disabled' : ''}>苦手を解く</button>
+          <button type="button" class="home-weak-btn" data-home-action="view-weak-list" data-kind="${kind}">一覧を見る</button>
+        </div>
+      </section>`;
+  };
+  container.innerHTML = `
+    <div class="review-page-inner">
+      <h2 class="review-page-title">復習</h2>
+      <p class="review-today">${mastered > 0
+        ? `今日は苦手を <b>${mastered} 問</b> 克服しました！`
+        : '苦手を正解して、間隔をあけた復習を最後まで終えると「克服」になります。'}</p>
+      ${block('vocab', '単語', `モード：${MODE_LABELS[state.mode || 'e2j']}`)}
+      ${block('grammar', '文法', '全 4 冊')}
+    </div>`;
+}
+
 // 設定ページの描画（下から出る設定カードの内容をそのまま踏襲）
 function renderSettingsPage() {
   const container = document.getElementById('settings-page-content');
@@ -929,10 +965,13 @@ function renderSettingsPage() {
 
 // 3ページの切り替え関数
 function switchAppPage(page, options = {}) {
-  if (!['home', 'practice', 'settings'].includes(page)) page = 'home';
+  if (!APP_PAGES.includes(page)) page = 'home';
   currentAppPage = page;
   const appEl = document.getElementById('app');
-  if (appEl) appEl.classList.toggle('page-home', page === 'home');
+  if (appEl) {
+    appEl.classList.toggle('page-home', page === 'home');
+    appEl.classList.toggle('page-review', page === 'review');
+  }
 
   // シートが開いていれば閉じる（オプションで維持指定がない場合）
   if (!options.keepSheets) {
@@ -958,6 +997,8 @@ function switchAppPage(page, options = {}) {
 
   if (page === 'home') {
     renderHomePage();
+  } else if (page === 'review') {
+    renderReviewPage();
   } else if (page === 'settings') {
     renderSettingsPage();
   } else if (page === 'practice') {
@@ -1310,6 +1351,10 @@ function initHomeAndPages() {
           openGoalDialog(actionBtn);
           return;
         }
+        if (action === 'open-review') {
+          switchAppPage('review');
+          return;
+        }
         const kind = actionBtn.dataset.kind || homeCategory;
         const bookId = actionBtn.dataset.book || homeState.lastBook[kind];
         if (action === 'continue-book') {
@@ -1335,12 +1380,24 @@ function initHomeAndPages() {
     });
   }
 
+  // 復習画面のボタン（苦手ドリル・苦手一覧）
+  const reviewEl = document.getElementById('review-page');
+  if (reviewEl) {
+    reviewEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-home-action]');
+      if (!btn || btn.disabled) return;
+      const kind = btn.dataset.kind || homeCategory;
+      if (btn.dataset.homeAction === 'solve-weak') startWeakDrillFromHome(kind);
+      else if (btn.dataset.homeAction === 'view-weak-list') openWeakListFromHome(kind);
+    });
+  }
+
   // URLハッシュに応じた初期ページ決定（自動テスト実行時は practice を維持）
   const isAutomatedTest = (() => {
     try { return sessionStorage.getItem('__test_init') === '1'; } catch (e) { return false; }
   })();
   const hash = location.hash.replace('#', '');
-  const initialPage = ['home', 'practice', 'settings'].includes(hash)
+  const initialPage = APP_PAGES.includes(hash)
     ? hash
     : (isAutomatedTest ? 'practice' : 'home');
 
@@ -1348,7 +1405,7 @@ function initHomeAndPages() {
 
   window.addEventListener('hashchange', () => {
     const h = location.hash.replace('#', '');
-    if (['home', 'practice', 'settings'].includes(h) && h !== currentAppPage) {
+    if (APP_PAGES.includes(h) && h !== currentAppPage) {
       switchAppPage(h, { skipHash: true });
     }
   });

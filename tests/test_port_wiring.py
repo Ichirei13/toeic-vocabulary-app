@@ -45,3 +45,14 @@ def test_review_module_is_wired():
     assert '<script src="src/review.js"></script>' in HTML
     assert "'src/review.js'" in SW
     assert HTML.index('<script src="src/review.js"></script>') < HTML.index('<script src="home.js"></script>')
+
+
+def test_review_page_is_wired():
+    assert 'data-page="review"' in HTML
+    assert 'id="review-page"' in HTML
+    home = (ROOT / "home.js").read_text(encoding="utf-8")
+    assert "const APP_PAGES = ['home', 'practice', 'review', 'settings'];" in home
+    assert "function renderReviewPage()" in home
+    # ナビは「ホーム / 演習 / 復習 / 設定」の順
+    nav = HTML[HTML.index('class="top-page-tabs"'):]
+    assert nav.index('data-page="practice"') < nav.index('data-page="review"') < nav.index('data-page="settings"')

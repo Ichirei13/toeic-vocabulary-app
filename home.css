@@ -796,3 +796,46 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* ==================== 復習画面 ==================== */
+#review-page {
+  padding: 10px 20px max(14px, env(safe-area-inset-bottom, 14px));
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.review-page-inner { display: flex; flex-direction: column; gap: 12px; }
+.review-page-title { margin: 4px 0 0; font-size: 18px; font-weight: 800; color: var(--text-page); }
+.review-today { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.review-block {
+  padding: 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  background: var(--ui-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.review-block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.review-block-head h3 { margin: 0; font-size: 15px; color: var(--text-page); }
+.review-block-sub { font-size: 11px; color: var(--text-muted); }
+.review-block-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.review-block-stats div { display: flex; flex-direction: column; gap: 2px; }
+.review-block-stats b { font-size: 22px; color: var(--accent); }
+.review-block-stats small { font-size: 11px; color: var(--text-muted); }
+.review-block-actions { display: flex; gap: 8px; }
+.home-inline-link {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+@media (min-width: 1024px) {
+  #app.page-review { max-width: 720px; }
+}
