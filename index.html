@@ -266,6 +266,7 @@
   align-self: flex-start;
 }
 .duo-banner-icon img { width: 44px; height: 44px; display: block; }
+.pomeranian-picture { display: contents; }
 .duo-banner-text { min-width: 0; overflow-wrap: anywhere; }
 .duo-banner-title {
   font-size: 14px;
@@ -2227,7 +2228,7 @@ body {
       <h1 class="title">単語ドリル</h1>
     </div>
     <div class="duo-status" id="duo-status">
-      <span class="duo-stat-item" title="連続正解数"><img class="streak-mascot" src="assets/pomeranian/streak.svg" width="24" height="24" alt="" aria-hidden="true"> <span id="duo-streak-count">0</span></span>
+      <span class="duo-stat-item" title="連続正解数"><picture class="pomeranian-picture"><source media="(prefers-reduced-motion: reduce)" srcset="assets/pomeranian/still/streak.svg"><img class="streak-mascot" src="assets/pomeranian/streak.svg" width="24" height="24" alt="" aria-hidden="true"></picture> <span id="duo-streak-count">0</span></span>
       <span class="duo-stat-item xp" title="スコア (XP)">💎 <span id="duo-xp-count">0</span></span>
     </div>
     <div class="header-actions">
@@ -2247,7 +2248,7 @@ body {
     <div id="choices-container" class="choices"></div>
   </div>
   <div id="duo-banner" class="duo-banner hide" role="status" aria-live="polite" aria-atomic="true" tabindex="0" aria-label="回答の結果">
-    <div class="duo-banner-icon" id="duo-banner-icon" aria-hidden="true"><img src="assets/pomeranian/encourage.svg" width="44" height="44" alt=""></div>
+    <div class="duo-banner-icon" id="duo-banner-icon" aria-hidden="true"><picture class="pomeranian-picture"><source media="(prefers-reduced-motion: reduce)" srcset="assets/pomeranian/still/encourage.svg"><img src="assets/pomeranian/encourage.svg" width="44" height="44" alt=""></picture></div>
     <div class="duo-banner-text">
       <div class="duo-banner-title" id="duo-banner-title">正解！お見事！</div>
       <div class="duo-banner-sub" id="duo-banner-sub">素晴らしい調子です！</div>
@@ -2462,7 +2463,10 @@ function playDuoSound(isCorrect) {
 
 // 隣の見出しや数字で意味を伝える装飾画像。サイズを予約して読み込み時のずれを防ぐ。
 function pomeranianImage(pose, className, size) {
-  return `<img class="${className}" src="assets/pomeranian/${pose}.svg" width="${size}" height="${size}" alt="" aria-hidden="true">`;
+  const img = `<img class="${className}" src="assets/pomeranian/${pose}.svg" width="${size}" height="${size}" alt="" aria-hidden="true">`;
+  if (!['neutral', 'encourage', 'reflect', 'celebrate', 'streak'].includes(pose)) return img;
+  // SVG画像の中のメディア条件に頼らず、ページ側の設定で静止版を選ぶ。
+  return `<picture class="pomeranian-picture"><source media="(prefers-reduced-motion: reduce)" srcset="assets/pomeranian/still/${pose}.svg">${img}</picture>`;
 }
 
 // 見直しでも同じ表示を使うが、点数や連続正解は新しい回答だけで更新する。
@@ -2480,7 +2484,9 @@ function showDuoBanner(isCorrect, answerText, { review = false, skipped = false,
   document.getElementById('practice-page').classList.add('has-feedback');
   banner.className = `duo-banner ${isCorrect ? 'correct' : 'wrong'}`;
   banner.scrollTop = 0;
-  mascot.src = `assets/pomeranian/${isCorrect ? 'encourage' : 'reflect'}.svg`;
+  const pose = isCorrect ? 'encourage' : 'reflect';
+  mascot.closest('picture').querySelector('source').srcset = `assets/pomeranian/still/${pose}.svg`;
+  mascot.src = `assets/pomeranian/${pose}.svg`;
   if (isCorrect) {
     title.textContent = flash ? '覚えた！その調子。' : '正解！その調子。';
     sub.textContent = !review && duoStreak > 1 ? `${duoStreak}問連続正解！` : 'この調子で続けましょう！';

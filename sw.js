@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れたらキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v1';
+const CACHE = 'toeic-drill-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -16,6 +16,11 @@ const ASSETS = [
   'assets/pomeranian/neutral.svg',
   'assets/pomeranian/streak.svg',
   'assets/pomeranian/celebrate.svg',
+  'assets/pomeranian/still/neutral.svg',
+  'assets/pomeranian/still/encourage.svg',
+  'assets/pomeranian/still/reflect.svg',
+  'assets/pomeranian/still/celebrate.svg',
+  'assets/pomeranian/still/streak.svg',
   'assets/pomeranian/course-kin.svg',
   'assets/pomeranian/course-sekaiichi.svg',
   'assets/pomeranian/course-polaris.svg',
