@@ -6,7 +6,7 @@ Merges all grammar question datasets into toeic_practice/data/grammar.js:
 1. sekai (141 items, IDs 1..141 from grammar.js)
 2. kin (160 items, IDs 1001..1160 from grammar.js)
 3. polaris2 (334 items, IDs 2001..2334 from English_study/polaris2_grammar.json)
-4. toplevel (~520 items, IDs 3001+ from English_study/toplevel_grammar_drill.json)
+4. toplevel (348 items, IDs 3001..3348 from English_study/toplevel_grammar_drill.json, strictly 4 choices with explanations)
 
 Preserves the exact KIN_PHASES block from grammar.js.
 Applies rigorous sanitization to toplevel and polaris2 items.
@@ -151,18 +151,20 @@ def load_toplevel_items(json_path: Path, start_id: int = 3001):
         choices = clean_toplevel_choices(item["choices"])
         ans = item["answer"]
 
-        # Validation
+        # Validation: toplevel must be strictly 4 choices
         if len(q) <= 5:
             continue
-        if len(choices) not in [3, 4, 5]:
+        if len(choices) != 4:
             continue
-        if not (0 <= ans < len(choices)):
+        if not (0 <= ans < 4):
             continue
 
         trans = item.get("translation", "").strip()
         exp = item.get("explanation", "").strip()
-        if trans and trans not in exp:
+        if exp and trans and trans not in exp:
             exp = f"{exp}\n\n和訳: {trans}".strip()
+        elif not exp and trans:
+            exp = f"和訳: {trans}".strip()
 
         obj = {
             "id": current_id,
@@ -207,14 +209,19 @@ def merge_and_export():
     print(f"Total merged questions: {total_count}")
 
     # Integrity verification
-    assert total_count >= 1100, f"Expected >= 1100 questions, got {total_count}"
+    assert total_count == 983, f"Expected 983 questions, got {total_count}"
+    assert len(toplevel_items) == 348, f"Expected 348 toplevel questions, got {len(toplevel_items)}"
 
     ids = set()
     for item in all_questions:
         assert item["id"] not in ids, f"Duplicate ID: {item['id']}"
         ids.add(item["id"])
         assert len(item["q"]) > 5, f"Question too short in {item['id']}"
-        assert len(item["c"]) in [3, 4, 5], f"Invalid choices in {item['id']}"
+        if item["b"] == "toplevel":
+            assert len(item["c"]) == 4, f"Toplevel item {item['id']} must have exactly 4 choices"
+            assert len(item["exp"]) > 30, f"Toplevel item {item['id']} has no explanation"
+        else:
+            assert len(item["c"]) in [3, 4, 5], f"Invalid choices in {item['id']}"
         assert 0 <= item["a"] < len(item["c"]), f"Invalid answer index in {item['id']}"
         assert item["b"] in {"sekai", "kin", "polaris2", "toplevel"}
 

@@ -16,7 +16,7 @@ def test_grammar_js_node_and_python_parsing():
     m_raw = re.search(r"const RAW_GRAMMAR = (\[.*?\]);\s*\n\s*const KIN_PHASES", content, re.DOTALL)
     assert m_raw is not None, "Could not match RAW_GRAMMAR in grammar.js"
     raw_data = json.loads(m_raw.group(1))
-    assert len(raw_data) == 1155, f"Expected exactly 1155 questions, got {len(raw_data)}"
+    assert len(raw_data) == 983, f"Expected exactly 983 questions, got {len(raw_data)}"
 
     m_phases = re.search(r"const KIN_PHASES = (\[.*?\]);\s*$", content, re.DOTALL)
     assert m_phases is not None, "Could not match KIN_PHASES in grammar.js"
@@ -31,7 +31,7 @@ def test_grammar_js_node_and_python_parsing():
     """
     res = subprocess.run(["node", "-e", node_script], capture_output=True, text=True, check=True)
     parsed = json.loads(res.stdout)
-    assert parsed["count"] == 1155
+    assert parsed["count"] == 983
     assert parsed["phases"] == 7
 
 
@@ -48,14 +48,14 @@ def test_book_filtering_and_counts():
     assert len(sekai) == 141
     assert len(kin) == 160
     assert len(polaris2) == 334
-    assert len(toplevel) == 520
-    assert len(sekai) + len(kin) + len(polaris2) + len(toplevel) == 1155
+    assert len(toplevel) == 348
+    assert len(sekai) + len(kin) + len(polaris2) + len(toplevel) == 983
 
     # Check ID ranges
     assert [q["id"] for q in sekai] == list(range(1, 142))
     assert [q["id"] for q in kin] == list(range(1001, 1161))
     assert [q["id"] for q in polaris2] == list(range(2001, 2335))
-    assert [q["id"] for q in toplevel] == list(range(3001, 3521))
+    assert [q["id"] for q in toplevel] == list(range(3001, 3349))
 
 
 def test_all_questions_valid_fields_and_choices():

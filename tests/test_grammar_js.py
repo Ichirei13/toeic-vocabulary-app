@@ -11,7 +11,7 @@ def test_grammar_js_structure():
     assert m is not None, "Could not match RAW_GRAMMAR in grammar.js"
 
     data = json.loads(m.group(1))
-    assert len(data) >= 1100, f"Expected >= 1100 questions, got {len(data)}"
+    assert len(data) == 983, f"Expected 983 questions, got {len(data)}"
 
     books = set()
     ids = set()
@@ -28,7 +28,12 @@ def test_grammar_js_structure():
         counts[b] += 1
 
         assert "q" in item and len(item["q"]) > 5
-        assert "c" in item and len(item["c"]) in [3, 4, 5]
+        if b == "toplevel":
+            assert len(item["c"]) == 4, f"Toplevel item {item['id']} must have exactly 4 choices"
+            assert "-------" in item["q"], f"Toplevel item {item['id']} must contain blank '-------'"
+            assert len(item["exp"]) > 30, f"Toplevel item {item['id']} must have a meaningful explanation"
+        else:
+            assert len(item["c"]) in [3, 4, 5]
         assert "a" in item and 0 <= item["a"] < len(item["c"])
         assert "ch" in item and "ch_title" in item
         assert "th_title" in item
@@ -42,7 +47,7 @@ def test_grammar_js_structure():
         elif b == "polaris2":
             assert 2001 <= item["id"] <= 2334, f"Polaris2 ID out of range: {item['id']}"
         elif b == "toplevel":
-            assert 3001 <= item["id"] <= 3600, f"Toplevel ID out of range: {item['id']}"
+            assert 3001 <= item["id"] <= 3348, f"Toplevel ID out of range: {item['id']}"
 
         # Verify choices are sanitized (no newlines with Japanese instructions or OCR noise)
         for choice in item["c"]:
@@ -59,7 +64,7 @@ def test_grammar_js_structure():
     assert counts["sekai"] == 141
     assert counts["kin"] == 160
     assert counts["polaris2"] == 334
-    assert counts["toplevel"] >= 500
+    assert counts["toplevel"] == 348
 
     # Ensure malformed toplevel items were discarded
     toplevel_questions = [item["q"] for item in data if item["b"] == "toplevel"]

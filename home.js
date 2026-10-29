@@ -437,8 +437,8 @@ const HOME_BOOKS = {
     { id: 'kin', icon: '👑', title: '金の文法', sub: '全7章・金のルール対応 (160問)' },
     { id: 'sekai', icon: '📖', title: '世界一わかりやすい英文法', sub: '全14章・基礎〜実践 (141問)' },
     { id: 'polaris2', icon: '🧭', title: '英文法ポラリス2', sub: '全6 Unit・応用レベル (334問)' },
-    { id: 'toplevel', icon: '🎓', title: '高3 トップレベル英語', sub: '全24 Lecture・実戦演習 (520問)' },
-    { id: 'all', icon: '📚', title: 'すべての文法問題', sub: '全4冊 1,155問 横断演習' },
+    { id: 'toplevel', icon: '🎓', title: '高3 トップレベル英語', sub: '全24 Lecture・実戦演習 (348問)' },
+    { id: 'all', icon: '📚', title: 'すべての文法問題', sub: '全4冊 983問 横断演習' },
   ],
 };
 
