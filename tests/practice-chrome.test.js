@@ -75,8 +75,17 @@ test('footer_has_no_settings_link_but_keeps_the_rest', () => withPage({}, async 
   assert.strictEqual(r.pace, true, '解答時間の枠は残す');
 }));
 
-test('header_gear_button_stays', () => withPage({}, async page => {
-  assert.strictEqual(await page.evaluate(() => !!document.querySelector('#practice-page .header #settings-btn')), true);
+test('header_has_no_gear_button_but_keeps_the_filter_button', () => withPage({}, async page => {
+  const r = await page.evaluate(() => ({
+    gear: !!document.querySelector('#practice-page .header #settings-btn'),
+    anySettingsOpener: !!document.querySelector('#practice-page [onclick*="toggleSettings"]'),
+    filter: !!document.querySelector('#practice-page .header #filter-toggle'),
+    tab: !!document.querySelector('.top-page-tab[data-page="settings"]'),
+  }));
+  assert.strictEqual(r.gear, false, '歯車ボタンが残っている');
+  assert.strictEqual(r.anySettingsOpener, false, '演習画面に設定を開く入口が残っている');
+  assert.strictEqual(r.filter, true, '絞り込みボタンは残す');
+  assert.strictEqual(r.tab, true, '設定へは上のタブから行ける');
 }));
 
 test('practice_screen_has_no_mode_selector_but_the_filter_sheet_does', () => withPage({}, async page => {
