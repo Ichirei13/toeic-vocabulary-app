@@ -768,6 +768,56 @@ test('past_records_untouched_by_filter_change', () => withPage({
   assert.deepStrictEqual(r.seen.map(Number), [5, 9]);
 }));
 
+// ==================== クラウド同期のあとの出題プール ====================
+
+// 他の端末の苦手を合算した状況をつくる。同期の関数 applyMergedRecordsToLocal と同じ入口を通す
+const mergeWeakFromCloud = (page, kind) => page.evaluate(kind => {
+  const rec = getCurrentLocalRecords();
+  const entry = { streak: 0, added: 1, due: 1 };
+  if (kind === 'grammar') {
+    rec.weakGrammar = { ...rec.weakGrammar, [RAW_GRAMMAR[0].id]: entry };
+  } else {
+    rec.weakWords = { ...rec.weakWords, [state.mode]: { ...rec.weakWords[state.mode], [RAW_WORDS[0].w]: entry } };
+  }
+  applyMergedRecordsToLocal(rec);
+}, kind);
+
+test('cloud_sync_refreshes_vocab_pool_for_weak_filter_before_solving', () => withPage({}, async page => {
+  await dismissNudge(page);
+  await page.evaluate(() => { state.weakFilter = 'weak_only'; syncFilterUI(); applyFilters(); });
+  assert.strictEqual(await page.evaluate(() => state.pool.length), 0);
+  await mergeWeakFromCloud(page, 'vocab');
+  assert.strictEqual(await page.evaluate(() => state.pool.length), 1);
+  assert.ok((await page.textContent('#filter-apply-btn')).includes('対象 1 語'));
+}));
+
+test('cloud_sync_refreshes_grammar_pool_for_weak_filter_before_solving', () => withPage({}, async page => {
+  await openGrammar(page);
+  await page.evaluate(() => { state.grammarWeakFilter = 'weak_only'; syncFilterUI(); applyGrammarFilters(); });
+  assert.strictEqual(await page.evaluate(() => state.grammarPool.length), 0);
+  await mergeWeakFromCloud(page, 'grammar');
+  assert.strictEqual(await page.evaluate(() => state.grammarPool.length), 1);
+  assert.ok((await page.textContent('#filter-apply-btn')).includes('対象 1 問'));
+}));
+
+test('cloud_sync_does_not_reset_a_pool_that_is_being_solved', () => withPage({}, async page => {
+  await dismissNudge(page);
+  await page.evaluate(() => { state.weakFilter = 'weak_unlearned'; syncFilterUI(); applyFilters(); });
+  await page.click('#choices-container .choice-btn >> nth=0');
+  const before = await page.evaluate(() => ({ pool: state.pool.map(w => w.w), answered: state.answeredCount }));
+  assert.strictEqual(before.answered, 1);
+  await mergeWeakFromCloud(page, 'vocab');
+  const after = await page.evaluate(() => ({ pool: state.pool.map(w => w.w), answered: state.answeredCount }));
+  assert.deepStrictEqual(after, before); // 解いている最中は出題順も回答数も変えない
+}));
+
+test('cloud_sync_keeps_the_pool_when_the_filter_is_all', () => withPage({}, async page => {
+  await dismissNudge(page);
+  const before = await page.evaluate(() => state.pool.map(w => w.w));
+  await mergeWeakFromCloud(page, 'vocab');
+  assert.deepStrictEqual(await page.evaluate(() => state.pool.map(w => w.w)), before); // 記録に関係しない絞り込みは並べ直さない
+}));
+
 // ==================== 実行 ====================
 
 (async () => {

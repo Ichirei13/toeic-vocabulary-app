@@ -3064,8 +3064,9 @@ function grammarMatchesBaseFilters(ex) {
   return true;
 }
 
-function applyGrammarFilters() {
-  let filtered = RAW_GRAMMAR.filter(ex => {
+// 今の絞り込みに合う文法問題（並べ替える前）
+function filteredGrammar() {
+  return RAW_GRAMMAR.filter(ex => {
     if (!grammarMatchesBaseFilters(ex)) return false;
     const entry = state.grammarWeakData[ex.id];
     if (state.grammarWeakFilter === 'weak_only' && !entry) return false;
@@ -3073,8 +3074,10 @@ function applyGrammarFilters() {
     if (state.grammarWeakFilter === 'due' && !(entry && isDue(entry))) return false;
     return true;
   });
+}
 
-  state.grammarPool = shuffle(filtered);
+function applyGrammarFilters() {
+  state.grammarPool = shuffle(filteredGrammar());
   resetReview();
   state.currentGrammarIndex = 0;
   state.grammarScore = 0;
@@ -3345,11 +3348,11 @@ function setApp(app) {
   if (sheetModeGroup) sheetModeGroup.style.display = isGrammar ? 'none' : 'block';
   document.getElementById('vocab-filters').style.display = isGrammar ? 'none' : 'block';
   document.getElementById('grammar-filters').style.display = isGrammar ? 'block' : 'none';
+  document.getElementById('vocab-weak-group').style.display = isGrammar ? 'none' : 'block';
+  document.getElementById('grammar-weak-group').style.display = isGrammar ? 'block' : 'none';
   resetActionBar();
 
   if (isGrammar) {
-  document.getElementById('vocab-weak-group').style.display = isGrammar ? 'none' : 'block';
-  document.getElementById('grammar-weak-group').style.display = isGrammar ? 'block' : 'none';
     if (!restoreSession('grammar')) return applyGrammarFilters();
     updateGrammarWeakBadge();
     updateFilterSummary();
@@ -3554,8 +3557,9 @@ function dedupeWords(words) {
   });
 }
 
-function applyFilters() {
-  let filtered = RAW_WORDS.filter(w => {
+// 今の絞り込みに合う単語（並べ替える前）
+function filteredWords() {
+  const filtered = RAW_WORDS.filter(w => {
     if (!wordMatchesBaseFilters(w)) return false;
 
     // weak
@@ -3566,8 +3570,11 @@ function applyFilters() {
 
     return true;
   });
-  
-  state.pool = shuffle(dedupeWords(filtered));
+  return dedupeWords(filtered);
+}
+
+function applyFilters() {
+  state.pool = shuffle(filteredWords());
   resetReview();
   state.currentIndex = 0;
   state.score = 0;
@@ -5410,6 +5417,25 @@ function replaceRecords(rawByKey, saveUndo, label) {
   }
 }
 
+// クラウド同期で苦手・出題済みの記録が変わると、苦手の絞り込み（苦手のみ・苦手+未・要復習）に合う問題も変わる。
+// まだ1問も解いていないときだけ、合う問題が変わっていれば出題し直す。
+// 解いている最中の画面は作り直さない（同期は回答のたびに走るので、進み具合が消えてしまう）
+function refreshPoolAfterRecordSync() {
+  const isGrammar = state.app === 'grammar';
+  if (isGrammar ? state.grammarWeakFilter === 'all' : state.weakFilter === 'all') return;
+  const untouched = isGrammar
+    ? state.grammarAnsweredCount === 0 && state.currentGrammarIndex === 0
+    : state.answeredCount === 0 && state.currentIndex === 0;
+  if (!untouched || state.reviewIndex !== null) return;
+
+  const pool = isGrammar ? state.grammarPool : state.pool;
+  const next = isGrammar ? filteredGrammar() : filteredWords();
+  const key = item => (isGrammar ? item.id : item.w);
+  const current = new Set(pool.map(key));
+  if (next.length === current.size && next.every(item => current.has(key(item)))) return;
+  if (isGrammar) applyGrammarFilters(); else applyFilters();
+}
+
 // 書き換えた記録を読み込み直して画面に反映し、別のタブにも知らせる。
 // 復元ではなくクラウド同期のとき（isRestore が false）は、設定と出題の続きは変わらないので、
 // 解いている最中の画面を作り直さず、別のタブも読み込み直させない
@@ -5429,7 +5455,10 @@ function reloadRecordsFromStorage(isRestore = true) {
   }
   updateWeakBadge();
   updateGrammarWeakBadge();
-  if (!isRestore) return;
+  if (!isRestore) {
+    refreshPoolAfterRecordSync();
+    return;
+  }
   try {
     localStorage.setItem(RESTORE_STAMP_KEY, String(Date.now()));
   } catch (e) {
