@@ -1,4 +1,4 @@
-// 解いている間のカウントアップ表示（ライブタイマー）の検証。
+// 解いている間のカウントアップ表示（画面下のフッター）の検証。
 // 実行: NODE_PATH=$(npm root -g) node tests/live-timer.test.js
 // リポジトリ直下を自前の静的サーバで配信し、Playwright(Chromium)で index.html を操作する。
 const http = require('http');
@@ -52,13 +52,17 @@ const dismissNudge = page => page.evaluate(() => {
   const m = document.getElementById('filter-nudge-modal');
   if (m && m.classList.contains('open')) dismissNudge();
 });
+// 解いている間のカウントアップ（画面下のフッターの枠）
 const live = page => page.evaluate(() => {
-  const el = document.querySelector('#main-card .card-pace-badge.live');
+  const el = document.querySelector('#practice-page .footer .stats #pace-text.live');
   return el ? { text: el.textContent, over: el.classList.contains('over') } : null;
 });
+// フッターの枠の今の文字（カウントアップ中でなければ平均ペース）
+const footerPace = page => page.evaluate(() => document.getElementById('pace-text').textContent);
+// 回答後にカードへ出る結果バッジ
 const badge = page => page.evaluate(() => {
   const el = document.querySelector('#main-card .card-pace-badge');
-  return el ? { text: el.textContent, live: el.classList.contains('live') } : null;
+  return el ? { text: el.textContent } : null;
 });
 const num = t => parseFloat(String(t).replace(/[^\d.]/g, ''));
 
@@ -73,6 +77,8 @@ test('counts_up_while_solving_vocab', () => withPage({}, async page => {
   await page.waitForTimeout(450);
   const b = await live(page);
   assert(num(b.text) > num(a.text), `${a.text} -> ${b.text}`);
+  assert.strictEqual(await badge(page), null, '解いている間、カードの上には何も出さない（出題の邪魔にならない）');
+  assert.strictEqual(await page.evaluate(() => !!document.querySelector('#practice-page .footer .stats #pace-text')), true, '画面下のフッターに出る');
 }));
 
 test('counts_up_while_solving_grammar', () => withPage({}, async page => {
@@ -82,7 +88,7 @@ test('counts_up_while_solving_grammar', () => withPage({}, async page => {
   await page.waitForTimeout(450);
   const a = await live(page);
   assert(a && /^⏱ \d+\.\d$/.test(a.text), JSON.stringify(a));
-  assert.strictEqual(await page.evaluate(() => !!document.querySelector('#main-card .grammar-meta .card-pace-badge.live')), true, '文法ではメタ行に出る');
+  assert.strictEqual(await badge(page), null, '解いている間、カードの上には何も出さない');
 }));
 
 test('stops_at_answer_and_becomes_the_result_badge', () => withPage({}, async page => {
@@ -90,11 +96,13 @@ test('stops_at_answer_and_becomes_the_result_badge', () => withPage({}, async pa
   await page.waitForTimeout(300);
   await page.click('#choices-container .choice-btn >> nth=0');
   const after = await badge(page);
-  assert(after && after.live === false, JSON.stringify(after));
-  assert(/\d+\.\d秒/.test(after.text), after.text);
+  assert(after && /\d+\.\d秒/.test(after.text), JSON.stringify(after));
+  assert.strictEqual(await live(page), null, '回答後もカウントアップが残っている');
+  assert(/s\/問/.test(await footerPace(page)), 'フッターが平均ペースに戻っていない: ' + await footerPace(page));
   assert.strictEqual(await page.evaluate(() => liveTimerId), null, 'interval が止まっていない');
   await page.waitForTimeout(400);
   assert.strictEqual((await badge(page)).text, after.text, '回答後に数字が動いている');
+  assert(/s\/問/.test(await footerPace(page)));
 }));
 
 test('goes_over_target_and_shows_60_plus', () => withPage({}, async page => {
@@ -127,6 +135,7 @@ test('not_shown_while_reviewing_a_previous_question', () => withPage({}, async p
   await page.waitForTimeout(250);
   assert.strictEqual(await live(page), null);
   assert.strictEqual(await page.evaluate(() => liveTimerId), null);
+  assert(/s\/問/.test(await footerPace(page)), '見直し中のフッターは平均ペース');
 }));
 
 test('setting_off_hides_the_timer_and_is_saved', () => withPage({}, async page => {

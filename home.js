@@ -236,9 +236,10 @@ function getAveragePace(kind) {
   return sum / arr.length;
 }
 
-function updateFooterPaceDisplay() {
+// フッターの解答時間の枠（なければ作る）。解いている間はカウントアップ、それ以外は平均ペースを出す
+function ensureFooterPaceEl() {
   const statsBar = document.querySelector('#practice-page .footer .stats');
-  if (!statsBar) return;
+  if (!statsBar) return null;
   let paceEl = document.getElementById('pace-text');
   if (!paceEl) {
     paceEl = document.createElement('span');
@@ -251,6 +252,15 @@ function updateFooterPaceDisplay() {
       statsBar.appendChild(paceEl);
     }
   }
+  return paceEl;
+}
+
+function updateFooterPaceDisplay() {
+  const paceEl = ensureFooterPaceEl();
+  if (!paceEl) return;
+  // カウントアップ中はその表示を邪魔しない（止まったときに stopLiveTimer が平均ペースへ戻す）
+  if (liveTimerId !== null) return;
+  paceEl.classList.remove('live', 'over');
   const avg = getAveragePace(state.app);
   if (avg === null) {
     paceEl.textContent = '⏱ --s/問';
@@ -281,23 +291,21 @@ function ensurePaceBadge(card) {
 // 問題が出た瞬間（questionShownAt）から数える。記録される解答時間と同じ時計なので、画面の数字と記録はずれない
 let liveTimerId = null;
 
+// 止めて、フッターの枠を平均ペースの表示に戻す
 function stopLiveTimer() {
   if (liveTimerId !== null) clearInterval(liveTimerId);
   liveTimerId = null;
+  updateFooterPaceDisplay();
 }
 
-function removeLiveBadges() {
-  document.querySelectorAll('.card-pace-badge.live').forEach(el => el.remove());
-}
-
+// 画面の下（フッター）に出す。出題の邪魔にならず、目に入りすぎない場所
 function startLiveTimer(kind) {
-  stopLiveTimer();
-  if (!prefs.liveTimer) return;
-  const card = document.getElementById('main-card');
-  if (!card) return;
-  const el = ensurePaceBadge(card);
-  el.className = 'card-pace-badge live';
+  if (liveTimerId !== null) { clearInterval(liveTimerId); liveTimerId = null; }
+  const el = prefs.liveTimer ? ensureFooterPaceEl() : null;
+  if (!el) { updateFooterPaceDisplay(); return; }
   const target = prefs.paceTarget[kind];
+  el.classList.add('live');
+  el.style.opacity = '1';
   const tick = () => {
     if (!el.isConnected) { stopLiveTimer(); return; }
     const sec = (performance.now() - questionShownAt) / 1000;
@@ -1019,7 +1027,7 @@ function renderSettingsPage() {
         <p class="settings-hint">単語は ${StudyCore.PACE_RANGE.vocab.min}〜${StudyCore.PACE_RANGE.vocab.max} 秒、文法は ${StudyCore.PACE_RANGE.grammar.min}〜${StudyCore.PACE_RANGE.grammar.max} 秒。バッジ（瞬殺・爆速など）の境界もこのタイムに合わせて変わります。変更はこれからの回答に効きます。</p>
         <label class="settings-toggle" for="setting-live-timer">
           <input id="setting-live-timer" type="checkbox" ${prefs.liveTimer ? 'checked' : ''} onchange="handleLiveTimerSetting(this)">
-          <span>解いている間、経過時間を表示する（解き始めからのカウントアップ）</span>
+          <span>解いている間、画面の下に経過時間を表示する（解き始めからのカウントアップ）</span>
         </label>
         <div class="settings-actions-row">
           <button type="button" class="settings-action-btn" onclick="resetLearningGoals()">標準に戻す</button>
@@ -1134,10 +1142,7 @@ function handlePaceSetting(kind, input) {
 function handleLiveTimerSetting(input) {
   prefs.liveTimer = input.checked;
   savePrefs();
-  if (!prefs.liveTimer) {
-    stopLiveTimer();
-    removeLiveBadges();
-  }
+  if (!prefs.liveTimer) stopLiveTimer();
   showGoalSettingMessage(prefs.liveTimer ? '経過時間を表示します（次の問題から）。' : '経過時間を非表示にしました。');
 }
 

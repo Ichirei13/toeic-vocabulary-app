@@ -885,15 +885,22 @@
 .settings-hint { margin: 6px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
 .settings-hint:empty { display: none; }
 
-/* 解いている間のカウントアップ（回答後は結果バッジと同じ場所に切り替わる） */
-.card-pace-badge.live {
-  min-width: 4.2em;
-  justify-content: center;
+/* 解いている間のカウントアップ（画面下のフッター。回答すると平均ペースの表示に戻る）。
+   平均ペースの表示（⏱ 12.3s/問）と同じ幅にして、切り替わっても隣の項目が動かないようにする */
+.pace-stat-pill.live {
+  display: inline-block;
+  min-width: 5.4em;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 /* 目標タイムを超えたら、色を強く変えずに点線の枠と薄さで知らせる */
-.card-pace-badge.live.over {
-  opacity: 0.7;
+.pace-stat-pill.live.over {
+  border-color: currentColor;
   border-style: dashed;
+  opacity: 0.75 !important;
 }
 
 /* 設定ページ：チェックボックスの行 */
