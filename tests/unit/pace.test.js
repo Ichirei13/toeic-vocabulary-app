@@ -68,3 +68,32 @@ test('isFastAnswer: 正解で目標タイム以内なら即答', () => {
   assert.strictEqual(P.isFastAnswer(5.1, true, 5), false);
   assert.strictEqual(P.isFastAnswer(1, false, 5), false);
 });
+
+test('formatElapsed: 0.1 秒刻み。60 秒以上は 60+', () => {
+  assert.strictEqual(P.formatElapsed(0), '0.0');
+  assert.strictEqual(P.formatElapsed(3.24), '3.2');
+  assert.strictEqual(P.formatElapsed(3.26), '3.3');
+  assert.strictEqual(P.formatElapsed(59.94), '59.9');
+  assert.strictEqual(P.formatElapsed(60), '60+');
+  assert.strictEqual(P.formatElapsed(999), '60+');
+});
+
+test('formatElapsed: 数でない値・負の値は 0.0', () => {
+  assert.strictEqual(P.formatElapsed(NaN), '0.0');
+  assert.strictEqual(P.formatElapsed(undefined), '0.0');
+  assert.strictEqual(P.formatElapsed(-2), '0.0');
+});
+
+test('isOverTarget: 目標タイムを超えたときだけ真', () => {
+  assert.strictEqual(P.isOverTarget(5, 5), false);
+  assert.strictEqual(P.isOverTarget(5.1, 5), true);
+  assert.strictEqual(P.isOverTarget(2, 5), false);
+});
+
+test('normalizeLiveTimer: 真偽値だけ通し、それ以外は表示する（true）', () => {
+  assert.strictEqual(P.normalizeLiveTimer(true), true);
+  assert.strictEqual(P.normalizeLiveTimer(false), false);
+  assert.strictEqual(P.normalizeLiveTimer(undefined), true);
+  assert.strictEqual(P.normalizeLiveTimer('false'), true);
+  assert.strictEqual(P.normalizeLiveTimer(0), true);
+});

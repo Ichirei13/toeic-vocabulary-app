@@ -5433,6 +5433,7 @@ function parseBackup(text) {
       prefs: d.prefs === undefined ? undefined : {
         ...(StudyCore.isGoal(d.prefs.dailyGoal) ? { dailyGoal: d.prefs.dailyGoal } : {}),
         ...(StudyCore.paceTargetPatch(d.prefs.paceTarget) ? { paceTarget: StudyCore.paceTargetPatch(d.prefs.paceTarget) } : {}),
+        ...(typeof d.prefs.liveTimer === 'boolean' ? { liveTimer: d.prefs.liveTimer } : {}),
       },
     },
     invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration + (activity ? activity.invalid : 0),

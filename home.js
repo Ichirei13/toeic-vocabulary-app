@@ -29,6 +29,9 @@ const STUDY_CORE_FALLBACK = {
   sanitizeActivity: () => { throw new Error('src/activity.js を読み込めていません'); },
   mergeActivity: () => { throw new Error('src/activity.js を読み込めていません'); },
   filterCountLabel: () => ({ label: 'この条件で解く', empty: false }),
+  formatElapsed: sec => (typeof sec === 'number' && sec > 0 ? (sec >= 60 ? '60+' : sec.toFixed(1)) : '0.0'),
+  isOverTarget: (sec, target) => sec > target,
+  normalizeLiveTimer: v => (typeof v === 'boolean' ? v : true),
   createSessionReview: () => ({ reviewed: 0, graduated: 0 }),
   noteReviewAnswer: counter => counter,
   reviewSummaryText: () => '',
@@ -107,6 +110,7 @@ function loadPrefs() {
   return {
     dailyGoal: StudyCore.normalizeGoal(raw.dailyGoal),
     paceTarget: StudyCore.normalizePaceTarget(raw.paceTarget), // 即答の目標タイム（秒）{ vocab, grammar }
+    liveTimer: StudyCore.normalizeLiveTimer(raw.liveTimer), // 解いている間のカウントアップを表示するか
   };
 }
 let prefs = loadPrefs();
@@ -257,7 +261,66 @@ function updateFooterPaceDisplay() {
   }
 }
 
+// カードの解答時間バッジ（なければ作る）。解いている間のカウントアップと、回答後の結果は同じバッジを使う
+function ensurePaceBadge(card) {
+  let el = card.querySelector('.card-pace-badge');
+  if (!el) {
+    el = document.createElement('span');
+    el.className = 'card-pace-badge';
+    const metaRow = card.querySelector('.grammar-meta') || card.querySelector('.pos-tag');
+    if (metaRow && metaRow.classList.contains('grammar-meta')) {
+      metaRow.appendChild(el);
+    } else {
+      card.insertAdjacentElement('afterbegin', el);
+    }
+  }
+  return el;
+}
+
+// ==================== 解いている間のカウントアップ ====================
+// 問題が出た瞬間（questionShownAt）から数える。記録される解答時間と同じ時計なので、画面の数字と記録はずれない
+let liveTimerId = null;
+
+function stopLiveTimer() {
+  if (liveTimerId !== null) clearInterval(liveTimerId);
+  liveTimerId = null;
+}
+
+function removeLiveBadges() {
+  document.querySelectorAll('.card-pace-badge.live').forEach(el => el.remove());
+}
+
+function startLiveTimer(kind) {
+  stopLiveTimer();
+  if (!prefs.liveTimer) return;
+  const card = document.getElementById('main-card');
+  if (!card) return;
+  const el = ensurePaceBadge(card);
+  el.className = 'card-pace-badge live';
+  const target = prefs.paceTarget[kind];
+  const tick = () => {
+    if (!el.isConnected) { stopLiveTimer(); return; }
+    const sec = (performance.now() - questionShownAt) / 1000;
+    el.textContent = `⏱ ${StudyCore.formatElapsed(sec)}`;
+    el.classList.toggle('over', StudyCore.isOverTarget(sec, target));
+  };
+  tick();
+  liveTimerId = setInterval(tick, 100);
+}
+
+// 今の画面の状態に合わせて、数え始める・止める。演習画面で、見直し中でなく、未回答の問題があるときだけ数える
+function syncLiveTimer() {
+  const grammar = state.app === 'grammar';
+  const answered = grammar ? state.grammarAnswered : state.answered;
+  if (currentAppPage !== 'practice' || state.reviewIndex !== null || answered) {
+    stopLiveTimer();
+    return;
+  }
+  startLiveTimer(grammar ? 'grammar' : 'vocab');
+}
+
 function renderPaceFeedback(kind, sec, isCorrect) {
+  stopLiveTimer();
   updateFooterPaceDisplay();
   const card = document.getElementById('main-card');
   if (!card) return;
@@ -268,17 +331,7 @@ function renderPaceFeedback(kind, sec, isCorrect) {
   const isFast = tier !== 'none';
   const badgeLabel = isFast ? `⚡ ${tierWord[tier]} ${sec.toFixed(1)}秒` : `⏱ ${sec.toFixed(1)}秒`;
 
-  let existing = card.querySelector('.card-pace-badge');
-  if (!existing) {
-    existing = document.createElement('span');
-    existing.className = 'card-pace-badge';
-    const metaRow = card.querySelector('.grammar-meta') || card.querySelector('.pos-tag');
-    if (metaRow && metaRow.classList.contains('grammar-meta')) {
-      metaRow.appendChild(existing);
-    } else {
-      card.insertAdjacentElement('afterbegin', existing);
-    }
-  }
+  const existing = ensurePaceBadge(card);
   existing.className = `card-pace-badge${isFast ? ' fast' : ''}`;
   existing.textContent = badgeLabel;
 }
@@ -964,6 +1017,10 @@ function renderSettingsPage() {
           <input id="setting-pace-grammar" class="settings-number" type="number" inputmode="numeric" min="${StudyCore.PACE_RANGE.grammar.min}" max="${StudyCore.PACE_RANGE.grammar.max}" step="${StudyCore.PACE_RANGE.grammar.step}" value="${prefs.paceTarget.grammar}" onchange="handlePaceSetting('grammar', this)">
         </div>
         <p class="settings-hint">単語は ${StudyCore.PACE_RANGE.vocab.min}〜${StudyCore.PACE_RANGE.vocab.max} 秒、文法は ${StudyCore.PACE_RANGE.grammar.min}〜${StudyCore.PACE_RANGE.grammar.max} 秒。バッジ（瞬殺・爆速など）の境界もこのタイムに合わせて変わります。変更はこれからの回答に効きます。</p>
+        <label class="settings-toggle" for="setting-live-timer">
+          <input id="setting-live-timer" type="checkbox" ${prefs.liveTimer ? 'checked' : ''} onchange="handleLiveTimerSetting(this)">
+          <span>解いている間、経過時間を表示する（解き始めからのカウントアップ）</span>
+        </label>
         <div class="settings-actions-row">
           <button type="button" class="settings-action-btn" onclick="resetLearningGoals()">標準に戻す</button>
         </div>
@@ -1073,6 +1130,17 @@ function handlePaceSetting(kind, input) {
   else showGoalSettingMessage(`${label}の即答タイムを ${v}秒 にしました。`);
 }
 
+// 解いている間の経過時間の表示。オフにしても、回答後の結果バッジは今までどおり出る
+function handleLiveTimerSetting(input) {
+  prefs.liveTimer = input.checked;
+  savePrefs();
+  if (!prefs.liveTimer) {
+    stopLiveTimer();
+    removeLiveBadges();
+  }
+  showGoalSettingMessage(prefs.liveTimer ? '経過時間を表示します（次の問題から）。' : '経過時間を非表示にしました。');
+}
+
 function resetLearningGoals() {
   setDailyGoal(StudyCore.normalizeGoal(undefined));
   prefs.paceTarget = StudyCore.normalizePaceTarget(undefined);
@@ -1122,6 +1190,9 @@ function switchAppPage(page, options = {}) {
   } else if (page === 'practice') {
     checkFilterNudge();
   }
+
+  // 演習画面にいるときだけ数える（戻ってきたときは、未回答の問題の経過時間を続きから表示する）
+  syncLiveTimer();
 
   if (!options.skipHash) {
     const targetHash = `#${page}`;
@@ -1373,6 +1444,7 @@ function initHomeAndPages() {
         questionShownAt = performance.now();
       }
       updateFooterPaceDisplay();
+      syncLiveTimer();
       return res;
     };
   }
@@ -1385,6 +1457,7 @@ function initHomeAndPages() {
         questionShownAt = performance.now();
       }
       updateFooterPaceDisplay();
+      syncLiveTimer();
       return res;
     };
   }

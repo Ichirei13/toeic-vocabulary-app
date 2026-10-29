@@ -60,5 +60,22 @@
     return 'none';
   }
 
-  return { DEFAULT_PACE, PACE_RANGE: RANGE, normalizePace, clampPace, normalizePaceTarget, paceTargetPatch, isFastAnswer, paceTier };
+  // 解いている間のカウントアップ表示。0.1 秒刻みで、60 秒以上は「60+」（記録の上限に合わせる）
+  function formatElapsed(sec) {
+    if (typeof sec !== 'number' || !Number.isFinite(sec) || sec <= 0) return '0.0';
+    const tenth = Math.round(sec * 10) / 10;
+    return sec >= 60 || tenth >= 60 ? '60+' : tenth.toFixed(1);
+  }
+
+  // 目標タイムを超えたら真（カウントアップの色を変えるのに使う）
+  function isOverTarget(sec, target) {
+    return sec > target;
+  }
+
+  // 解答中のタイマーを表示するかの設定。真偽値だけ通し、それ以外は表示する
+  function normalizeLiveTimer(v) {
+    return typeof v === 'boolean' ? v : true;
+  }
+
+  return { DEFAULT_PACE, PACE_RANGE: RANGE, normalizePace, clampPace, normalizePaceTarget, paceTargetPatch, isFastAnswer, paceTier, formatElapsed, isOverTarget, normalizeLiveTimer };
 });
