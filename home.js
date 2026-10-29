@@ -60,6 +60,27 @@ function loadDailyActivity() {
 
 let dailyActivity = loadDailyActivity();
 
+// 表示設定（今日の目標）。壊れていても読めなくても、目標 10 問で動く
+const PREFS_KEY = 'toeic_prefs_v1';
+function loadPrefs() {
+  const raw = loadJSON(PREFS_KEY, {});
+  return { dailyGoal: StudyCore.normalizeGoal(raw.dailyGoal) };
+}
+let prefs = loadPrefs();
+function savePrefs() {
+  saveJSON(PREFS_KEY, prefs);
+}
+// 目標を変える。今日の分にも反映し、昨日以前の日には触れない
+function setDailyGoal(goal) {
+  prefs.dailyGoal = StudyCore.normalizeGoal(goal);
+  savePrefs();
+  const entry = dailyActivity.days[localDateStr()];
+  if (entry) {
+    entry.g = prefs.dailyGoal;
+    saveDailyActivity();
+  }
+}
+
 function saveDailyActivity() {
   try {
     localStorage.setItem(DAILY_ACTIVITY_KEY, JSON.stringify(dailyActivity));
@@ -87,7 +108,13 @@ function recordAnswerPaceAndActivity(kind, isCorrect) {
   if (isCorrect) entry.c = (entry.c || 0) + 1;
   if (isFast) entry.fast = (entry.fast || 0) + 1;
   entry.sec = Math.round(((entry.sec || 0) + sec) * 10) / 10;
+  entry.g = prefs.dailyGoal;
   saveDailyActivity();
+
+  // 今日の目標を初めて越えた回答の直後だけ知らせる（目標なしのときは何も出さない）
+  if (prefs.dailyGoal > 0 && entry.a - 1 < prefs.dailyGoal && entry.a >= prefs.dailyGoal) {
+    showToast('🎯 今日の目標を達成しました！');
+  }
 
   renderPaceFeedback(kind, sec, isCorrect);
 }
@@ -217,10 +244,20 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
   // 1. 連続学習＆今日の頑張り
   if (streakInfo.studiedToday) {
     const todayRate = Math.round((streakInfo.todayCorrect / streakInfo.todayAnswered) * 100);
+    // 目標を設定しているときは、今日の解答数は目標行に出るので、ここでは連続日数と正答率だけにする
+    const todayText = prefs.dailyGoal > 0
+      ? `今日の正答率は <b>${todayRate}%</b>、すごい集中力です！`
+      : `今日はすでに <b>${streakInfo.todayAnswered}問</b> 解答（正答率 ${todayRate}%）、すごい集中力です！`;
     list.push({
       icon: '🔥',
-      html: `<b>${streakInfo.streak}日連続</b>で学習達成！今日はすでに <b>${streakInfo.todayAnswered}問</b> 解答（正答率 ${todayRate}%）、すごい集中力です！`,
+      html: `<b>${streakInfo.streak}日連続</b>で学習達成！${todayText}`,
     });
+    if (prefs.dailyGoal > 0 && streakInfo.todayAnswered >= prefs.dailyGoal) {
+      list.push({
+        icon: '🎯',
+        html: `今日の目標 <b>${prefs.dailyGoal}問</b> を達成しました！この調子です！`,
+      });
+    }
   } else if (streakInfo.streak >= 1) {
     list.push({
       icon: '🔥',
