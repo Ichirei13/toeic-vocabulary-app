@@ -45,7 +45,22 @@ python3 -m pytest tests -v
 
 # English_study の同期互換性・Vaultテスト実行
 python3 -m pytest /Users/reiji/projects/English_study/tests -v
+
+# 純粋ロジック（src/*.js）の単体テスト（Node.js 標準のテストランナー）
+node --test tests/unit/
 ```
+
+ブラウザを動かすテストは Playwright が必要です（初回のみ `npm install -g playwright` と `npx playwright install chromium`）。
+
+```bash
+# バックアップの復元・取り消し、設定ページ、src/*.js の読み込み失敗時の動作
+NODE_PATH=$(npm root -g) node tests/backup-extras.test.js
+
+# 文法の出題済み記録・絞り込み・バックアップ（版6）
+NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
+```
+
+`tests/grammar-seen.test.js` の `grammar_chapters_across_books` と `grammar_book_change_resets_chapters` は、4冊構成に変わる前から失敗している（既知）。
 
 ### 検証項目
 - `data/grammar.js` の Python / Node.js 双方での正常構文解析

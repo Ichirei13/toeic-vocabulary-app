@@ -180,7 +180,7 @@ const STATS5 = { 5: { a: 1, c: 1 } };
 
 test('build_has_seen_grammar', () => withPage({}, async page => {
   const b = await page.evaluate(() => { state.grammarSeen = new Set([4, 7]); return buildBackup(); });
-  assert.strictEqual(b.format, 5);
+  assert.strictEqual(b.format, 6); // 版6: 日別の学習記録・表示設定つき（Drive 用の書き出しだけ版5のまま）
   assert.deepStrictEqual(sortedNums(b.data.seenGrammar), [4, 7]);
 }));
 
@@ -243,8 +243,8 @@ test('roundtrip_v4', () => withPage({}, async page => {
   assert.deepStrictEqual(sortedNums(r.records.seenGrammar), [2, 11, 40]);
 }));
 
-test('v6_future_rejected', () => withPage({}, async page => {
-  const r = await parse(page, backupText(6, { seenGrammar: [] }));
+test('v7_future_rejected', () => withPage({}, async page => {
+  const r = await parse(page, backupText(7, { seenGrammar: [] }));
   assert.strictEqual(r.ok, false);
   assert(/新しいバージョン/.test(r.error), r.error);
 }));
@@ -485,10 +485,10 @@ test('manual_remove_records_tombstone', () => withPage({}, async page => {
   assert(r.tomb > 0);
 }));
 
-test('build_v5_roundtrip_and_migrate_v4', () => withPage({}, async page => {
+test('build_v6_roundtrip_and_migrate_v4', () => withPage({}, async page => {
   const now = Date.now();
   const b = await page.evaluate(n => { state.weakDeleted = { 'w:j2e:margin': n, 'g:9': n }; return buildBackup(); }, now);
-  assert.strictEqual(b.format, 5);
+  assert.strictEqual(b.format, 6);
   const r = await parse(page, JSON.stringify(b));
   assert.strictEqual(r.ok, true, r.error);
   assert.deepStrictEqual(r.records.weakDeleted, { 'w:j2e:margin': now, 'g:9': now });
