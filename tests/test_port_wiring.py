@@ -18,3 +18,9 @@ def test_new_scripts_load_before_home_js():
     home = HTML.index('<script src="home.js"></script>')
     for name in ("filter-count",):
         assert HTML.index(f'<script src="src/{name}.js"></script>') < home
+
+
+def test_activity_module_is_wired():
+    assert '<script src="src/activity.js"></script>' in HTML
+    assert "'src/activity.js'" in SW
+    assert HTML.index('<script src="src/activity.js"></script>') < HTML.index('<script src="home.js"></script>')

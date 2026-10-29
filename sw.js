@@ -8,6 +8,7 @@ const ASSETS = [
   'home.css',
   'home.js',
   'src/filter-count.js',
+  'src/activity.js',
   'data/words.js',
   'data/grammar.js',
   'manifest.webmanifest',
