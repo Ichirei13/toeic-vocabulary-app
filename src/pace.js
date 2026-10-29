@@ -60,11 +60,15 @@
     return 'none';
   }
 
-  // 解いている間のカウントアップ表示。0.1 秒刻みで、60 秒以上は「60+」（記録の上限に合わせる）
+  // 解答時間の計測の上限。設定できる目標タイムの最大（文法の 120 秒）に合わせる。
+  // これより短く頭打ちにすると、上限を超える目標のとき、長くかかった回答まで目標以内になってしまう
+  const MAX_ELAPSED_SEC = RANGE.grammar.max;
+
+  // 解いている間のカウントアップ表示。0.1 秒刻みで、上限以上は「120+」
   function formatElapsed(sec) {
     if (typeof sec !== 'number' || !Number.isFinite(sec) || sec <= 0) return '0.0';
     const tenth = Math.round(sec * 10) / 10;
-    return sec >= 60 || tenth >= 60 ? '60+' : tenth.toFixed(1);
+    return sec >= MAX_ELAPSED_SEC || tenth >= MAX_ELAPSED_SEC ? `${MAX_ELAPSED_SEC}+` : tenth.toFixed(1);
   }
 
   // 目標タイムを超えたら真（カウントアップの色を変えるのに使う）
@@ -77,5 +81,5 @@
     return typeof v === 'boolean' ? v : true;
   }
 
-  return { DEFAULT_PACE, PACE_RANGE: RANGE, normalizePace, clampPace, normalizePaceTarget, paceTargetPatch, isFastAnswer, paceTier, formatElapsed, isOverTarget, normalizeLiveTimer };
+  return { DEFAULT_PACE, PACE_RANGE: RANGE, MAX_ELAPSED_SEC, normalizePace, clampPace, normalizePaceTarget, paceTargetPatch, isFastAnswer, paceTier, formatElapsed, isOverTarget, normalizeLiveTimer };
 });

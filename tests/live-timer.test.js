@@ -105,14 +105,17 @@ test('stops_at_answer_and_becomes_the_result_badge', () => withPage({}, async pa
   assert(/s\/問/.test(await footerPace(page)));
 }));
 
-test('goes_over_target_and_shows_60_plus', () => withPage({}, async page => {
+test('goes_over_target_and_shows_120_plus', () => withPage({}, async page => {
   await dismissNudge(page);
   await page.evaluate(() => { questionShownAt = performance.now() - 6000; }); // 単語の目標 5 秒を超える
   await page.waitForTimeout(250);
   assert.strictEqual((await live(page)).over, true);
   await page.evaluate(() => { questionShownAt = performance.now() - 61000; });
   await page.waitForTimeout(250);
-  assert.strictEqual((await live(page)).text, '⏱ 60+');
+  assert(/^⏱ 6[1-2]\.\d$/.test((await live(page)).text), '60 秒で頭打ちにしている: ' + (await live(page)).text);
+  await page.evaluate(() => { questionShownAt = performance.now() - 121000; });
+  await page.waitForTimeout(250);
+  assert.strictEqual((await live(page)).text, '⏱ 120+');
 }));
 
 test('uses_the_same_clock_as_the_recorded_time', () => withPage({}, async page => {

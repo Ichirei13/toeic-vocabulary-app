@@ -69,13 +69,21 @@ test('isFastAnswer: 正解で目標タイム以内なら即答', () => {
   assert.strictEqual(P.isFastAnswer(1, false, 5), false);
 });
 
-test('formatElapsed: 0.1 秒刻み。60 秒以上は 60+', () => {
+test('formatElapsed: 0.1 秒刻み。120 秒（設定できる目標の最大）以上は 120+', () => {
   assert.strictEqual(P.formatElapsed(0), '0.0');
   assert.strictEqual(P.formatElapsed(3.24), '3.2');
   assert.strictEqual(P.formatElapsed(3.26), '3.3');
   assert.strictEqual(P.formatElapsed(59.94), '59.9');
-  assert.strictEqual(P.formatElapsed(60), '60+');
-  assert.strictEqual(P.formatElapsed(999), '60+');
+  assert.strictEqual(P.formatElapsed(60), '60.0'); // 60 秒では頭打ちにしない
+  assert.strictEqual(P.formatElapsed(90), '90.0');
+  assert.strictEqual(P.formatElapsed(119.94), '119.9');
+  assert.strictEqual(P.formatElapsed(120), '120+');
+  assert.strictEqual(P.formatElapsed(999), '120+');
+});
+
+test('MAX_ELAPSED_SEC は設定できる目標タイムの最大以上', () => {
+  assert(P.MAX_ELAPSED_SEC >= P.PACE_RANGE.grammar.max);
+  assert(P.MAX_ELAPSED_SEC >= P.PACE_RANGE.vocab.max);
 });
 
 test('formatElapsed: 数でない値・負の値は 0.0', () => {

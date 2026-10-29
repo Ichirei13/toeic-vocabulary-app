@@ -29,7 +29,8 @@ const STUDY_CORE_FALLBACK = {
   sanitizeActivity: () => { throw new Error('src/activity.js を読み込めていません'); },
   mergeActivity: () => { throw new Error('src/activity.js を読み込めていません'); },
   filterCountLabel: () => ({ label: 'この条件で解く', empty: false }),
-  formatElapsed: sec => (typeof sec === 'number' && sec > 0 ? (sec >= 60 ? '60+' : sec.toFixed(1)) : '0.0'),
+  MAX_ELAPSED_SEC: 120,
+  formatElapsed: sec => (typeof sec === 'number' && sec > 0 ? (sec >= 120 ? '120+' : sec.toFixed(1)) : '0.0'),
   isOverTarget: (sec, target) => sec > target,
   normalizeLiveTimer: v => (typeof v === 'boolean' ? v : true),
   createSessionReview: () => ({ reviewed: 0, graduated: 0 }),
@@ -51,8 +52,16 @@ let praiseRotationIndex = 0;
 let lastRenderedDate = '';
 let goalCalendarMonth = '';
 let goalDialogTrigger = null;
-// 今の演習で、苦手を復習・克服できた数。単語と文法で別に持ち、その種類の出題プールを作り直すときだけ戻す
-let sessionReview = { vocab: StudyCore.createSessionReview(), grammar: StudyCore.createSessionReview() };
+// 今の演習で、苦手を復習・克服できた数。教材（本）ごとに別々に持つ（「文法:kin」「単語:teppan」など）。
+// 教材を切り替えて戻っても混ざらず、その教材の出題プールを作り直すときだけ戻す
+let sessionReview = {};
+function reviewKey(kind) {
+  return kind === 'grammar' ? `grammar:${state.grammarBook}` : `vocab:${state.sourceFilter}`;
+}
+function reviewCounter(kind) {
+  const key = reviewKey(kind);
+  return sessionReview[key] || (sessionReview[key] = StudyCore.createSessionReview());
+}
 
 function localDateStr(ms = Date.now()) {
   const d = new Date(ms);
@@ -126,7 +135,7 @@ function reloadHomeExtras() {
 
 // 回答のあとに呼ぶ。苦手だった問題に正解したら集計し、苦手から外れたらその日の克服数 gr も増やす
 function noteSessionReview(kind, wasWeak, isWeakNow, isCorrect) {
-  StudyCore.noteReviewAnswer(sessionReview[kind], { wasWeak, isWeakNow, isCorrect });
+  StudyCore.noteReviewAnswer(reviewCounter(kind), { wasWeak, isWeakNow, isCorrect });
   if (wasWeak && !isWeakNow && isCorrect) {
     const entry = dailyActivity.days[localDateStr()];
     if (entry) {
@@ -138,7 +147,7 @@ function noteSessionReview(kind, wasWeak, isWeakNow, isCorrect) {
 
 // 演習の完了画面に足す 1 行（復習できた問題が無ければ何も出さない）
 function sessionReviewHtml(kind) {
-  const text = StudyCore.reviewSummaryText(sessionReview[kind]);
+  const text = StudyCore.reviewSummaryText(reviewCounter(kind));
   return text ? `<div class="review-result">${escapeHtml(text)}</div>` : '';
 }
 
@@ -162,14 +171,17 @@ function saveDailyActivity() {
 function recordAnswerPaceAndActivity(kind, isCorrect) {
   const now = performance.now();
   const rawSec = (now - questionShownAt) / 1000;
-  // 極端な放置（60秒超）は60秒でキャップ、最小0.2秒
-  const sec = Math.min(60, Math.max(0.2, Number.isFinite(rawSec) ? rawSec : 5.0));
+  // 実測の秒数（最小 0.2 秒）。即答の判定とバッジの段階には、この実測を使う
+  const elapsed = Math.max(0.2, Number.isFinite(rawSec) ? rawSec : 5.0);
+  // 記録・平均に使う秒数。放置で膨らまないよう、設定できる目標の最大（120 秒）で頭打ちにする。
+  // 60 秒で頭打ちにすると、60 秒を超える目標のとき、長くかかった回答まで即答になってしまう
+  const sec = Math.min(StudyCore.MAX_ELAPSED_SEC, elapsed);
 
   paceSession[kind === 'grammar' ? 'grammar' : 'vocab'].push(sec);
   lastAnswerPace = { kind, sec, isCorrect };
 
   // 即答の判定（正解で、設定した目標タイム以内。初期値は単語 5 秒・文法 20 秒）
-  const isFast = StudyCore.isFastAnswer(sec, isCorrect, prefs.paceTarget[kind === 'grammar' ? 'grammar' : 'vocab']);
+  const isFast = StudyCore.isFastAnswer(elapsed, isCorrect, prefs.paceTarget[kind === 'grammar' ? 'grammar' : 'vocab']);
 
   const today = localDateStr();
   if (!dailyActivity.days[today]) {
@@ -188,7 +200,7 @@ function recordAnswerPaceAndActivity(kind, isCorrect) {
     showToast('🎯 今日の目標を達成しました！');
   }
 
-  renderPaceFeedback(kind, sec, isCorrect);
+  renderPaceFeedback(kind, elapsed, isCorrect);
 }
 
 // 連続学習日数（ストリーク）と今日の統計を計算する
@@ -327,6 +339,7 @@ function syncLiveTimer() {
   startLiveTimer(grammar ? 'grammar' : 'vocab');
 }
 
+// sec は実測の秒数（頭打ちにしていない）。バッジの段階と表示に使う
 function renderPaceFeedback(kind, sec, isCorrect) {
   stopLiveTimer();
   updateFooterPaceDisplay();
@@ -337,7 +350,8 @@ function renderPaceFeedback(kind, sec, isCorrect) {
   const tier = StudyCore.paceTier(kind, sec, isCorrect, prefs.paceTarget[kind === 'grammar' ? 'grammar' : 'vocab']);
   const tierWord = kind === 'grammar' ? { top: '爆速！', ok: '本番ペース！' } : { top: '瞬殺！', ok: 'ナイスペース！' };
   const isFast = tier !== 'none';
-  const badgeLabel = isFast ? `⚡ ${tierWord[tier]} ${sec.toFixed(1)}秒` : `⏱ ${sec.toFixed(1)}秒`;
+  const shownSec = StudyCore.formatElapsed(sec);
+  const badgeLabel = isFast ? `⚡ ${tierWord[tier]} ${shownSec}秒` : `⏱ ${shownSec}秒`;
 
   const existing = ensurePaceBadge(card);
   existing.className = `card-pace-badge${isFast ? ' fast' : ''}`;
@@ -1494,14 +1508,14 @@ function initHomeAndPages() {
   const origApplyFilters = window.applyFilters;
   if (typeof origApplyFilters === 'function') {
     window.applyFilters = function () {
-      sessionReview.vocab = StudyCore.createSessionReview();
+      delete sessionReview[reviewKey('vocab')];
       return origApplyFilters.apply(this, arguments);
     };
   }
   const origApplyGrammarFilters = window.applyGrammarFilters;
   if (typeof origApplyGrammarFilters === 'function') {
     window.applyGrammarFilters = function () {
-      sessionReview.grammar = StudyCore.createSessionReview();
+      delete sessionReview[reviewKey('grammar')];
       return origApplyGrammarFilters.apply(this, arguments);
     };
   }

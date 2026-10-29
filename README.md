@@ -59,6 +59,9 @@ NODE_PATH=$(npm root -g) node tests/backup-extras.test.js
 # 解いている間のカウントアップ（画面下のフッター）
 NODE_PATH=$(npm root -g) node tests/live-timer.test.js
 
+# 復習できた数の教材別カウントと、長い解答時間の扱い
+NODE_PATH=$(npm root -g) node tests/review-pace-fixes.test.js
+
 # 下から出るシートの行き来（バックアップ画面の「戻る」など）と、廃止した旧い設定シート
 NODE_PATH=$(npm root -g) node tests/sheets.test.js
 
