@@ -984,7 +984,6 @@ body {
   gap: 2px;
 }
 .filters .segments { margin: 0; }
-#mode-segments { margin: 2px 20px 8px; }
 #grammar-book-segments {
   overflow-x: auto;
   white-space: nowrap;
@@ -2245,7 +2244,7 @@ body {
   <div id="practice-page" class="app-page-view active">
   <div class="header">
     <div class="title-wrap">
-      <div class="eyebrow">TOEIC Drill</div>
+      <div class="eyebrow" id="practice-eyebrow">英→日</div>
       <h1 class="title">単語ドリル</h1>
     </div>
     <div class="duo-status" id="duo-status">
@@ -2268,13 +2267,6 @@ body {
   <div class="segments app-type-segments" id="app-type-segments" style="margin: 0 20px 8px;">
     <div class="segment active" data-app="vocab">単語ドリル</div>
     <div class="segment" data-app="grammar">文法ドリル (Part 5)</div>
-  </div>
-
-  <div class="segments mode-segments" id="mode-segments">
-    <div class="segment active" data-mode="e2j">英→日</div>
-    <div class="segment" data-mode="j2e">日→英</div>
-    <div class="segment" data-mode="flash">カード</div>
-    <div class="segment" data-mode="type">タイプ</div>
   </div>
 
   <div class="main-area">
@@ -2300,7 +2292,6 @@ body {
       <span id="score-text">正答 0 / 0</span>
       <span id="rule-guide-link" style="cursor:pointer; text-decoration:underline; display:none;" onclick="toggleRuleGuide()">ルール・章</span>
       <span style="cursor:pointer; text-decoration:underline;" onclick="toggleWeakList()">苦手リスト</span>
-      <span style="cursor:pointer; text-decoration:underline;" onclick="toggleSettings()">設定</span>
     </div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
   </div>
@@ -3337,9 +3328,17 @@ function renderGrammarWeakList() {
   container.innerHTML = html;
 }
 
+// 見出しの上の小さな文字に、今の出題モード（文法は Part 5）を出す。モード選択は絞り込みシートだけにあるため
+function updatePracticeEyebrow() {
+  const el = document.getElementById('practice-eyebrow');
+  if (!el) return;
+  el.textContent = state.app === 'grammar' ? 'Part 5' : (MODE_LABELS[state.mode] || MODE_LABELS.e2j);
+}
+
 // 単語／文法の切り替え。前回の続きが保存されていればそこから、なければ今の絞り込みで出題し直す
 function setApp(app) {
   state.app = app;
+  updatePracticeEyebrow();
   const isGrammar = app === 'grammar';
   document.querySelectorAll('.app-type-segments .segment').forEach(b => b.classList.toggle('active', b.dataset.app === app));
   document.querySelector('.header .title').innerText = isGrammar ? '文法ドリル (Part 5)' : '単語ドリル';
@@ -3374,6 +3373,7 @@ function updateSourceRows() {
 
 // ボタンの選択表示を state に合わせる（保存していた設定を復元したときなど）
 function syncFilterUI() {
+  updatePracticeEyebrow();
   const mark = (selector, isActive) =>
     document.querySelectorAll(selector).forEach(b => b.classList.toggle('active', isActive(b.dataset)));
   mark('.app-type-segments .segment', d => d.app === state.app);
@@ -3455,6 +3455,7 @@ function initFilters() {
   document.querySelectorAll('.mode-segments .segment').forEach(btn => {
     btn.addEventListener('click', e => {
       state.mode = e.currentTarget.dataset.mode;
+      updatePracticeEyebrow();
       resetReview(); // 見直しの記録はモードごとの出題内容なので、モードを変えたら消す
       document.querySelectorAll('.mode-segments .segment').forEach(b => {
         b.classList.toggle('active', b.dataset.mode === state.mode);

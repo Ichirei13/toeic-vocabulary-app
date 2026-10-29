@@ -56,6 +56,12 @@ node --test tests/unit/
 # バックアップの復元・取り消し、設定ページ、src/*.js の読み込み失敗時の動作
 NODE_PATH=$(npm root -g) node tests/backup-extras.test.js
 
+# 解いている間のカウントアップ（画面下のフッター）
+NODE_PATH=$(npm root -g) node tests/live-timer.test.js
+
+# 演習画面の構成（モード選択は絞り込みシートだけ、フッターに設定リンクなし）
+NODE_PATH=$(npm root -g) node tests/practice-chrome.test.js
+
 # 文法の出題済み記録・絞り込み・バックアップ（版6）
 NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
 ```
