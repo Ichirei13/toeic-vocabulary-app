@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Tail & Legs -->
+  <path d="M38 138 C16 132, 12 102, 30 88 C24 78, 36 68, 50 76 C54 96, 52 122, 38 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M58 126 C52 148, 54 176, 70 178 C82 178, 86 162, 88 152 L104 152 C106 162, 110 178, 122 178 C138 176, 140 148, 134 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Chest & Bandana -->
+  <path d="M46 112 C38 126, 46 144, 62 148 C80 156, 114 156, 132 148 C148 144, 156 126, 148 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M60 114 L96 144 L132 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M68 114 L96 136 L124 114 Z" fill="#58CC02"/>
+  <!-- Head & Ears -->
+  <path d="M48 72 L42 32 C42 22, 56 20, 72 38 C86 32, 106 32, 120 38 C136 20, 150 22, 150 32 L144 72 C160 84, 160 108, 140 118 C122 128, 70 128, 52 118 C32 108, 32 84, 48 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M51 62 L49 38 C49 34, 58 34, 66 46 Z" fill="#D6DCE5"/>
+  <path d="M141 62 L143 38 C143 34, 134 34, 126 46 Z" fill="#D6DCE5"/>
+  <!-- Confident Eyes & Smile -->
+  <circle cx="74" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="70" cy="74" r="4" fill="#FFFFFF"/>
+  <circle cx="118" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="114" cy="74" r="4" fill="#FFFFFF"/>
+  <ellipse cx="96" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M84 94 Q96 108 108 94" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- TEPPAN Blue Vocabulary Book with Gold Star Badge -->
+  <rect x="122" y="102" width="48" height="60" rx="8" transform="rotate(8 146 132)" fill="#1CB0F6" stroke="#4B4B4B" stroke-width="5"/>
+  <path d="M130 104 V160" transform="rotate(8 146 132)" stroke="#0088CC" stroke-width="4"/>
+  <polygon points="148,118 151,126 160,127 153,133 155,141 148,136 141,141 143,133 136,127 145,126" fill="#FFC800"/>
+  <!-- Paw holding TEPPAN book -->
+  <circle cx="122" cy="134" r="10" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

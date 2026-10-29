@@ -18,7 +18,7 @@
 .top-page-brand {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.3px;
@@ -26,14 +26,12 @@
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  min-width: 0;
 }
-.top-page-brand-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
-}
+.top-page-brand-label { display: block; overflow: hidden; text-overflow: ellipsis; }
+.top-page-brand-short { display: none; }
+.top-page-brand-mascot { display: block; flex-shrink: 0; border-radius: 7px; }
+.top-page-tabs { flex-shrink: 0; }
 
 .top-page-tabs {
   display: flex;
@@ -73,6 +71,15 @@
 [data-theme="duolingo"] .top-page-tab.active {
   background: #58cc02;
   color: #ffffff;
+}
+
+@media (max-width: 420px) {
+  .top-page-nav { gap: 8px; }
+  .top-page-tab { padding-inline: 8px; }
+}
+@media (max-width: 374px) {
+  .top-page-brand-label { display: none; }
+  .top-page-brand-short { display: block; }
 }
 
 /* 3ページの表示切り替えコンテナ */
@@ -122,14 +129,12 @@
 .home-streak-badge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  background: linear-gradient(135deg, rgba(255, 150, 0, 0.22), rgba(212, 167, 89, 0.18));
-  border: 1px solid rgba(255, 150, 0, 0.45);
+  flex-direction: column;
+  gap: 2px;
   color: #ffb340;
   font-size: 11px;
   font-weight: 800;
-  padding: 3px 8px;
-  border-radius: 999px;
+  min-width: 52px;
   white-space: nowrap;
   flex-shrink: 0;
 }
@@ -142,6 +147,34 @@
   font-size: 15px;
   flex-shrink: 0;
 }
+.home-guide-mascot, .home-book-mascot, .home-goal-mascot, .review-mascot, .streak-mascot { display: block; flex-shrink: 0; object-fit: contain; }
+.home-book-tile {
+  --book-tile-bg: #b8c1cc;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(24, 21, 18, 0.12);
+  background: var(--book-tile-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+.home-other-title .home-book-tile { width: 36px; height: 36px; border-radius: 10px; }
+.home-book-tile[data-book="teppan"] { --book-tile-bg: #8ebbed; }
+.home-book-tile[data-book="daily"] { --book-tile-bg: #9ccca2; }
+.home-book-tile[data-book="kin"] { --book-tile-bg: #f5c95c; }
+.home-book-tile[data-book="sekai"] { --book-tile-bg: #f2a675; }
+.home-book-tile[data-book="polaris2"] { --book-tile-bg: #a3a1f0; }
+.home-book-tile[data-book="toplevel"] { --book-tile-bg: #e59abb; }
+.home-main-book-top > div { min-width: 0; flex: 1; }
+.home-main-book-title > span, .home-other-title > span { min-width: 0; overflow-wrap: anywhere; }
+.home-other-title { min-width: 0; }
+.home-goal-label { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.home-goal-row:has(img[src$="celebrate.svg"]) { border-color: var(--accent); }
+.completion-mascot { display: block; flex-shrink: 0; margin: 0 auto 12px; }
+.review-result, .review-today:has(.review-mascot) { display: flex; gap: 10px; align-items: center; }
 .home-message-text {
   flex: 1;
   font-weight: 500;
@@ -881,6 +914,7 @@
   font-size: 12px;
   cursor: pointer;
 }
+
 .settings-chip.active { border-color: var(--accent); color: var(--accent); font-weight: 700; }
 .settings-hint { margin: 6px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
 .settings-hint:empty { display: none; }
@@ -915,3 +949,76 @@
   cursor: pointer;
 }
 .settings-toggle input { margin-top: 3px; accent-color: var(--accent); }
+
+/* 小さい画面では回答前もカードの最低高さが選択肢に重ならないようにする。 */
+#practice-page #quiz-container .card:not(.flash-mode) {
+  min-height: min(clamp(130px, 26vh, 250px), max(0px, calc(100% - 12px)));
+  max-height: calc(100% - 12px);
+}
+#practice-page #quiz-container .grammar-card {
+  min-height: min(190px, max(0px, calc(100% - 12px)));
+}
+#practice-page #choices-container {
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 60%;
+  overflow-y: auto;
+}
+#practice-page #choices-container .choice-btn { flex-shrink: 0; }
+
+/* 回答後はバナーと「次へ」の高さを確保し、カードと選択肢はそれぞれ中でスクロールする。 */
+#app:has(#practice-page.has-feedback) { overflow: clip; }
+#practice-page.has-feedback .header {
+  padding: 4px 20px;
+  gap: 8px;
+}
+#practice-page.has-feedback .title-wrap { min-width: 0; flex: 1; }
+#practice-page.has-feedback .eyebrow { display: none; }
+#practice-page.has-feedback .title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#practice-page.has-feedback .duo-status { gap: 4px; font-size: 11px; }
+#practice-page.has-feedback .duo-stat-item { padding: 3px 5px; }
+#practice-page.has-feedback .app-type-segments { margin-bottom: 4px !important; }
+#practice-page.has-feedback .app-type-segments .segment { padding: 6px 8px; font-size: 12px; }
+#practice-page.has-feedback .main-area { gap: 8px; padding-bottom: 8px; }
+#practice-page.has-feedback #quiz-container { flex: 1 1 0%; justify-content: flex-start; }
+#practice-page.has-feedback #quiz-container .card {
+  flex: 1 1 0%;
+  min-height: 0;
+  width: 100%;
+  margin-bottom: 0;
+  max-height: 100%;
+  padding: 12px 16px;
+  transform-style: flat;
+}
+#practice-page.has-feedback #choices-container {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 42%;
+  overflow-y: auto;
+  margin-bottom: 0;
+  padding-bottom: 5px;
+}
+#practice-page.has-feedback #choices-container .choice-btn { flex-shrink: 0; }
+#practice-page.has-feedback #choices-container:empty { display: none; }
+#practice-page.has-feedback .footer { padding-top: 6px; padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)); }
+#practice-page.has-feedback .stats { gap: 4px; font-size: 11px; margin-bottom: 4px; flex-wrap: wrap; }
+#practice-page.has-feedback #flash-card { padding: 0; overflow: hidden; perspective: none; }
+#practice-page.has-feedback #flash-card .flip-card-inner,
+#practice-page.has-feedback #flash-card .card-face { min-height: 0; }
+
+/* 横向きやキーボード表示後の短い画面では、回答中だけ学習種別の行を畳む。 */
+@media (max-height: 520px) {
+  #practice-page.has-feedback .app-type-segments { display: none; }
+  #practice-page.has-feedback .header { padding-block: 0; margin-bottom: 0; }
+  #practice-page.has-feedback .duo-banner { max-height: 64px; }
+  #practice-page.has-feedback .footer { padding-top: 4px; padding-bottom: max(6px, env(safe-area-inset-bottom, 6px)); }
+  #practice-page.has-feedback .footer .progress-track { height: 4px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #practice-page.has-feedback .card { transition: none; }
+}

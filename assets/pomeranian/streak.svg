@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Streak Flame Aura -->
+  <path d="M36 164 C14 136, 18 92, 42 68 C38 84, 48 90, 54 74 C62 42, 86 18, 102 10 C98 30, 112 40, 120 24 C144 46, 156 76, 150 92 C160 84, 168 72, 166 58 C184 88, 186 134, 164 164 Z" fill="#FF9600"/>
+  <path d="M52 164 C36 142, 40 106, 60 86 C74 62, 92 44, 102 36 C116 54, 132 74, 140 96 C156 116, 160 144, 148 164 Z" fill="#FFC800"/>
+  <!-- Body & Legs -->
+  <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Fired-up Double Paw Pump -->
+  <path d="M54 122 C32 110, 26 86, 38 76 C48 68, 58 84, 64 104 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M146 122 C168 110, 174 86, 162 76 C152 68, 142 84, 136 104 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Fluffy Chest -->
+  <path d="M50 114 C42 128, 50 146, 66 150 C84 158, 116 158, 134 150 C150 146, 158 128, 150 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Bandana -->
+  <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+  <!-- Fluffy Head & Ears -->
+  <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M55 62 L53 38 C53 34, 62 34, 70 46 Z" fill="#D6DCE5"/>
+  <path d="M145 62 L147 38 C147 34, 138 34, 130 46 Z" fill="#D6DCE5"/>
+  <!-- Determined Brows & Eyes -->
+  <path d="M68 62 L86 68" stroke="#4B4B4B" stroke-width="4" stroke-linecap="round"/>
+  <path d="M132 62 L114 68" stroke="#4B4B4B" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="78" cy="78" r="10" fill="#3B232E"/>
+  <circle cx="74" cy="74" r="3.5" fill="#FFFFFF"/>
+  <circle cx="122" cy="78" r="10" fill="#3B232E"/>
+  <circle cx="118" cy="74" r="3.5" fill="#FFFFFF"/>
+  <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M88 94 Q100 104 112 94" fill="none" stroke="#3B232E" stroke-width="5" stroke-linecap="round"/>
+</svg>

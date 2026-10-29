@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Tail -->
+  <path d="M158 138 C182 132, 186 102, 168 88 C174 78, 162 68, 148 76 C144 96, 146 122, 158 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Body & Legs -->
+  <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Fluffy Chest -->
+  <path d="M48 112 C40 126, 48 144, 64 148 C82 156, 118 156, 136 148 C152 144, 160 126, 152 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Bandana -->
+  <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+  <!-- Fluffy Head & Ears -->
+  <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Inner Ears -->
+  <path d="M55 62 L53 38 C53 34, 62 34, 70 46 Z" fill="#D6DCE5"/>
+  <path d="M145 62 L147 38 C147 34, 138 34, 130 46 Z" fill="#D6DCE5"/>
+  <!-- Eyes -->
+  <circle cx="78" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="74" cy="74" r="4" fill="#FFFFFF"/>
+  <circle cx="122" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="118" cy="74" r="4" fill="#FFFFFF"/>
+  <!-- Nose & Tongue -->
+  <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M92 95 Q100 114 108 95 Z" fill="#FF6B8B"/>
+  <path d="M87 93 Q100 101 113 93" fill="none" stroke="#3B232E" stroke-width="5" stroke-linecap="round"/>
+  <!-- Thumbs-Up Paw -->
+  <path d="M54 120 C34 120, 24 108, 28 96 C30 88, 36 88, 36 80 C36 72, 46 72, 46 84 C52 86, 56 96, 54 120 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Sparkle rays -->
+  <path d="M22 72 L14 68 M28 62 L24 54 M38 60 L40 52" stroke="#58CC02" stroke-width="4" stroke-linecap="round"/>
+</svg>

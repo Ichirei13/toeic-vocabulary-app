@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Lightbulb Idea -->
+  <circle cx="52" cy="36" r="14" fill="#FFC800" stroke="#4B4B4B" stroke-width="4"/>
+  <rect x="47" y="48" width="10" height="7" rx="2" fill="#98A2B3" stroke="#4B4B4B" stroke-width="3"/>
+  <path d="M52 14 V8 M32 24 L26 20 M72 24 L78 20" stroke="#FFC800" stroke-width="4" stroke-linecap="round"/>
+  <!-- Head & Ears -->
+  <path d="M56 76 L50 38 C50 28, 64 26, 78 42 C92 36, 108 36, 122 42 C136 26, 150 28, 150 38 L144 76 C160 88, 160 112, 140 122 C122 132, 78 132, 60 122 C40 112, 40 88, 56 76 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M59 66 L57 44 C57 40, 65 40, 72 50 Z" fill="#D6DCE5"/>
+  <path d="M141 66 L143 44 C143 40, 135 40, 128 50 Z" fill="#D6DCE5"/>
+  <!-- Round Glasses & Eyes -->
+  <circle cx="78" cy="82" r="10" fill="#3B232E"/>
+  <circle cx="74" cy="78" r="3.5" fill="#FFFFFF"/>
+  <circle cx="122" cy="82" r="10" fill="#3B232E"/>
+  <circle cx="118" cy="78" r="3.5" fill="#FFFFFF"/>
+  <circle cx="78" cy="82" r="17" stroke="#4B4B4B" stroke-width="4.5"/>
+  <circle cx="122" cy="82" r="17" stroke="#4B4B4B" stroke-width="4.5"/>
+  <path d="M95 82 H105" stroke="#4B4B4B" stroke-width="4.5"/>
+  <!-- Nose & Smile -->
+  <ellipse cx="100" cy="90" rx="6.5" ry="4.5" fill="#3B232E"/>
+  <path d="M90 98 Q100 108 110 98" fill="none" stroke="#3B232E" stroke-width="5" stroke-linecap="round"/>
+  <!-- Open Textbook (世界一わかりやすい英文法) -->
+  <path d="M28 162 L40 132 Q70 128 100 140 Q130 128 160 132 L172 162 Q135 158 100 168 Q65 158 28 162 Z" fill="#FFF7E6" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M24 166 L176 166" stroke="#FF4B4B" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="74" cy="134" r="10" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+  <circle cx="126" cy="134" r="10" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

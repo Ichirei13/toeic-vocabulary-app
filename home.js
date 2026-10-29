@@ -147,8 +147,9 @@ function noteSessionReview(kind, wasWeak, isWeakNow, isCorrect) {
 
 // 演習の完了画面に足す 1 行（復習できた問題が無ければ何も出さない）
 function sessionReviewHtml(kind) {
-  const text = StudyCore.reviewSummaryText(reviewCounter(kind));
-  return text ? `<div class="review-result">${escapeHtml(text)}</div>` : '';
+  const counter = reviewCounter(kind);
+  const text = StudyCore.reviewSummaryText(counter);
+  return text ? `<div class="review-result">${counter.graduated > 0 ? pomeranianImage('celebrate', 'review-mascot', 32) : ''}<span>${escapeHtml(text)}</span></div>` : '';
 }
 
 // 目標を変える。今日の分にも反映し、昨日以前の日には触れない
@@ -443,18 +444,23 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
 
 const HOME_BOOKS = {
   vocab: [
-    { id: 'teppan', icon: '📘', title: 'TEPPAN英単語', sub: '頻出1,400語・目標スコア別' },
-    { id: 'daily', icon: '📗', title: '日々の単語', sub: '日常学習・追加語彙コレクション' },
-    { id: 'all', icon: '📚', title: 'すべての単語', sub: 'TEPPAN ＋ 日々の単語 横断' },
+    { id: 'teppan', mascot: 'vocab-teppan', title: 'TEPPAN英単語', sub: '頻出1,400語・目標スコア別' },
+    { id: 'daily', mascot: 'vocab-daily', title: '日々の単語', sub: '日常学習・追加語彙コレクション' },
+    { id: 'all', mascot: 'vocab-flashcards', title: 'すべての単語', sub: 'TEPPAN ＋ 日々の単語 横断' },
   ],
   grammar: [
-    { id: 'kin', icon: '👑', title: '金の文法', sub: '全7章・金のルール対応 (160問)' },
-    { id: 'sekai', icon: '📖', title: '世界一わかりやすい英文法', sub: '全14章・基礎〜実践 (141問)' },
-    { id: 'polaris2', icon: '🧭', title: '英文法ポラリス2', sub: '全6 Unit・応用レベル (334問)' },
-    { id: 'toplevel', icon: '🎓', title: '高3 トップレベル英語', sub: '全24 Lecture・実戦演習 (348問)' },
-    { id: 'all', icon: '📚', title: 'すべての文法問題', sub: '全4冊 983問 横断演習' },
+    { id: 'kin', mascot: 'course-kin', title: '金の文法', sub: '全7章・金のルール対応 (160問)' },
+    { id: 'sekai', mascot: 'course-sekaiichi', title: '世界一わかりやすい英文法', sub: '全14章・基礎〜実践 (141問)' },
+    { id: 'polaris2', mascot: 'course-polaris', title: '英文法ポラリス2', sub: '全6 Unit・応用レベル (334問)' },
+    { id: 'toplevel', mascot: 'course-toplevel', title: '高3 トップレベル英語', sub: '全24 Lecture・実戦演習 (348問)' },
+    { id: 'all', mascot: 'neutral', title: 'すべての文法問題', sub: '全4冊 983問 横断演習' },
   ],
 };
+
+// 同じ教材は学習中のカードでも一覧でも同じ色にする。
+function bookMascotMarkup(book, size) {
+  return `<span class="home-book-tile" data-book="${book.id}" aria-hidden="true">${pomeranianImage(book.mascot, 'home-book-mascot', size)}</span>`;
+}
 
 const WEAK_FILTER_LABELS = {
   all: 'すべて',
@@ -799,14 +805,14 @@ function renderHomePage() {
   const msgItem = praiseModel.list[praiseRotationIndex % praiseModel.list.length] || praiseModel.list[0];
   const streakCount = praiseModel.streakInfo.streak;
   const streakBadgeHtml = streakCount > 0
-    ? `<span class="home-streak-badge" title="連続学習日数">🔥 ${streakCount}日連続</span>`
-    : `<span class="home-message-icon">${msgItem.icon}</span>`;
+    ? `<span class="home-streak-badge" title="連続学習日数">${pomeranianImage('streak', 'home-guide-mascot', 36)}<span>${streakCount}日連続</span></span>`
+    : pomeranianImage('neutral', 'home-guide-mascot', 40);
 
   const goalInfo = StudyCore.goalProgress(dailyActivity.days[localDateStr()], prefs.dailyGoal);
   lastRenderedDate = localDateStr();
   const goalRowHtml = `
     <button type="button" class="home-goal-row" data-home-action="open-goal" aria-haspopup="dialog">
-      <span class="home-goal-label">🎯 今日の目標</span>
+      <span class="home-goal-label">${pomeranianImage(goalInfo.reached ? 'celebrate' : 'goal-target', 'home-goal-mascot', 24)}<span>${goalInfo.reached ? '今日の目標 達成！' : '今日の目標'}</span></span>
       <span class="home-goal-count">${goalInfo.hasGoal ? `${goalInfo.answered} / ${goalInfo.goal}問` : `${goalInfo.answered}問（目標なし）`}</span>
       <span class="home-goal-track" aria-hidden="true"><i style="width:${Math.round(goalInfo.ratio * 100)}%"></i></span>
     </button>`;
@@ -836,7 +842,7 @@ function renderHomePage() {
         <div>
           <div class="home-main-book-eyebrow">📌 学習中の参考書（前回解いた1冊）</div>
           <h2 class="home-main-book-title">
-            <span>${activeBook.icon}</span>
+            ${bookMascotMarkup(activeBook, 36)}
             <span>${escapeHtml(activeBook.title)}</span>
           </h2>
         </div>
@@ -908,7 +914,7 @@ function renderHomePage() {
             <div class="home-other-card" data-home-select-book="${b.id}" data-kind="${kind}">
               <div class="home-other-top">
                 <div class="home-other-title">
-                  <span>${b.icon}</span>
+                  ${bookMascotMarkup(b, 28)}
                   <span>${escapeHtml(b.title)}</span>
                 </div>
                 <span class="home-other-meta">全 ${p.total.toLocaleString()} ${p.unit}</span>
@@ -964,7 +970,7 @@ function renderReviewPage() {
     <div class="review-page-inner">
       <h2 class="review-page-title">復習</h2>
       <p class="review-today">${mastered > 0
-        ? `今日は苦手を <b>${mastered} 問</b> 克服しました！`
+        ? `${pomeranianImage('celebrate', 'review-mascot', 32)}<span>今日は苦手を <b>${mastered} 問</b> 克服しました！</span>`
         : '苦手を正解して、間隔をあけた復習を最後まで終えると「克服」になります。'}</p>
       ${block('vocab', '単語', `モード：${MODE_LABELS[state.mode || 'e2j']}`)}
       ${block('grammar', '文法', '全 4 冊')}

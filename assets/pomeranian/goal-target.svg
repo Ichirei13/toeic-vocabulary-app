@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Target Bullseye Board (Right side) -->
+  <circle cx="152" cy="126" r="34" fill="#FF4B4B" stroke="#4B4B4B" stroke-width="5"/>
+  <circle cx="152" cy="126" r="22" fill="#FFFFFF"/>
+  <circle cx="152" cy="126" r="11" fill="#FF4B4B"/>
+  <!-- Golden Arrow hitting center -->
+  <path d="M184 94 L154 124" stroke="#FFC800" stroke-width="6" stroke-linecap="round"/>
+  <polygon points="150,128 164,124 154,114" fill="#FFC800"/>
+  <!-- Tail & Legs -->
+  <path d="M38 138 C16 132, 12 102, 30 88 C24 78, 36 68, 50 76 C54 96, 52 122, 38 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M56 126 C50 148, 52 176, 68 178 C80 178, 84 162, 86 152 L102 152 C104 162, 108 178, 120 178 C134 176, 136 148, 130 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Chest & Bandana -->
+  <path d="M44 112 C36 126, 44 144, 60 148 C78 156, 112 156, 130 148 C144 144, 152 126, 144 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M58 114 L94 144 L130 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M66 114 L94 136 L122 114 Z" fill="#58CC02"/>
+  <!-- Head & Ears -->
+  <path d="M46 72 L40 32 C40 22, 54 20, 70 38 C84 32, 104 32, 118 38 C134 20, 148 22, 148 32 L142 72 C158 84, 158 108, 138 118 C120 128, 68 128, 50 118 C30 108, 30 84, 46 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M49 62 L47 38 C47 34, 56 34, 64 46 Z" fill="#D6DCE5"/>
+  <path d="M139 62 L141 38 C141 34, 132 34, 124 46 Z" fill="#D6DCE5"/>
+  <!-- Eyes & Smile -->
+  <circle cx="72" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="68" cy="74" r="4" fill="#FFFFFF"/>
+  <circle cx="116" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="112" cy="74" r="4" fill="#FFFFFF"/>
+  <ellipse cx="94" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M84 95 Q94 110 104 95" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Paw holding target -->
+  <circle cx="122" cy="126" r="11" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

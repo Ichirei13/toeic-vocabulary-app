@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Polaris North Star -->
+  <polygon points="158,22 163,36 178,41 163,46 158,60 153,46 138,41 153,36" fill="#1CB0F6"/>
+  <circle cx="158" cy="41" r="5" fill="#FFFFFF"/>
+  <!-- Body & Legs -->
+  <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M48 112 C40 126, 48 144, 64 148 C82 156, 118 156, 136 148 C152 144, 160 126, 152 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Bandana -->
+  <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+  <!-- Head & Explorer Hat -->
+  <path d="M52 72 L46 36 C46 26, 60 24, 76 40 C90 34, 110 34, 124 40 C140 24, 154 26, 154 36 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M58 48 C64 20, 136 20, 142 48 Z" fill="#E5C07B" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M40 50 Q100 38 160 50" stroke="#D19A66" stroke-width="8" stroke-linecap="round"/>
+  <!-- Eyes & Smile -->
+  <circle cx="78" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="74" cy="74" r="4" fill="#FFFFFF"/>
+  <circle cx="122" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="118" cy="74" r="4" fill="#FFFFFF"/>
+  <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M88 94 Q100 108 112 94" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Golden Compass (ポラリス2) -->
+  <circle cx="152" cy="128" r="22" fill="#FFC800" stroke="#4B4B4B" stroke-width="5"/>
+  <circle cx="152" cy="128" r="14" fill="#FFFFFF"/>
+  <polygon points="152,116 157,128 152,140 147,128" fill="#FF4B4B"/>
+</svg>
