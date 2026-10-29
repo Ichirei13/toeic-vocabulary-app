@@ -10,6 +10,9 @@ let questionShownAt = performance.now();
 let paceSession = { vocab: [], grammar: [] }; // 今セッションの各問題の解答秒数
 let lastAnswerPace = null; // { kind, sec, isCorrect }
 let praiseRotationIndex = 0;
+let lastRenderedDate = '';
+let goalCalendarMonth = '';
+let goalDialogTrigger = null;
 
 function localDateStr(ms = Date.now()) {
   const d = new Date(ms);
@@ -672,6 +675,15 @@ function renderHomePage() {
     ? `<span class="home-streak-badge" title="連続学習日数">🔥 ${streakCount}日連続</span>`
     : `<span class="home-message-icon">${msgItem.icon}</span>`;
 
+  const goalInfo = StudyCore.goalProgress(dailyActivity.days[localDateStr()], prefs.dailyGoal);
+  lastRenderedDate = localDateStr();
+  const goalRowHtml = `
+    <button type="button" class="home-goal-row" data-home-action="open-goal" aria-haspopup="dialog">
+      <span class="home-goal-label">🎯 今日の目標</span>
+      <span class="home-goal-count">${goalInfo.hasGoal ? `${goalInfo.answered} / ${goalInfo.goal}問` : `${goalInfo.answered}問（目標なし）`}</span>
+      <span class="home-goal-track" aria-hidden="true"><i style="width:${Math.round(goalInfo.ratio * 100)}%"></i></span>
+    </button>`;
+
   container.innerHTML = `
     <div class="home-layout">
     <div class="home-top">
@@ -755,6 +767,7 @@ function renderHomePage() {
 
     </div>
     <div class="home-col-side">
+    ${goalRowHtml}
     <!-- 5. 他の参考書（スクロール可能ボックス） -->
     <section class="home-others-section" aria-label="他の参考書">
       <h3 class="home-others-heading">
@@ -1036,6 +1049,97 @@ function openWeakListFromHome(kind) {
   openSheet('苦手リスト', renderWeakList, false);
 }
 
+// ==================== 今日の目標・学習カレンダー（ダイアログ） ====================
+
+function ensureGoalDialog() {
+  let dlg = document.getElementById('goal-dialog');
+  if (dlg) return dlg;
+  dlg = document.createElement('dialog');
+  dlg.id = 'goal-dialog';
+  dlg.className = 'goal-dialog';
+  dlg.setAttribute('aria-labelledby', 'goal-dialog-title');
+  dlg.addEventListener('click', e => {
+    if (e.target === dlg) dlg.close(); // 背景タップで閉じる
+    const act = e.target.closest('[data-goal-action]');
+    if (!act) return;
+    const name = act.dataset.goalAction;
+    if (name === 'close') dlg.close();
+    if (name === 'prev') { goalCalendarMonth = StudyCore.shiftMonth(goalCalendarMonth, -1); renderGoalDialog(); }
+    if (name === 'next') { goalCalendarMonth = StudyCore.shiftMonth(goalCalendarMonth, 1); renderGoalDialog(); }
+  });
+  dlg.addEventListener('change', e => {
+    if (e.target.id !== 'goal-select') return;
+    setDailyGoal(Number(e.target.value));
+    renderGoalDialog();
+    if (currentAppPage === 'home') renderHomePage();
+  });
+  dlg.addEventListener('close', () => {
+    // 目標を変えるとホームが描き直され、開いたときのボタンが置き換わるので、今ある目標行に戻す
+    const target = goalDialogTrigger && goalDialogTrigger.isConnected ? goalDialogTrigger : document.querySelector('.home-goal-row');
+    if (target) target.focus();
+    goalDialogTrigger = null;
+  });
+  document.body.appendChild(dlg);
+  return dlg;
+}
+
+function renderGoalDialog() {
+  const dlg = ensureGoalDialog();
+  const today = localDateStr();
+  const model = StudyCore.monthModel(dailyActivity.days, goalCalendarMonth, today);
+  const streak = getStreakSummary();
+  const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+  const cells = [
+    ...Array.from({ length: model.leading }, () => '<span class="goal-cal-cell empty"></span>'),
+    ...model.cells.map(c => {
+      const mark = c.reached ? '✓' : c.studied ? '●' : '';
+      const state = c.reached ? '目標達成' : c.studied ? '学習した' : '';
+      const label = `${model.ym.slice(5).replace(/^0/, '')}月${c.day}日${c.studied ? ` ${c.answered}問` : ''}${state ? ` ${state}` : ''}`;
+      return `<span class="goal-cal-cell${c.studied ? ' studied' : ''}${c.reached ? ' reached' : ''}${c.today ? ' today' : ''}${c.future ? ' future' : ''}" role="img" aria-label="${label}"><span class="goal-cal-day">${c.day}</span><span class="goal-cal-mark" aria-hidden="true">${mark}</span></span>`;
+    }),
+  ].join('');
+  dlg.innerHTML = `
+    <div class="goal-dialog-head">
+      <h2 id="goal-dialog-title">学習カレンダー</h2>
+      <button type="button" class="goal-dialog-close" data-goal-action="close" aria-label="閉じる">✕</button>
+    </div>
+    <p class="goal-dialog-overview">累計 <b>${StudyCore.studiedDays(dailyActivity.days)}日</b> 学習 ・ 連続 <b>${streak.streak}日</b></p>
+    <div class="goal-dialog-field">
+      <label for="goal-select">今日の目標</label>
+      <select id="goal-select">
+        ${StudyCore.GOALS.map(g => `<option value="${g}" ${g === prefs.dailyGoal ? 'selected' : ''}>${g === 0 ? '目標なし' : `${g}問`}</option>`).join('')}
+      </select>
+    </div>
+    <div class="goal-cal-nav">
+      <button type="button" data-goal-action="prev" aria-label="前の月">‹</button>
+      <strong>${model.label}</strong>
+      <button type="button" data-goal-action="next" aria-label="次の月" ${model.canNext ? '' : 'disabled'}>›</button>
+    </div>
+    <div class="goal-cal-grid" role="group" aria-label="${model.label}の学習日">
+      ${weekdays.map(w => `<span class="goal-cal-week" aria-hidden="true">${w}</span>`).join('')}
+      ${cells}
+    </div>
+    <p class="goal-dialog-legend"><span>● 学習した日</span><span>✓ 目標達成の日</span></p>
+    <p class="goal-dialog-note">日別の記録は、この機能を入れた日から残ります。</p>`;
+}
+
+function openGoalDialog(trigger) {
+  goalDialogTrigger = trigger || null;
+  goalCalendarMonth = localDateStr().slice(0, 7);
+  const dlg = ensureGoalDialog();
+  renderGoalDialog();
+  if (!dlg.open) dlg.showModal();
+}
+
+// アプリを開いたまま日付が変わったとき、ホームの「今日 N / M問」を作り直す
+function refreshForNewDay() {
+  if (lastRenderedDate && lastRenderedDate !== localDateStr() && currentAppPage === 'home') renderHomePage();
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshForNewDay();
+});
+setInterval(refreshForNewDay, 60 * 1000);
+
 // 初期化＆イベント登録
 function initHomeAndPages() {
   homeCategory = state.app || 'vocab';
@@ -1160,6 +1264,10 @@ function initHomeAndPages() {
         if (action === 'rotate-praise') {
           praiseRotationIndex++;
           renderHomePage();
+          return;
+        }
+        if (action === 'open-goal') {
+          openGoalDialog(actionBtn);
           return;
         }
         const kind = actionBtn.dataset.kind || homeCategory;
