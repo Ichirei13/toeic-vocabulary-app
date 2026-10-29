@@ -13,6 +13,8 @@ let praiseRotationIndex = 0;
 let lastRenderedDate = '';
 let goalCalendarMonth = '';
 let goalDialogTrigger = null;
+// 今の演習（出題し直すたびにリセット）で、苦手を復習・克服できた数
+let sessionReview = StudyCore.createSessionReview();
 
 function localDateStr(ms = Date.now()) {
   const d = new Date(ms);
@@ -78,6 +80,24 @@ function reloadHomeExtras() {
   dailyActivity = loadDailyActivity();
   prefs = loadPrefs();
   if (currentAppPage === 'home') renderHomePage();
+}
+
+// 回答のあとに呼ぶ。苦手だった問題に正解したら集計し、苦手から外れたらその日の克服数 gr も増やす
+function noteSessionReview(wasWeak, isWeakNow, isCorrect) {
+  StudyCore.noteReviewAnswer(sessionReview, { wasWeak, isWeakNow, isCorrect });
+  if (wasWeak && !isWeakNow && isCorrect) {
+    const entry = dailyActivity.days[localDateStr()];
+    if (entry) {
+      entry.gr = (entry.gr || 0) + 1;
+      saveDailyActivity();
+    }
+  }
+}
+
+// 演習の完了画面に足す 1 行（復習できた問題が無ければ何も出さない）
+function sessionReviewHtml() {
+  const text = StudyCore.reviewSummaryText(sessionReview);
+  return text ? `<div class="review-result">${escapeHtml(text)}</div>` : '';
 }
 
 // 目標を変える。今日の分にも反映し、昨日以前の日には触れない
@@ -1197,8 +1217,10 @@ function initHomeAndPages() {
   const origRecordWeak = window.recordWeak;
   if (typeof origRecordWeak === 'function') {
     window.recordWeak = function (word, isCorrect) {
+      const wasWeak = Boolean(wordWeak()[word.w]);
       const res = origRecordWeak.apply(this, arguments);
       recordAnswerPaceAndActivity('vocab', isCorrect);
+      noteSessionReview(wasWeak, Boolean(wordWeak()[word.w]), isCorrect);
       return res;
     };
   }
@@ -1206,9 +1228,20 @@ function initHomeAndPages() {
   const origRecordWeakGrammar = window.recordWeakGrammar;
   if (typeof origRecordWeakGrammar === 'function') {
     window.recordWeakGrammar = function (ex, isCorrect) {
+      const wasWeak = Boolean(state.grammarWeakData[ex.id]);
       const res = origRecordWeakGrammar.apply(this, arguments);
       recordAnswerPaceAndActivity('grammar', isCorrect);
+      noteSessionReview(wasWeak, Boolean(state.grammarWeakData[ex.id]), isCorrect);
       return res;
+    };
+  }
+
+  // 出題プールを作り直す（絞り込み・モード変更・苦手ドリルなど）たびに、今の演習の集計をやり直す
+  const origResetReview = window.resetReview;
+  if (typeof origResetReview === 'function') {
+    window.resetReview = function () {
+      sessionReview = StudyCore.createSessionReview();
+      return origResetReview.apply(this, arguments);
     };
   }
 

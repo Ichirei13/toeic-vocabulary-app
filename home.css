@@ -784,3 +784,15 @@
 @media (prefers-reduced-motion: reduce) {
   .goal-dialog, .home-goal-track i { transition: none; }
 }
+
+/* 完了画面：苦手を復習できた数 */
+.review-result {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  background: var(--ui-surface);
+  color: var(--text-card, var(--text-page));
+  font-size: 13px;
+  line-height: 1.5;
+}
