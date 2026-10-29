@@ -163,7 +163,8 @@ def test_ui_functions_execution_for_all_books():
     assert out["chapterCounts"]["kin"] == 8        # all + 7 phases
     assert out["chapterCounts"]["polaris2"] == 7   # all + 6 units
     assert out["chapterCounts"]["toplevel"] == 25  # all + 24 lectures
-    assert out["allChapterCount"] == 1
+    # 「すべて」は、4 冊の章を本をまたいで選べるよう並べる: 全問 + 7 + 14 + 6 + 24
+    assert out["allChapterCount"] == 52
 
     # Choice labels
     assert out["labels"] == ["A", "B", "C", "D", "E"]

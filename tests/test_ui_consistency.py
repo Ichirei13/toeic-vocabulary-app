@@ -71,4 +71,5 @@ def test_grammar_ui_functions_execution():
     assert data["choice4"] == "E"
     assert data["polarisChCount"] == 7  # 'all' + 6 units
     assert data["toplevelChCount"] == 25  # 'all' + 24 lectures
-    assert data["allChCount"] == 1
+    # 「すべて」は、4 冊の章を本をまたいで選べるよう並べる: 全問 + 7 + 14 + 6 + 24
+    assert data["allChCount"] == 52
