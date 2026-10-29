@@ -59,6 +59,9 @@ NODE_PATH=$(npm root -g) node tests/backup-extras.test.js
 # 解いている間のカウントアップ（画面下のフッター）
 NODE_PATH=$(npm root -g) node tests/live-timer.test.js
 
+# 下から出るシートの行き来（バックアップ画面の「戻る」など）と、廃止した旧い設定シート
+NODE_PATH=$(npm root -g) node tests/sheets.test.js
+
 # 演習画面の構成（モード選択は絞り込みシートだけ、フッターに設定リンクなし）
 NODE_PATH=$(npm root -g) node tests/practice-chrome.test.js
 

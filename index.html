@@ -1891,28 +1891,6 @@ body {
   gap: 8px;
   flex-shrink: 0;
 }
-.settings-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--ui-surface);
-  border: 1px solid var(--ui-border);
-  color: var(--text-page);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 0;
-  flex-shrink: 0;
-}
-.settings-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  transform: scale(1.05);
-}
-.settings-btn:active {
-  transform: scale(0.95);
-}
 
 /* ボトムシートのダークチャコール固定モード（テーマによらず同一色） */
 .bottom-sheet.sheet-fixed-dark {
@@ -4262,15 +4240,6 @@ function toggleRuleGuide() {
   openSheet('金の文法 章ガイド', renderRuleGuide, false);
 }
 
-function toggleSettings() {
-  if (isSheetOpen() && activeSheetRender === renderSettingsSheet) return closeSheet();
-  openSheet('設定', renderSettingsSheet, true);
-}
-
-function toggleDataManager() {
-  toggleSettings();
-}
-
 function getWeakWordCount() {
   if (!state.weakByMode) return 0;
   const set = new Set();
@@ -4289,99 +4258,12 @@ function getWeakGrammarCount() {
 
 function handleSettingThemeChange(theme) {
   setAppTheme(theme);
-  if (isSheetOpen() && activeSheetRender === renderSettingsSheet) {
-    renderSettingsSheet();
-  }
 }
 
 function openBackupFromSettings() {
   backupSource = 'settings';
   backupView = { step: 'home', restoreMode: 'merge' };
   openSheet('学習記録のバックアップ', renderBackupSheet, true);
-}
-
-function renderSettingsSheet() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'ink';
-  const wordCount = getWeakWordCount();
-  const grammarCount = getWeakGrammarCount();
-
-  const themes = [
-    { id: 'ink', name: '和モダン', color: '#d4a759', bg: '#181512' },
-    { id: 'duolingo', name: 'Duolingo', icon: '🦉', color: '#58cc02', bg: '#131f24' },
-    { id: 'navy', name: 'ネイビー', color: '#3b82f6', bg: '#0b1329' },
-    { id: 'quizlet', name: 'Quizlet', color: '#4255ff', bg: '#0a092d' },
-    { id: 'forest', name: 'フォレスト', color: '#10b981', bg: '#0a1713' },
-    { id: 'nordic', name: 'チャコール', color: '#a1a1aa', bg: '#18181b' },
-    { id: 'light', name: 'セピア', color: '#d97706', bg: '#f6f3ed' }
-  ];
-
-  let html = `
-    <div class="settings-wrap">
-      <!-- カラーテーマ設定 -->
-      <section class="settings-section">
-        <div class="settings-section-header">
-          <span class="settings-icon">🎨</span>
-          <h3 class="settings-section-title">カラーテーマ</h3>
-        </div>
-        <p class="settings-desc">ドリルの配色・アクセントカラーを選択します。</p>
-        <div class="settings-theme-grid">
-          ${themes.map(t => `
-            <button type="button" 
-                    class="settings-theme-card ${currentTheme === t.id ? 'active' : ''}" 
-                    onclick="handleSettingThemeChange('${t.id}')">
-              <span class="settings-theme-dot" style="background: ${t.color}; box-shadow: 0 0 0 2px ${t.bg};"></span>
-              <span class="settings-theme-name">${t.icon ? t.icon + ' ' : ''}${t.name}</span>
-              ${currentTheme === t.id ? '<span class="settings-theme-check">✓</span>' : ''}
-            </button>
-          `).join('')}
-        </div>
-      </section>
-
-      <!-- データ管理設定 -->
-      <section class="settings-section">
-        <div class="settings-section-header">
-          <span class="settings-icon">💾</span>
-          <h3 class="settings-section-title">データ管理</h3>
-        </div>
-        <p class="settings-desc">学習記録のバックアップ・復元や外部連携を行います。</p>
-
-        <div class="settings-menu-list">
-          <button type="button" class="settings-menu-item" onclick="openBackupFromSettings()">
-            <div class="settings-menu-item-left">
-              <div class="settings-menu-item-icon">💾</div>
-              <div>
-                <div class="settings-menu-item-title">学習記録のバックアップ・復元</div>
-                <div class="settings-menu-item-subtitle">${(typeof isGoogleDriveLinked === 'function' && isGoogleDriveLinked()) ? '☁️ Google ドライブ自動同期中' : 'JSON書き出し・Google ドライブ自動同期'}</div>
-              </div>
-            </div>
-            <span class="settings-menu-item-arrow">›</span>
-          </button>
-        </div>
-
-        <div class="settings-subgroup">
-          <div class="settings-subgroup-title">Obsidian 連携</div>
-          <div class="settings-actions-row">
-            <button type="button" class="settings-action-btn" onclick="exportObsidianGrammarSync()">
-              📤 苦手データ出力
-            </button>
-            <button type="button" class="settings-action-btn" onclick="importObsidianGrammarSync()">
-              📥 同期読込
-            </button>
-          </div>
-        </div>
-
-        <div class="settings-data-status">
-          <div class="settings-status-title">現在の学習データ</div>
-          <div class="settings-status-row">
-            <span>記録された苦手データ</span>
-            <span class="settings-status-badge">単語 ${wordCount}件 / 文法 ${grammarCount}件</span>
-          </div>
-        </div>
-      </section>
-    </div>
-  `;
-
-  document.getElementById('weak-list-content').innerHTML = html;
 }
 
 // ==================== 金のルール・章ガイド ====================
@@ -5886,9 +5768,8 @@ function handleBackupAction(action) {
     case 'back':
       if (backupSource === 'weak') {
         return openSheet('苦手リスト', renderWeakList, false);
-      } else {
-        return openSheet('設定', renderSettingsSheet, true);
       }
+      return closeSheet(); // 設定ページから開いたので、シートを閉じれば設定ページに戻る
     case 'gdrive-login':
       return saveToGoogleDrive({ interactive: true });
     case 'gdrive-sync':
