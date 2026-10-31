@@ -77,5 +77,12 @@ NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
 - 全983問のID重複ゼロ、ID範囲適合、問題文・選択肢（3〜5択）・正解インデックス境界値保証
 - 不適当選択問題（【不適当なものを選択】）のヘッダー表示
 - OCRノイズや改行ゴミの完全除去
-- `index.html` 内のバッジ・章生成・選択肢ラベル関数（Node.js環境シミュレーション）
+- `index.html` と `css/app.css`・`js/*.js` にあるバッジ・章生成・選択肢ラベル関数（Node.js環境シミュレーション）
+
+### ファイル構成（アプリ本体）
+
+`index.html` は HTML と読み込みだけで、CSS は `css/app.css`、JS は `js/*.js` に分けています。
+JS は通常の `<script>` で、全ファイルがグローバルを共有します。**読み込み順が意味を持つ**ので、`index.html` の並びを変えないでください
+（最上位で実行されるコードが使う関数は、先に読み込むファイル `js/util.js` に置きます）。
+ファイルを足したら `sw.js` の `ASSETS` と `upload.py` の `FILES` にも足します。
 - `English_study/scripts/sync_status.py` による全983問の1対1対応

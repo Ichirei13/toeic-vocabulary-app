@@ -1,7 +1,8 @@
+from _sources import read_app_source
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-HTML = (ROOT / "index.html").read_text(encoding="utf-8")
+HTML = read_app_source()
 SW = (ROOT / "sw.js").read_text(encoding="utf-8")
 
 

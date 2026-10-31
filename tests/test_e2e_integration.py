@@ -1,3 +1,4 @@
+from _sources import read_app_source
 import json
 from pathlib import Path
 import re
@@ -102,7 +103,7 @@ def test_all_questions_valid_fields_and_choices():
 
 
 def test_ui_functions_execution_for_all_books():
-    html = INDEX_HTML.read_text(encoding="utf-8")
+    html = read_app_source()
     grammar_js = GRAMMAR_JS.read_text(encoding="utf-8")
 
     func_match = re.search(r"function getBookBadge\(.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)

@@ -1,3 +1,4 @@
+from _sources import read_app_source
 import json
 from pathlib import Path
 import re
@@ -5,7 +6,7 @@ import subprocess
 
 
 def test_index_html_has_all_book_badges_and_selectors():
-    html = Path("/Users/reiji/myapps/toeic_practice/index.html").read_text(encoding="utf-8")
+    html = read_app_source()
 
     # Check segment buttons
     assert 'data-gbook="polaris2"' in html
@@ -33,7 +34,7 @@ def test_index_html_has_all_book_badges_and_selectors():
 
 
 def test_grammar_ui_functions_execution():
-    html = Path("/Users/reiji/myapps/toeic_practice/index.html").read_text(encoding="utf-8")
+    html = read_app_source()
     grammar_js = Path("/Users/reiji/myapps/toeic_practice/data/grammar.js").read_text(encoding="utf-8")
 
     func_match = re.search(r"function getBookBadge\(.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)

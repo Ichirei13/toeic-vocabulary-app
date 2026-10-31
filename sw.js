@@ -1,12 +1,28 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れたらキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v2';
+const CACHE = 'toeic-drill-v3';
 const ASSETS = [
   './',
   'index.html',
   'home.css',
   'home.js',
+  'css/app.css',
+  'js/util.js',
+  'js/theme-audio.js',
+  'js/review-interval.js',
+  'js/word-stats.js',
+  'js/grammar-drill.js',
+  'js/review-prev.js',
+  'js/settings.js',
+  'js/rules-guide.js',
+  'js/weak-list.js',
+  'js/backup-core.js',
+  'js/gdrive.js',
+  'js/backup-io.js',
+  'js/backup-ui.js',
+  'js/keyboard.js',
+  'js/boot.js',
   'src/filter-count.js',
   'src/activity.js',
   'src/review.js',
