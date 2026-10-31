@@ -2723,6 +2723,19 @@ function statLabelText(stat) {
   return `過去 ${stat.c}/${stat.a} 正解`;
 }
 
+// 単語の成績はモードごとに `モード:単語` のキーで数える。モード分けする前の記録は単語だけのキーで残っていて、
+// そのモードでまだ解いていないときは、その合算値を「全モード合算」として見せる
+function wordStatKey(word, mode = state.mode) {
+  return `${mode}:${word}`;
+}
+
+function wordStatLabel(word, mode = state.mode) {
+  const own = statLabelText(state.wordStats[wordStatKey(word, mode)]);
+  if (own) return own;
+  const legacy = statLabelText(state.wordStats[word]);
+  return legacy ? `${legacy}・全モード合算` : '';
+}
+
 function summarizeStats(statsObj) {
   let totalA = 0;
   let totalC = 0;
@@ -3687,8 +3700,7 @@ function shakeCard() {
 // 品詞は答えの推測材料になるので回答前は隠す。No.や正誤履歴しか無いときは品詞だけ隠し、すべて無ければ枠ごと隠す
 function posTagHtml(word, showPos) {
   const no = word.no ? `<span style="font-weight:700;color:var(--gold);">No.${word.no}</span>` : '';
-  const st = state.wordStats[word.w];
-  const stText = statLabelText(st);
+  const stText = wordStatLabel(word.w);
   const statHtml = `<span id="item-stat-text" class="item-stat-inline"${stText ? '' : ' hidden'}>${stText}</span>`;
   const hasVisible = Boolean(no || showPos || stText);
   return `<div class="pos-tag" id="pos-tag"${hasVisible ? '' : ' hidden'}>${no}<span id="pos-text"${showPos ? '' : ' hidden'}>${word.p}</span>${statHtml}</div>`;
@@ -4060,11 +4072,11 @@ function showTypeResult(word, isCorrect, typed) {
 
 function recordWeak(word, isCorrect) {
   state.answeredCount++;
-  recordItemStat(state.wordStats, WORD_STATS_KEY, word.w, isCorrect);
+  recordItemStat(state.wordStats, WORD_STATS_KEY, wordStatKey(word.w), isCorrect);
   const statEl = document.getElementById('item-stat-text');
   const tagEl = document.getElementById('pos-tag');
   if (statEl) {
-    statEl.textContent = statLabelText(state.wordStats[word.w]);
+    statEl.textContent = wordStatLabel(word.w);
     statEl.hidden = false;
   }
   if (tagEl) tagEl.hidden = false;
@@ -4584,7 +4596,7 @@ function renderWordWeakList() {
 
   html += weakListHeader(items, 'ABC順');
   items.forEach(({ key, entry, word }) => {
-    const stText = statLabelText(state.wordStats[key]);
+    const stText = wordStatLabel(key, mode);
     html += `
       <div class="weak-item">
         <div>
