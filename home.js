@@ -444,11 +444,12 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
 }
 
 // ホームに並べる本。id は state.sourceFilter（単語）/ state.grammarBook（文法）の値と一致させる。
-// 文法の問題数と冊数は RAW_GRAMMAR / GRAMMAR_BOOK_IDS から数える（章数と「頻出1,400語」は手書き）
+// 文法の問題数・冊数と TEPPAN の語数は、データ（RAW_GRAMMAR / GRAMMAR_BOOK_IDS / RAW_WORDS）から数える。章数は手書き
 const grammarCount = id => RAW_GRAMMAR.filter(g => (g.b || 'sekai') === id).length;
+const teppanWordCount = dedupeWords(RAW_WORDS.filter(w => w.s === 'teppan')).length;
 const HOME_BOOKS = {
   vocab: [
-    { id: 'teppan', mascot: 'vocab-teppan', title: 'TEPPAN英単語', sub: '頻出1,400語・目標スコア別' },
+    { id: 'teppan', mascot: 'vocab-teppan', title: 'TEPPAN英単語', sub: `頻出${teppanWordCount.toLocaleString()}語・目標スコア別` },
     { id: 'daily', mascot: 'vocab-daily', title: '日々の単語', sub: '日常学習・追加語彙コレクション' },
     { id: 'all', mascot: 'vocab-flashcards', title: 'すべての単語', sub: 'TEPPAN ＋ 日々の単語 横断' },
   ],
