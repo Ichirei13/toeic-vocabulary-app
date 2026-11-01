@@ -444,7 +444,8 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
 }
 
 // ホームに並べる本。id は state.sourceFilter（単語）/ state.grammarBook（文法）の値と一致させる。
-// sub の問題数は手書きなので、問題を増減したら合わせること
+// 文法の問題数と冊数は RAW_GRAMMAR / GRAMMAR_BOOK_IDS から数える（章数と「頻出1,400語」は手書き）
+const grammarCount = id => RAW_GRAMMAR.filter(g => (g.b || 'sekai') === id).length;
 const HOME_BOOKS = {
   vocab: [
     { id: 'teppan', mascot: 'vocab-teppan', title: 'TEPPAN英単語', sub: '頻出1,400語・目標スコア別' },
@@ -452,11 +453,11 @@ const HOME_BOOKS = {
     { id: 'all', mascot: 'vocab-flashcards', title: 'すべての単語', sub: 'TEPPAN ＋ 日々の単語 横断' },
   ],
   grammar: [
-    { id: 'kin', mascot: 'course-kin', title: '金の文法', sub: '全7章・金のルール対応 (160問)' },
-    { id: 'sekai', mascot: 'course-sekaiichi', title: '世界一わかりやすい英文法', sub: '全14章・基礎〜実践 (141問)' },
-    { id: 'polaris2', mascot: 'course-polaris', title: '英文法ポラリス2', sub: '全6 Unit・応用レベル (334問)' },
-    { id: 'toplevel', mascot: 'course-toplevel', title: '高3 トップレベル英語', sub: '全24 Lecture・実戦演習 (348問)' },
-    { id: 'all', mascot: 'neutral', title: 'すべての文法問題', sub: '全4冊 983問 横断演習' },
+    { id: 'kin', mascot: 'course-kin', title: '金の文法', sub: `全7章・金のルール対応 (${grammarCount('kin')}問)` },
+    { id: 'sekai', mascot: 'course-sekaiichi', title: '世界一わかりやすい英文法', sub: `全14章・基礎〜実践 (${grammarCount('sekai')}問)` },
+    { id: 'polaris2', mascot: 'course-polaris', title: '英文法ポラリス2', sub: `全6 Unit・応用レベル (${grammarCount('polaris2')}問)` },
+    { id: 'toplevel', mascot: 'course-toplevel', title: '高3 トップレベル英語', sub: `全24 Lecture・実戦演習 (${grammarCount('toplevel')}問)` },
+    { id: 'all', mascot: 'neutral', title: 'すべての文法問題', sub: `全${GRAMMAR_BOOK_IDS.length}冊 ${RAW_GRAMMAR.length}問 横断演習` },
   ],
 };
 
