@@ -12,10 +12,9 @@ document.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
 
   if (document.getElementById('filter-nudge-modal') && document.getElementById('filter-nudge-modal').classList.contains('open')) {
-    if (e.key === 'Escape') {
-      dismissNudge();
-      return;
-    }
+    // モーダルが開いている間は、背後の問題に答えたり次へ進んだりしない
+    if (e.key === 'Escape') dismissNudge();
+    return;
   }
   if (document.getElementById('filter-drawer') && document.getElementById('filter-drawer').classList.contains('open')) {
     if (e.key === 'Escape') closeFilterSheet();

@@ -44,7 +44,7 @@ function restoreSettings() {
       saveSettings();
     }
   } catch(e) {}
-  state.grammarBook = pick(saved.grammarBook, ['all', 'kin', 'sekai', 'polaris2', 'toplevel'], 'all');
+  state.grammarBook = pick(saved.grammarBook, ['all', ...GRAMMAR_BOOK_IDS], 'all');
   // 章は「本:章」の配列。前のバージョンは番号1つだけだったので、本が決まっているときはその本の章として読む
   const savedChapters = Array.isArray(saved.grammarChapter) ? saved.grammarChapter
     : (Number.isInteger(saved.grammarChapter) && state.grammarBook !== 'all' ? [`${state.grammarBook}:${saved.grammarChapter}`] : []);

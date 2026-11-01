@@ -331,13 +331,3 @@ function handleBackupAction(action) {
   }
 }
 
-function showToast(message) {
-  const el = document.createElement('div');
-  el.className = 'toast';
-  el.setAttribute('role', 'status');
-  el.textContent = message;
-  document.getElementById('app').appendChild(el);
-  setTimeout(() => el.classList.add('hide'), 3500);
-  setTimeout(() => el.remove(), 4000);
-}
-

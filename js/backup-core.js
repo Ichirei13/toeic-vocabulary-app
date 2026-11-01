@@ -5,6 +5,8 @@ const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
 // 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む / 版5: 苦手から外した記録（weakDeleted）と苦手の最終更新時刻（u）を含む / 版6: 日別の学習記録（activity）と表示設定（prefs）を含む
 const BACKUP_FORMAT = 6;
+// Google ドライブ同期用ファイルの版。同期の対象を増やさず、まだ更新していない端末が読めるよう版 5 のまま保つ（BACKUP_FORMAT を上げても連動させない）
+const BACKUP_FORMAT_DRIVE = 5;
 // 版 n のファイルを版 n+1 に直す変換
 const BACKUP_MIGRATIONS = {
   // どのモードの記録か分からないので、4モード全部に写す。

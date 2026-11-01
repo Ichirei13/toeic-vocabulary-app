@@ -27,10 +27,6 @@ const KIN_CHAPTERS = (() => {
   return [...map.values()].sort((a, b) => a.ch - b.ch);
 })();
 
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 // 解き方フェーズの手順（章ガイドと解説欄の両方で使う）
 function renderPhaseSteps(phases) {
   return `<div class="phase-steps">${phases.map(p => `
@@ -116,39 +112,6 @@ function startRuleDrill(number) {
   applyGrammarFilters();
   closeSheet();
 }
-
-document.getElementById('weak-list-content').addEventListener('click', e => {
-  const backupBtn = e.target.closest('[data-backup]');
-  if (backupBtn) return handleBackupAction(backupBtn.dataset.backup);
-
-  const chBtn = e.target.closest('[data-guide-ch]');
-  if (chBtn) {
-    const v = chBtn.dataset.guideCh;
-    state.guideChapter = v === 'all' ? 'all' : Number(v);
-    renderRuleGuide();
-    return;
-  }
-  const solveBtn = e.target.closest('[data-solve-rule]');
-  if (solveBtn) return startRuleDrill(Number(solveBtn.dataset.solveRule));
-
-  const modeBtn = e.target.closest('[data-weak-mode]');
-  if (modeBtn) {
-    state.weakListMode = modeBtn.dataset.weakMode;
-    renderWeakList();
-    return;
-  }
-  const sortBtn = e.target.closest('[data-weak-sort]');
-  if (sortBtn) {
-    state.weakSort = sortBtn.dataset.weakSort;
-    saveSettings();
-    renderWeakList();
-    return;
-  }
-  const delBtn = e.target.closest('[data-remove-weak]');
-  if (delBtn) removeWeak(delBtn.dataset.removeWeak);
-  if (e.target.closest('[data-obsidian-export]')) exportObsidianGrammarSync();
-  if (e.target.closest('[data-obsidian-import]')) importObsidianGrammarSync();
-});
 
 function exportObsidianGrammarSync() {
   const payload = {

@@ -12,15 +12,60 @@ function updateGrammarWeakBadge() {
   setBadge('grammar-due-badge', weak.filter(ex => isDue(state.grammarWeakData[ex.id])).length);
 }
 
+// 文法の教材（本）ごとの違いは、ここに 1 か所で定義する。教材を足すときは、ここに 1 件足し、
+// CSS の .badge-* と home.js のコース一覧（教材の説明）を足す。データ（data/grammar.js）の ex.b が id。
+// 並びは「すべて」の章一覧と苦手リストの本の順になる。ex.b が無い問題は 'sekai'（世界一）として扱う
+const GRAMMAR_BOOKS = {
+  kin: {
+    name: '金の文法', icon: '👑', badgeClass: 'badge-kin',
+    chapterUnit: '章', chapterPrefix: ch => `第${ch}章`,
+    ruleIcon: '👑', ruleBadgeText: ex => '金のルール ' + ex.rule.number,
+    weakRule: { color: '#b45309', bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.4)', text: ex => `👑 金のルール ${ex.rule.number}: ${ex.rule.title}` }
+  },
+  sekai: {
+    name: '世界一', icon: '📖', badgeClass: 'badge-sekai',
+    chapterUnit: '章', chapterPrefix: ch => `第${ch}章`,
+    ruleIcon: '📌', ruleBadgeText: ex => 'ルール ' + ex.rule.number,
+    weakRule: null // 苦手リストでは、色なしでルール名だけを出す
+  },
+  polaris2: {
+    name: 'ポラリス2', icon: '🧭', badgeClass: 'badge-polaris',
+    chapterUnit: 'Unit', chapterPrefix: ch => `Unit ${ch}`,
+    ruleIcon: '🧭', ruleBadgeText: ex => 'Unit ' + ex.ch + ' ポイント',
+    weakRule: { color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.35)', text: ex => `🧭 ${ex.rule.title}` }
+  },
+  toplevel: {
+    name: 'トップレベル', icon: '🎓', badgeClass: 'badge-toplevel',
+    chapterUnit: 'Lecture', chapterPrefix: ch => `Lecture ${ch}`,
+    ruleIcon: '🎓', ruleBadgeText: ex => 'Lecture ' + ex.ch + ' ポイント',
+    weakRule: { color: '#059669', bg: 'rgba(5,150,105,0.12)', border: 'rgba(5,150,105,0.35)', text: ex => `🎓 ${ex.rule.title}` }
+  }
+};
+const GRAMMAR_BOOK_IDS = Object.keys(GRAMMAR_BOOKS);
+
+// 問題がどの本のものか。ex.b が無ければ世界一
+function bookOf(ex) {
+  return ex.b || 'sekai';
+}
+
+// 本の設定。知らない本は世界一として扱う（本ごとの表示が揃わない問題でも落ちないように）
+function grammarBook(b) {
+  return GRAMMAR_BOOKS[b] || GRAMMAR_BOOKS.sekai;
+}
+
+// 「👑 金の文法」のような、アイコンつきの本の名前
+function grammarBookTitle(b) {
+  const book = grammarBook(b);
+  return `${book.icon} ${book.name}`;
+}
+
 function getBookBadge(b) {
-  if (b === 'kin') return '<span class="grammar-book-badge badge-kin">👑 金の文法</span>';
-  if (b === 'polaris2') return '<span class="grammar-book-badge badge-polaris">🧭 ポラリス2</span>';
-  if (b === 'toplevel') return '<span class="grammar-book-badge badge-toplevel">🎓 トップレベル</span>';
-  return '<span class="grammar-book-badge badge-sekai">📖 世界一</span>';
+  const book = grammarBook(b);
+  return `<span class="grammar-book-badge ${book.badgeClass}">${grammarBookTitle(b)}</span>`;
 }
 
 function getChapterLabel(b, ch, chTitle) {
-  const prefix = b === 'polaris2' ? `Unit ${ch}` : (b === 'toplevel' ? `Lecture ${ch}` : `第${ch}章`);
+  const prefix = grammarBook(b).chapterPrefix(ch);
   return chTitle ? `${prefix} ${chTitle}` : prefix;
 }
 
@@ -30,24 +75,23 @@ function grammarChoiceLabel(idx) {
 
 // 本ごとの章の一覧。key は「本:章」（章の番号は本ごとに振られていて重なるので、本とセットで区別する）
 function grammarChapterKey(ex) {
-  return `${ex.b || 'sekai'}:${ex.ch}`;
+  return `${bookOf(ex)}:${ex.ch}`;
 }
 
 function getGrammarChaptersList(b) {
   const book = b || state.grammarBook || 'all';
-  const pool = book === 'all' ? RAW_GRAMMAR : RAW_GRAMMAR.filter(g => (g.b || 'sekai') === book);
+  const pool = book === 'all' ? RAW_GRAMMAR : RAW_GRAMMAR.filter(g => bookOf(g) === book);
   if (book === 'all') {
     // 「すべて」のときは、4 冊の章を本の名前つきで並べる（本をまたいで複数選べる）。key は「本:章」
-    const BOOK_NAMES = { kin: '👑 金の文法', sekai: '📖 世界一', polaris2: '🧭 ポラリス2', toplevel: '🎓 トップレベル' };
     const all = [{ key: 'all', ch: 'all', title: `全問 (${pool.length}問)` }];
-    Object.keys(BOOK_NAMES).forEach(bk => {
-      const bookPool = RAW_GRAMMAR.filter(g => (g.b || 'sekai') === bk);
+    GRAMMAR_BOOK_IDS.forEach(bk => {
+      const bookPool = RAW_GRAMMAR.filter(g => bookOf(g) === bk);
       const seenCh = new Set();
       bookPool.forEach(g => {
         if (seenCh.has(g.ch)) return;
         seenCh.add(g.ch);
         const count = bookPool.filter(x => x.ch === g.ch).length;
-        all.push({ key: `${bk}:${g.ch}`, ch: g.ch, title: `${BOOK_NAMES[bk]} ${getChapterLabel(bk, g.ch, g.ch_title)} (${count}問)` });
+        all.push({ key: `${bk}:${g.ch}`, ch: g.ch, title: `${grammarBookTitle(bk)} ${getChapterLabel(bk, g.ch, g.ch_title)} (${count}問)` });
       });
     });
     return all;
@@ -61,10 +105,8 @@ function getGrammarChaptersList(b) {
     const chapLabel = getChapterLabel(book, g.ch, g.ch_title);
     chapters.push({ key: `${book}:${g.ch}`, ch: g.ch, title: `${chapLabel} (${count}問)` });
   });
-  const allTitle = book === 'kin' ? `金の文法 全${chapters.length}章 (${pool.length}問)`
-    : book === 'sekai' ? `世界一 全${chapters.length}章 (${pool.length}問)`
-    : book === 'polaris2' ? `ポラリス2 全${chapters.length}Unit (${pool.length}問)`
-    : `トップレベル 全${chapters.length}Lecture (${pool.length}問)`;
+  const info = grammarBook(book);
+  const allTitle = `${info.name} 全${chapters.length}${info.chapterUnit} (${pool.length}問)`;
   return [{ key: 'all', ch: 'all', title: allTitle }, ...chapters];
 }
 const getGrammarChapters = getGrammarChaptersList;
@@ -134,7 +176,7 @@ function initGrammarFilters() {
 
 // 苦手フィルタ以外の絞り込み（本・章・ルール）
 function grammarMatchesBaseFilters(ex) {
-  const itemBook = ex.b || 'sekai';
+  const itemBook = bookOf(ex);
   if (state.grammarBook !== 'all' && itemBook !== state.grammarBook) return false;
   if (state.grammarChapter.length > 0 && !state.grammarChapter.includes(grammarChapterKey(ex))) return false;
   if (state.grammarRule !== null && ex.rule?.number !== state.grammarRule) return false;
@@ -204,8 +246,8 @@ function renderCurrentGrammar() {
   const ruleHtml = (ex.rule && ex.rule.number) ? `
     <div class="grammar-rule-card">
       <div class="grammar-rule-header">
-        <span class="grammar-rule-icon">${isKin ? '👑' : (ex.b === 'polaris2' ? '🧭' : (ex.b === 'toplevel' ? '🎓' : '📌'))}</span>
-        <span class="grammar-rule-badge-text">${isKin ? '金のルール ' + ex.rule.number : (ex.b === 'polaris2' ? 'Unit ' + ex.ch + ' ポイント' : (ex.b === 'toplevel' ? 'Lecture ' + ex.ch + ' ポイント' : 'ルール ' + ex.rule.number))}</span>
+        <span class="grammar-rule-icon">${grammarBook(ex.b).ruleIcon}</span>
+        <span class="grammar-rule-badge-text">${grammarBook(ex.b).ruleBadgeText(ex)}</span>
         ${ex.rule.category && ex.rule.category !== `第${ex.ch}章 ${ex.ch_title}` && ex.rule.category !== ex.ch_title ? `<span class="grammar-rule-cat">${ex.rule.category}</span>` : ''}
       </div>
       <div class="grammar-rule-title">${ex.rule.title}</div>
@@ -362,6 +404,13 @@ function obsidianSyncBarHtml() {
     </div>`;
 }
 
+// 苦手リストの 1 件に出す、金のルール／ポイントの小さな見出し
+function weakRuleHtml(ex) {
+  const style = grammarBook(ex.b).weakRule;
+  if (!style) return `<div style="font-size:11px;color:var(--muted);font-weight:bold;padding:2px 6px;">${ex.rule.title}</div>`;
+  return `<div style="font-size:11px;color:${style.color};font-weight:bold;background:${style.bg};padding:2px 6px;border-radius:4px;border:1px solid ${style.border};">${style.text(ex)}</div>`;
+}
+
 function renderGrammarWeakList() {
   const container = document.getElementById('weak-list-content');
   const items = Object.keys(state.grammarWeakData)
@@ -372,7 +421,7 @@ function renderGrammarWeakList() {
     container.innerHTML = obsidianSyncBarHtml() + '<div style="color:var(--muted);text-align:center;padding:20px;">文法の苦手問題はありません</div>';
     return;
   }
-  const bookOrder = ex => ({ kin: 0, sekai: 1, polaris2: 2, toplevel: 3 }[ex.b || 'sekai'] ?? 99);
+  const bookOrder = ex => { const i = GRAMMAR_BOOK_IDS.indexOf(bookOf(ex)); return i >= 0 ? i : 99; };
   sortWeakItems(items, (a, b) => bookOrder(a.ex) - bookOrder(b.ex) || a.ex.ch - b.ex.ch || a.ex.id - b.ex.id);
 
   let html = obsidianSyncBarHtml() + weakListHeader(items, '本・章順');
@@ -387,15 +436,7 @@ function renderGrammarWeakList() {
           </span>
           <button class="del-btn" data-remove-weak="${key}">削除</button>
         </div>
-        ${ex.rule ? (
-          ex.b === 'kin'
-            ? `<div style="font-size:11px;color:#b45309;font-weight:bold;background:rgba(234,179,8,0.15);padding:2px 6px;border-radius:4px;border:1px solid rgba(234,179,8,0.4);">👑 金のルール ${ex.rule.number}: ${ex.rule.title}</div>`
-            : (ex.b === 'polaris2'
-                ? `<div style="font-size:11px;color:#7c3aed;font-weight:bold;background:rgba(124,58,237,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(124,58,237,0.35);">🧭 ${ex.rule.title}</div>`
-                : (ex.b === 'toplevel'
-                    ? `<div style="font-size:11px;color:#059669;font-weight:bold;background:rgba(5,150,105,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(5,150,105,0.35);">🎓 ${ex.rule.title}</div>`
-                    : `<div style="font-size:11px;color:var(--muted);font-weight:bold;padding:2px 6px;">${ex.rule.title}</div>`))
-        ) : ''}
+        ${ex.rule ? weakRuleHtml(ex) : ''}
         <div style="font-size:13px;font-weight:600;color:var(--ink);">${ex.q}</div>
         <div style="font-size:12px;color:var(--jade);">正解: (${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}</div>
         ${dueLabel(entry)}
@@ -404,290 +445,3 @@ function renderGrammarWeakList() {
   });
   container.innerHTML = html;
 }
-
-// 見出しの上の小さな文字に、今の出題モード（文法は Part 5）を出す。モード選択は絞り込みシートだけにあるため
-function updatePracticeEyebrow() {
-  const el = document.getElementById('practice-eyebrow');
-  if (!el) return;
-  el.textContent = state.app === 'grammar' ? 'Part 5' : (MODE_LABELS[state.mode] || MODE_LABELS.e2j);
-}
-
-// 単語／文法の切り替え。前回の続きが保存されていればそこから、なければ今の絞り込みで出題し直す
-function setApp(app) {
-  state.app = app;
-  updatePracticeEyebrow();
-  const isGrammar = app === 'grammar';
-  document.querySelectorAll('.app-type-segments .segment').forEach(b => b.classList.toggle('active', b.dataset.app === app));
-  document.querySelector('.header .title').innerText = isGrammar ? '文法ドリル (Part 5)' : '単語ドリル';
-  document.getElementById('rule-guide-link').style.display = isGrammar ? 'inline' : 'none';
-  document.querySelectorAll('.mode-segments').forEach(el => el.style.display = isGrammar ? 'none' : 'flex');
-  const sheetModeGroup = document.getElementById('sheet-mode-group');
-  if (sheetModeGroup) sheetModeGroup.style.display = isGrammar ? 'none' : 'block';
-  document.getElementById('vocab-filters').style.display = isGrammar ? 'none' : 'block';
-  document.getElementById('grammar-filters').style.display = isGrammar ? 'block' : 'none';
-  document.getElementById('vocab-weak-group').style.display = isGrammar ? 'none' : 'block';
-  document.getElementById('grammar-weak-group').style.display = isGrammar ? 'block' : 'none';
-  resetActionBar();
-
-  if (isGrammar) {
-    if (!restoreSession('grammar')) return applyGrammarFilters();
-    updateGrammarWeakBadge();
-    updateFilterSummary();
-    renderCurrentGrammar();
-  } else {
-    if (!restoreSession('vocab')) return applyFilters();
-    updateWeakBadge();
-    updateFilterSummary();
-    renderCurrent();
-  }
-}
-
-// TEPPAN は番号範囲で、それ以外は日付・品詞で絞る
-function updateSourceRows() {
-  const teppan = state.sourceFilter === 'teppan';
-  document.getElementById('date-filters').style.display = teppan ? 'none' : 'flex';
-  document.getElementById('pos-filters').style.display = teppan ? 'none' : 'flex';
-  document.getElementById('range-filters').style.display = teppan ? 'flex' : 'none';
-}
-
-// ボタンの選択表示を state に合わせる（保存していた設定を復元したときなど）
-function syncFilterUI() {
-  updatePracticeEyebrow();
-  const mark = (selector, isActive) =>
-    document.querySelectorAll(selector).forEach(b => b.classList.toggle('active', isActive(b.dataset)));
-  mark('.app-type-segments .segment', d => d.app === state.app);
-  mark('.mode-segments .segment', d => d.mode === state.mode);
-  mark('#source-segments .segment', d => d.source === state.sourceFilter);
-  mark('#date-filters .chip', d => d.date === 'all' ? state.dateFilter.length === 0 : state.dateFilter.includes(d.date));
-  mark('#pos-filters .chip', d => d.pos === 'all' ? state.posFilter.length === 0 : state.posFilter.includes(d.pos));
-  mark('#range-filters .chip', d => d.range === 'all' ? state.rangeFilter.length === 0 : state.rangeFilter.some(r => `${r.start}-${r.end}` === d.range));
-  mark('#weak-segments .segment', d => d.weak === state.weakFilter);
-  mark('#grammar-book-segments .segment', d => d.gbook === state.grammarBook);
-  mark('#grammar-weak-segments .segment', d => d.gweak === state.grammarWeakFilter);
-  renderGrammarChapterFilters();
-  updateSourceRows();
-}
-
-function initFilters() {
-  document.querySelectorAll('.app-type-segments .segment').forEach(btn => {
-    btn.addEventListener('click', e => setApp(e.currentTarget.dataset.app));
-  });
-
-  initGrammarFilters();
-  initRangeFilters();
-
-  document.querySelectorAll('#source-segments .segment').forEach(btn => {
-    btn.addEventListener('click', e => {
-      document.querySelectorAll('#source-segments .segment').forEach(b => b.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-      state.sourceFilter = e.currentTarget.dataset.source;
-      updateSourceRows();
-      applyFilters();
-    });
-  });
-
-  const df = document.getElementById('date-filters');
-  df.innerHTML = `<button class="chip active" data-date="all">すべて</button>`;
-  DATES.forEach(d => {
-    df.innerHTML += `<button class="chip" data-date="${d}">${d}</button>`;
-  });
-  
-  document.querySelectorAll('#date-filters .chip').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const val = e.currentTarget.dataset.date;
-      if (val === 'all') {
-        state.dateFilter = [];
-      } else if (state.dateFilter.includes(val)) {
-        state.dateFilter = state.dateFilter.filter(x => x !== val);
-      } else {
-        state.dateFilter.push(val);
-      }
-      syncFilterUI();
-      applyFilters();
-    });
-  });
-
-  document.querySelectorAll('#pos-filters .chip').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const val = e.currentTarget.dataset.pos;
-      if (val === 'all') {
-        state.posFilter = [];
-      } else if (state.posFilter.includes(val)) {
-        state.posFilter = state.posFilter.filter(x => x !== val);
-      } else {
-        state.posFilter = POS_FILTERS.filter(p => p === val || state.posFilter.includes(p)); // チップの並び順にそろえる
-      }
-      syncFilterUI();
-      applyFilters();
-    });
-  });
-
-  document.querySelectorAll('#weak-segments .segment').forEach(btn => {
-    btn.addEventListener('click', e => {
-      document.querySelectorAll('#weak-segments .segment').forEach(b => b.classList.remove('active'));
-      e.currentTarget.classList.add('active');
-      state.weakFilter = e.currentTarget.dataset.weak;
-      applyFilters();
-    });
-  });
-
-  document.querySelectorAll('.mode-segments .segment').forEach(btn => {
-    btn.addEventListener('click', e => {
-      state.mode = e.currentTarget.dataset.mode;
-      updatePracticeEyebrow();
-      resetReview(); // 見直しの記録はモードごとの出題内容なので、モードを変えたら消す
-      document.querySelectorAll('.mode-segments .segment').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === state.mode);
-      });
-      updateWeakBadge();
-      // 苦手・未学習で絞っているときはモードごとに出題範囲が変わるので出題し直す。「すべて」なら並びはそのまま
-      if (state.weakFilter !== 'all') applyFilters();
-      else renderCurrent();
-    });
-  });
-
-  const toggle = document.getElementById('filter-toggle');
-  toggle.addEventListener('click', () => {
-    toggleFilterSheet();
-  });
-}
-
-// 絞り込みシートのボタンに、今の出題プールの件数を出す
-function refreshFilterApplyLabel() {
-  const btn = document.getElementById('filter-apply-btn');
-  if (!btn || !window.StudyCore) return;
-  const { label, empty } = StudyCore.filterCountLabel(getCurrentPoolCount(), state.app === 'grammar' ? '問' : '語');
-  btn.textContent = label;
-  const note = document.getElementById('filter-zero-note');
-  if (note) note.hidden = !empty;
-}
-
-function updateFilterSummary() {
-  refreshFilterApplyLabel();
-  let n = 0;
-  if (state.app === 'grammar') {
-    if (state.grammarBook !== 'all') n++;
-    n += state.grammarChapter.length;
-    if (state.grammarRule !== null) n++;
-    if (state.grammarWeakFilter !== 'all') n++;
-  } else {
-    if (state.sourceFilter !== 'all') n++;
-    if (state.sourceFilter === 'teppan') {
-      n += state.rangeFilter.length;
-    } else {
-      n += state.dateFilter.length;
-      n += state.posFilter.length;
-    }
-    if (state.weakFilter !== 'all') n++;
-  }
-  const el = document.getElementById('filter-count');
-  if (!el) return;
-  el.style.display = n > 0 ? 'inline-block' : 'none';
-  el.innerText = n;
-}
-
-function shuffle(array) {
-  let currentIndex = array.length, randomIndex;
-  while (currentIndex !== 0) {
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-    [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-  }
-  return array;
-}
-
-// 品詞の絞り込みの選択肢（チップの data-pos と同じ）
-const POS_FILTERS = ['名詞', '動詞', '形容詞', '副詞', '句・表現'];
-
-// 品詞「句・表現」に含める品詞（TEPPAN はそのまま「句・表現」で登録されている）
-const PHRASE_POS = ['名詞句', '動詞句', '形容詞句', '副詞句', '表現', '句・表現'];
-
-// 苦手フィルタ以外の絞り込み（出典・範囲・日付・品詞）
-function wordMatchesBaseFilters(w) {
-  // source
-  if (state.sourceFilter !== 'all' && w.s !== state.sourceFilter) return false;
-
-  // range filter (for TEPPAN)
-  if (state.sourceFilter === 'teppan' && state.rangeFilter.length > 0) {
-    if (!w.no || !state.rangeFilter.some(r => w.no >= r.start && w.no <= r.end)) return false;
-  }
-
-  // date (for daily words or all)
-  if (state.sourceFilter !== 'teppan' && state.dateFilter.length > 0) {
-    if (!w.d || !state.dateFilter.includes(getWeekLabel(w.d))) return false;
-  }
-
-  // pos (for daily words or all)
-  if (state.sourceFilter !== 'teppan' && state.posFilter.length > 0) {
-    if (!state.posFilter.some(p => (p === '句・表現' ? PHRASE_POS.includes(w.p) : w.p === p))) return false;
-  }
-  return true;
-}
-
-// 日々の単語と TEPPAN の両方にある単語は1問にまとめる（苦手記録は綴りで共通なので）
-function dedupeWords(words) {
-  const seen = new Set();
-  return words.filter(w => {
-    if (seen.has(w.w)) return false;
-    seen.add(w.w);
-    return true;
-  });
-}
-
-// 今の絞り込みに合う単語（並べ替える前）
-function filteredWords() {
-  const filtered = RAW_WORDS.filter(w => {
-    if (!wordMatchesBaseFilters(w)) return false;
-
-    // weak
-    const entry = wordWeak()[w.w];
-    if (state.weakFilter === 'weak_only' && !entry) return false;
-    if (state.weakFilter === 'weak_unlearned' && !entry && wordSeen().has(w.w)) return false;
-    if (state.weakFilter === 'due' && !(entry && isDue(entry))) return false;
-
-    return true;
-  });
-  return dedupeWords(filtered);
-}
-
-function applyFilters() {
-  state.pool = shuffle(filteredWords());
-  resetReview();
-  state.currentIndex = 0;
-  state.score = 0;
-  state.answeredCount = 0;
-  updateWeakBadge();
-  updateFilterSummary();
-  checkFilterNudge();
-  renderCurrent();
-}
-
-// 4択の「わからない」ボタン。次へボタンと同じ枠を回答前だけ使う
-function setDontKnowVisible(visible) {
-  const dk = document.getElementById('dont-know-btn');
-  if (dk) dk.style.display = visible ? 'block' : 'none';
-}
-
-// 下のボタンを両方隠し、カードモードで書き換えた文言を元に戻す
-function resetActionBar() {
-  hideDuoBanner();
-  const dk = document.getElementById('dont-know-btn');
-  const nextBtn = document.getElementById('next-btn');
-  dk.style.display = 'none';
-  dk.innerText = 'わからない';
-  nextBtn.style.display = 'none';
-  nextBtn.innerText = '次へ';
-}
-
-function showNextButton(onNext) {
-  const nextBtn = document.getElementById('next-btn');
-  nextBtn.style.display = 'block';
-  nextBtn.onclick = onNext;
-}
-
-function nextWord() {
-  hideDuoBanner();
-  state.currentIndex++;
-  renderCurrent();
-}
-

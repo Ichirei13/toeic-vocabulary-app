@@ -1,20 +1,13 @@
-// テーマ切替機能（プレビュー用）
+// テーマ切替。テーマの色は css/app.css の [data-theme="..."] で決まる。選択は設定画面のテーマカードから
 function setAppTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   try { localStorage.setItem('toeic_app_theme', theme); } catch(e){}
-  document.querySelectorAll('.theme-pill').forEach(btn => {
-    btn.classList.toggle('active', btn.getAttribute('onclick').includes("'" + theme + "'"));
-  });
 }
+// 前回選んだテーマを、画面が描かれる前に反映する（旧キー toeic_preview_theme の記録も引き継ぐ）
 (function() {
   let saved = 'ink';
   try { saved = localStorage.getItem('toeic_app_theme') || localStorage.getItem('toeic_preview_theme') || 'ink'; } catch(e){}
   document.documentElement.setAttribute('data-theme', saved);
-  window.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.theme-pill').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute('onclick').includes("'" + saved + "'"));
-    });
-  });
 })();
 
 // === Duolingo風 Web Audio API 効果音 & 結果バナー ===
@@ -105,27 +98,5 @@ function hideDuoBanner() {
   const banner = document.getElementById('duo-banner');
   if (banner) banner.classList.add('hide');
   document.getElementById('practice-page')?.classList.remove('has-feedback');
-}
-
-// localStorage が壊れていたり使えなかったり（プライベートモードなど）しても起動できるようにする
-function loadJSON(key, fallback) {
-  try {
-    const v = JSON.parse(localStorage.getItem(key));
-    if (v === null || typeof v !== typeof fallback || Array.isArray(v) !== Array.isArray(fallback)) return fallback;
-    return v;
-  } catch (e) {
-    return fallback;
-  }
-}
-
-function saveJSON(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    if (typeof scheduleGoogleDriveAutoSync === 'function') {
-      scheduleGoogleDriveAutoSync(key);
-    }
-  } catch (e) {
-    // 保存できなくても学習は続けられるので無視する
-  }
 }
 

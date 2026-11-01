@@ -479,7 +479,7 @@ function loadHomePresets() {
   const initialVocab = (state.sourceFilter && ['teppan', 'daily', 'all'].includes(state.sourceFilter))
     ? (state.sourceFilter === 'all' ? 'teppan' : state.sourceFilter)
     : 'teppan';
-  const initialGrammar = (state.grammarBook && ['kin', 'sekai', 'polaris2', 'toplevel', 'all'].includes(state.grammarBook))
+  const initialGrammar = (state.grammarBook && [...GRAMMAR_BOOK_IDS, 'all'].includes(state.grammarBook))
     ? (state.grammarBook === 'all' ? 'kin' : state.grammarBook)
     : 'kin';
 
@@ -491,7 +491,7 @@ function loadHomePresets() {
   }
   const lastBook = {
     vocab: ['teppan', 'daily', 'all'].includes(raw.lastBook?.vocab) ? raw.lastBook.vocab : initialVocab,
-    grammar: ['kin', 'sekai', 'polaris2', 'toplevel', 'all'].includes(raw.lastBook?.grammar) ? raw.lastBook.grammar : initialGrammar,
+    grammar: [...GRAMMAR_BOOK_IDS, 'all'].includes(raw.lastBook?.grammar) ? raw.lastBook.grammar : initialGrammar,
   };
   const presets = (raw.presets && typeof raw.presets === 'object' && !Array.isArray(raw.presets)) ? raw.presets : {};
   return { lastBook, presets };

@@ -1,5 +1,11 @@
 // ==================== 単語の記録（モードごと） ====================
 // 苦手と学習済みの単語は、英→日・日→英・カード・タイプのモードごとに別々に記録する
+//
+// 前提（このファイルを読み込む時点で定義済みであること。最上位で state を作り、保存した記録を読むため）:
+//   data/words.js の RAW_WORDS / data/grammar.js の RAW_GRAMMAR
+//   js/util.js の isPlainObject・loadJSON・saveJSON
+//   js/review-interval.js の isWordKey・isGrammarKey・sanitizeWeakData・loadWeakData
+// このファイルが作る state は、以降の js/*.js と home.js が共有する
 
 const VOCAB_MODES = ['e2j', 'j2e', 'flash', 'type'];
 const MODE_LABELS = { e2j: '英→日', j2e: '日→英', flash: 'カード', type: 'タイプ' };
@@ -183,9 +189,21 @@ function sanitizeSeenByMode(raw) {
   return { data, invalid };
 }
 
+// 何かしら保存されているか。loadJSON は壊れた保存（JSON として読めない、形が違う）も
+// 「保存なし」と同じ null を返すので、null が返ったあとの区別に使う
+function hasStoredValue(key) {
+  try {
+    return localStorage.getItem(key) !== null;
+  } catch (e) {
+    return false;
+  }
+}
+
+// 保存が壊れているときは空で始め、旧キーからの移行で上書きはしない（壊れた中身を手で直せるように残す）
 function loadWeakByMode() {
   const saved = loadJSON(WEAK_WORDS_KEY, null);
   if (saved !== null) return sanitizeWeakByMode(saved).data;
+  if (hasStoredValue(WEAK_WORDS_KEY)) return sanitizeWeakByMode({}).data;
   const byMode = copyToAllModes(loadWeakData(LEGACY_WEAK_WORDS_KEY, isWordKey));
   saveJSON(WEAK_WORDS_KEY, byMode);
   return byMode;
@@ -193,10 +211,16 @@ function loadWeakByMode() {
 
 function loadSeenByMode() {
   const saved = loadJSON(SEEN_WORDS_KEY, null);
-  const lists = saved !== null
-    ? sanitizeSeenByMode(saved).data
-    : copyToAllModes(loadJSON(LEGACY_SEEN_WORDS_KEY, []).filter(w => typeof w === 'string'));
-  if (saved === null) saveJSON(SEEN_WORDS_KEY, lists);
+  const broken = saved === null && hasStoredValue(SEEN_WORDS_KEY);
+  let lists;
+  if (saved !== null) {
+    lists = sanitizeSeenByMode(saved).data;
+  } else if (broken) {
+    lists = sanitizeSeenByMode({}).data; // 上書きしない（loadWeakByMode と同じ）
+  } else {
+    lists = copyToAllModes(loadJSON(LEGACY_SEEN_WORDS_KEY, []).filter(w => typeof w === 'string'));
+    saveJSON(SEEN_WORDS_KEY, lists);
+  }
   return Object.fromEntries(VOCAB_MODES.map(m => [m, new Set(lists[m])]));
 }
 
@@ -294,11 +318,13 @@ function updateWeakBadge() {
   setBadge('due-badge', weak.filter(w => isDue(data[w.w])).length);
 }
 
-// TEPPAN の番号を100語ずつに区切った範囲
+// TEPPAN の番号を区切る幅（語数）
+const TEPPAN_RANGE_SIZE = 100;
+// TEPPAN の番号を TEPPAN_RANGE_SIZE 語ずつに区切った範囲
 const TEPPAN_MAX_NO = RAW_WORDS.reduce((max, w) => (w.s === 'teppan' && w.no ? Math.max(max, w.no) : max), 0);
 const TEPPAN_RANGES = [];
-for (let start = 1; start <= TEPPAN_MAX_NO; start += 100) {
-  TEPPAN_RANGES.push({ start, end: Math.min(start + 99, TEPPAN_MAX_NO) });
+for (let start = 1; start <= TEPPAN_MAX_NO; start += TEPPAN_RANGE_SIZE) {
+  TEPPAN_RANGES.push({ start, end: Math.min(start + TEPPAN_RANGE_SIZE - 1, TEPPAN_MAX_NO) });
 }
 
 function initRangeFilters() {

@@ -154,16 +154,22 @@ async function syncWithGoogleDrive({ interactive = false, silent = false } = {})
       });
       if (!res.ok) throw new Error(`クラウドからの取得に失敗しました (${res.status})`);
       const remoteText = await res.text();
-      const remoteParsed = parseBackup(remoteText);
 
-      // 2. 手元データとクラウドデータを合算（マージ）
-      if (remoteParsed.ok) {
+      // 中身が空のファイル（作成途中で止まったものなど）は、失う記録がないので手元の内容で作り直す
+      if (remoteText.trim() !== '') {
+        const remoteParsed = parseBackup(remoteText);
+
+        // クラウド側が読めない（壊れている、またはこのアプリより新しい形式）ときは、
+        // 手元の内容で上書きするとクラウドの記録を失うので、保存せずに止める
+        if (!remoteParsed.ok) {
+          throw new Error('クラウドのバックアップを読み込めないため、上書きを中止しました (' + remoteParsed.error + ')');
+        }
+
+        // 2. 手元データとクラウドデータを合算（マージ）
         const localRec = getCurrentLocalRecords();
         const mergedRecords = mergeBackupRecords(localRec, remoteParsed.records);
         // 3. 合算結果を手元（メモリ・ストレージ）に反映
         applyMergedRecordsToLocal(mergedRecords);
-      } else {
-        console.warn('[GDrive] remote parse warning:', remoteParsed.error);
       }
 
       // 4. 合算された完全な最新データをクラウドへ上書き保存 (PATCH)

@@ -25,7 +25,12 @@
   --sheet-bg: #f9f5ec;
   --sheet-text: #181512;
   --sheet-close-bg: rgba(24, 21, 18, 0.08);
+  --top-sheet-bg: #1f1a16;
+  --top-sheet-border: rgba(212, 167, 89, 0.35);
+}
 
+/* 昔からの名前の別名。本体の色は上のテーマ変数で決め、別名は :root で 1 回だけ結ぶ（--gold だけテーマごとに上書きするものがある） */
+:root {
   --ink: var(--text-card);
   --paper: var(--text-page);
   --seal: var(--wrong);
@@ -60,13 +65,9 @@
   --sheet-bg: #202f36;
   --sheet-text: #ffffff;
   --sheet-close-bg: rgba(255, 255, 255, 0.1);
-
-  --ink: var(--text-card);
-  --paper: var(--text-page);
-  --seal: var(--wrong);
   --gold: #ff9600; /* Duolingo Orange */
-  --jade: var(--correct);
-  --muted: var(--text-muted);
+  --top-sheet-bg: #202f36;
+  --top-sheet-border: #2c3c45;
 }
 
 /* Duolingo特有の3D立体感＆ゲーミフィケーションスタイル */
@@ -293,13 +294,8 @@
   --sheet-bg: #f8fafc;
   --sheet-text: #0f172a;
   --sheet-close-bg: rgba(15, 23, 42, 0.08);
-
-  --ink: var(--text-card);
-  --paper: var(--text-page);
-  --seal: var(--wrong);
-  --gold: var(--accent);
-  --jade: var(--correct);
-  --muted: var(--text-muted);
+  --top-sheet-bg: #111a2e;
+  --top-sheet-border: rgba(56, 189, 248, 0.3);
 }
 
 [data-theme="light"] {
@@ -328,13 +324,8 @@
   --sheet-bg: #f2eee6;
   --sheet-text: #262320;
   --sheet-close-bg: rgba(0, 0, 0, 0.07);
-
-  --ink: var(--text-card);
-  --paper: var(--text-page);
-  --seal: var(--wrong);
-  --gold: var(--accent);
-  --jade: var(--correct);
-  --muted: var(--text-muted);
+  --top-sheet-bg: #f5f0e8;
+  --top-sheet-border: rgba(0, 0, 0, 0.15);
 }
 
 [data-theme="forest"] {
@@ -363,13 +354,8 @@
   --sheet-bg: #f2f7f4;
   --sheet-text: #0a1713;
   --sheet-close-bg: rgba(10, 23, 19, 0.08);
-
-  --ink: var(--text-card);
-  --paper: var(--text-page);
-  --seal: var(--wrong);
-  --gold: var(--accent);
-  --jade: var(--correct);
-  --muted: var(--text-muted);
+  --top-sheet-bg: #11221c;
+  --top-sheet-border: rgba(16, 185, 129, 0.3);
 }
 
 [data-theme="nordic"] {
@@ -398,13 +384,8 @@
   --sheet-bg: #f4f4f5;
   --sheet-text: #18181b;
   --sheet-close-bg: rgba(24, 24, 27, 0.08);
-
-  --ink: var(--text-card);
-  --paper: var(--text-page);
-  --seal: var(--wrong);
-  --gold: var(--accent);
-  --jade: var(--correct);
-  --muted: var(--text-muted);
+  --top-sheet-bg: #1a1a1e;
+  --top-sheet-border: rgba(255, 255, 255, 0.15);
 }
 
 [data-theme="quizlet"] {
@@ -433,13 +414,9 @@
   --sheet-bg: #1f1d47;
   --sheet-text: #ffffff;
   --sheet-close-bg: rgba(255, 255, 255, 0.1);
-
-  --ink: var(--text-card);
-  --paper: var(--text-page);
-  --seal: var(--wrong);
   --gold: #ffcd1f;
-  --jade: var(--correct);
-  --muted: var(--text-muted);
+  --top-sheet-bg: #17153b;
+  --top-sheet-border: #2d2b5c;
 }
 
 * { 
@@ -473,52 +450,6 @@ body {
   position: relative;
   overflow: hidden;
   padding-top: env(safe-area-inset-top, 0);
-}
-
-/* Theme Switcher Bar */
-.theme-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  background: var(--ui-surface);
-  border-bottom: 1px solid var(--ui-border);
-  font-size: 11px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  flex-shrink: 0;
-  -webkit-overflow-scrolling: touch;
-}
-.theme-bar::-webkit-scrollbar { display: none; }
-.theme-bar-title {
-  color: var(--accent);
-  font-weight: 700;
-  white-space: nowrap;
-  font-size: 11px;
-}
-.theme-pills {
-  display: flex;
-  gap: 6px;
-}
-.theme-pill {
-  padding: 4px 10px;
-  border-radius: 12px;
-  border: 1px solid var(--ui-border);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-family: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.theme-pill:active { transform: scale(0.96); }
-.theme-pill.active {
-  background: var(--accent);
-  color: var(--accent-btn-text);
-  border-color: var(--accent);
-  box-shadow: 0 1px 6px var(--accent-glow);
 }
 
 /* Header */
@@ -739,35 +670,7 @@ body {
   color: var(--text-page);
 }
 
-/* Top Sheet (上からスライドする絞り込みパネル - テーマ連動) */
-:root, [data-theme="ink"] {
-  --top-sheet-bg: #1f1a16;
-  --top-sheet-border: rgba(212, 167, 89, 0.35);
-}
-[data-theme="duolingo"] {
-  --top-sheet-bg: #202f36;
-  --top-sheet-border: #2c3c45;
-}
-[data-theme="navy"] {
-  --top-sheet-bg: #111a2e;
-  --top-sheet-border: rgba(56, 189, 248, 0.3);
-}
-[data-theme="light"] {
-  --top-sheet-bg: #f5f0e8;
-  --top-sheet-border: rgba(0, 0, 0, 0.15);
-}
-[data-theme="forest"] {
-  --top-sheet-bg: #11221c;
-  --top-sheet-border: rgba(16, 185, 129, 0.3);
-}
-[data-theme="nordic"] {
-  --top-sheet-bg: #1a1a1e;
-  --top-sheet-border: rgba(255, 255, 255, 0.15);
-}
-[data-theme="quizlet"] {
-  --top-sheet-bg: #17153b;
-  --top-sheet-border: #2d2b5c;
-}
+/* Top Sheet (上からスライドする絞り込みパネル - テーマ連動。色は先頭のテーマ変数 --top-sheet-* で決める) */
 
 .top-sheet {
   position: absolute;
@@ -1866,6 +1769,17 @@ body {
 }
 
 /* ==================== 設定画面・固定ダークチャコール ==================== */
+/* 固定ダークチャコール（設定画面などの下から出るシート）で使う色。テーマによらず同一色。
+   --fd-bg: シート全体 / --fd-surface: カード / --fd-field: カード内の入力部分 / --fd-border: 罫線 / --fd-text: 本文 / --fd-muted: 補足 */
+:root {
+  --fd-bg: #181b21;
+  --fd-surface: #21252d;
+  --fd-field: #191c22;
+  --fd-border: #2d333e;
+  --fd-text: #f0f3f6;
+  --fd-muted: #9ba3af;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -1875,19 +1789,19 @@ body {
 
 /* ボトムシートのダークチャコール固定モード（テーマによらず同一色） */
 .bottom-sheet.sheet-fixed-dark {
-  background: #181b21 !important;
-  color: #f0f3f6 !important;
+  background: var(--fd-bg) !important;
+  color: var(--fd-text) !important;
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", Meiryo, sans-serif !important;
-  --sheet-bg: #181b21 !important;
-  --sheet-text: #f0f3f6 !important;
-  --text-card-muted: #9ba3af !important;
+  --sheet-bg: var(--fd-bg) !important;
+  --sheet-text: var(--fd-text) !important;
+  --text-card-muted: var(--fd-muted) !important;
 }
 .bottom-sheet.sheet-fixed-dark::before {
   background: rgba(255, 255, 255, 0.22) !important;
 }
 .bottom-sheet.sheet-fixed-dark .sheet-close {
   background: rgba(255, 255, 255, 0.08) !important;
-  color: #f0f3f6 !important;
+  color: var(--fd-text) !important;
 }
 .bottom-sheet.sheet-fixed-dark .sheet-close:hover {
   background: rgba(255, 255, 255, 0.16) !important;
@@ -1901,8 +1815,8 @@ body {
   padding-bottom: 12px;
 }
 .settings-section {
-  background: #21252d;
-  border: 1px solid #2d333e;
+  background: var(--fd-surface);
+  border: 1px solid var(--fd-border);
   border-radius: 16px;
   padding: 16px 16px 14px;
 }
@@ -1920,13 +1834,13 @@ body {
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #f0f3f6;
+  color: var(--fd-text);
   letter-spacing: 0.2px;
 }
 .settings-desc {
   margin: 0 0 14px;
   font-size: 12.5px;
-  color: #9ba3af;
+  color: var(--fd-muted);
   line-height: 1.5;
 }
 
@@ -1943,7 +1857,7 @@ body {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid #303642;
-  background: #191c22;
+  background: var(--fd-field);
   color: #d1d5db;
   font-family: inherit;
   font-size: 13px;
@@ -1997,8 +1911,8 @@ body {
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid #303642;
-  background: #191c22;
-  color: #f0f3f6;
+  background: var(--fd-field);
+  color: var(--fd-text);
   font-family: inherit;
   cursor: pointer;
   transition: all 0.18s ease;
@@ -2023,12 +1937,12 @@ body {
 .settings-menu-item-title {
   font-size: 14px;
   font-weight: 600;
-  color: #f0f3f6;
+  color: var(--fd-text);
   margin-bottom: 2px;
 }
 .settings-menu-item-subtitle {
   font-size: 11.5px;
-  color: #9ba3af;
+  color: var(--fd-muted);
   line-height: 1.4;
 }
 .settings-menu-item-arrow {
@@ -2042,12 +1956,12 @@ body {
 .settings-subgroup {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #2d333e;
+  border-top: 1px solid var(--fd-border);
 }
 .settings-subgroup-title {
   font-size: 12px;
   font-weight: 700;
-  color: #9ba3af;
+  color: var(--fd-muted);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -2063,7 +1977,7 @@ body {
   padding: 10px 14px;
   border-radius: 10px;
   border: 1px solid #303642;
-  background: #191c22;
+  background: var(--fd-field);
   color: #d1d5db;
   font-family: inherit;
   font-size: 13px;
@@ -2075,7 +1989,7 @@ body {
 .settings-action-btn:hover {
   background: #252a34;
   border-color: #404856;
-  color: #f0f3f6;
+  color: var(--fd-text);
 }
 
 /* データステータス */
@@ -2083,7 +1997,7 @@ body {
   margin-top: 14px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #191c22;
+  background: var(--fd-field);
   border: 1px solid #282e38;
 }
 .settings-status-title {
@@ -2117,24 +2031,24 @@ body {
 }
 .bottom-sheet.sheet-fixed-dark .backup-table th {
   color: #8b949e !important;
-  border-bottom: 1px solid #2d333e !important;
+  border-bottom: 1px solid var(--fd-border) !important;
 }
 .bottom-sheet.sheet-fixed-dark .backup-table td {
-  border-bottom: 1px solid #2d333e !important;
-  color: #f0f3f6 !important;
+  border-bottom: 1px solid var(--fd-border) !important;
+  color: var(--fd-text) !important;
 }
 .bottom-sheet.sheet-fixed-dark .backup-note {
-  color: #9ba3af !important;
+  color: var(--fd-muted) !important;
 }
 .bottom-sheet.sheet-fixed-dark .backup-undo {
-  background: #21252d !important;
-  border: 1px solid #2d333e !important;
+  background: var(--fd-surface) !important;
+  border: 1px solid var(--fd-border) !important;
   color: #d1d5db !important;
 }
 .bottom-sheet.sheet-fixed-dark .backup-btn {
   border-color: #404856 !important;
-  color: #f0f3f6 !important;
-  background: #21252d !important;
+  color: var(--fd-text) !important;
+  background: var(--fd-surface) !important;
 }
 .bottom-sheet.sheet-fixed-dark .backup-btn:hover {
   background: #2a303a !important;
@@ -2148,23 +2062,23 @@ body {
   background: #2563eb !important;
 }
 .bottom-sheet.sheet-fixed-dark .backup-paste-area {
-  background: #191c22 !important;
-  color: #f0f3f6 !important;
+  background: var(--fd-field) !important;
+  color: var(--fd-text) !important;
   border: 1px solid #303642 !important;
 }
 .bottom-sheet.sheet-fixed-dark .gdrive-card {
-  background: #21252d !important;
-  border: 1px solid #2d333e !important;
+  background: var(--fd-surface) !important;
+  border: 1px solid var(--fd-border) !important;
 }
 .bottom-sheet.sheet-fixed-dark .gdrive-title,
 .bottom-sheet.sheet-fixed-dark .gdrive-row {
-  color: #f0f3f6 !important;
+  color: var(--fd-text) !important;
 }
 .bottom-sheet.sheet-fixed-dark .gdrive-desc {
-  color: #9ba3af !important;
+  color: var(--fd-muted) !important;
 }
 .bottom-sheet.sheet-fixed-dark .gdrive-row {
-  border-top: 1px solid #2d333e !important;
+  border-top: 1px solid var(--fd-border) !important;
 }
 .bottom-sheet.sheet-fixed-dark .gdrive-badge.linked {
   background: rgba(59,130,246,0.2) !important;

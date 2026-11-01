@@ -79,3 +79,37 @@ function removeWeak(key) {
   renderWeakList();
 }
 
+// 下から出るシートの中身（#weak-list-content）は、苦手リスト・金のルール章ガイド・バックアップで使い回す。
+// 中のボタンのクリックを、data 属性で見て振り分ける
+document.getElementById('weak-list-content').addEventListener('click', e => {
+  const backupBtn = e.target.closest('[data-backup]');
+  if (backupBtn) return handleBackupAction(backupBtn.dataset.backup);
+
+  const chBtn = e.target.closest('[data-guide-ch]');
+  if (chBtn) {
+    const v = chBtn.dataset.guideCh;
+    state.guideChapter = v === 'all' ? 'all' : Number(v);
+    renderRuleGuide();
+    return;
+  }
+  const solveBtn = e.target.closest('[data-solve-rule]');
+  if (solveBtn) return startRuleDrill(Number(solveBtn.dataset.solveRule));
+
+  const modeBtn = e.target.closest('[data-weak-mode]');
+  if (modeBtn) {
+    state.weakListMode = modeBtn.dataset.weakMode;
+    renderWeakList();
+    return;
+  }
+  const sortBtn = e.target.closest('[data-weak-sort]');
+  if (sortBtn) {
+    state.weakSort = sortBtn.dataset.weakSort;
+    saveSettings();
+    renderWeakList();
+    return;
+  }
+  const delBtn = e.target.closest('[data-remove-weak]');
+  if (delBtn) removeWeak(delBtn.dataset.removeWeak);
+  if (e.target.closest('[data-obsidian-export]')) exportObsidianGrammarSync();
+  if (e.target.closest('[data-obsidian-import]')) importObsidianGrammarSync();
+});

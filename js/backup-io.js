@@ -20,7 +20,7 @@ function buildBackup({ forDrive = false } = {}) {
   }
   return {
     app: BACKUP_APP_ID,
-    format: forDrive ? 5 : BACKUP_FORMAT,
+    format: forDrive ? BACKUP_FORMAT_DRIVE : BACKUP_FORMAT,
     exportedAt: new Date().toISOString(),
     appData: { words: RAW_WORDS.length, grammar: RAW_GRAMMAR.length },
     data,

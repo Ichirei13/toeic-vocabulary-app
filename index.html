@@ -210,6 +210,20 @@
   </div>
 </div>
 
+<!--
+  読み込み順（上から順に実行され、全ファイルが同じグローバルを共有する）。順序を変えるときは各ファイル冒頭の「前提」を見る。
+  新しいファイルを足したら sw.js の ASSETS と upload.py の FILES にも足す（tests/test_file_lists.py が食い違いを検出する）。
+    1. data/   問題データ（RAW_WORDS, RAW_GRAMMAR）
+    2. src/    DOM を触らない純粋ロジック（Node の単体テストあり）
+    3. js/util.js → theme-audio → review-interval → word-stats
+               共通関数 → テーマ・音 → 復習間隔 → 記録と state の作成（最上位で state を作るので、ここまでが土台）
+    4. js/grammar-drill → filter-sheet → vocab-filter → review-prev → vocab-drill → filter-nudge → settings → rules-guide → weak-list
+               関数宣言が中心で、動き出すのは boot.js 以降。最上位で実行するのは rules-guide.js（RAW_GRAMMAR から KIN_RULES を作る）と
+               weak-list.js（シートのクリック登録）だけ
+    5. js/backup-core → gdrive → backup-io → backup-ui   バックアップと Google ドライブ連携
+    6. js/keyboard → boot   キー操作の登録 → 起動処理（boot.js は js/ の最後）
+    7. home.js   ホーム画面と画面切り替え（currentAppPage はここで定義。それ以前のファイルは typeof で確かめてから使う）
+-->
 <script src="data/words.js"></script>
 <script src="data/grammar.js"></script>
 <script src="src/filter-count.js"></script>
@@ -221,7 +235,11 @@
 <script src="js/review-interval.js"></script>
 <script src="js/word-stats.js"></script>
 <script src="js/grammar-drill.js"></script>
+<script src="js/filter-sheet.js"></script>
+<script src="js/vocab-filter.js"></script>
 <script src="js/review-prev.js"></script>
+<script src="js/vocab-drill.js"></script>
+<script src="js/filter-nudge.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/rules-guide.js"></script>
 <script src="js/weak-list.js"></script>
