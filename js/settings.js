@@ -3,9 +3,11 @@
 
 const SETTINGS_KEY = 'toeic_settings';
 const SESSION_KEY = 'toeic_session';
+// 出題中の並びは、単語を RAW_WORDS の番号、文法を問題の id で保存する。戻すときの逆引き用
 const WORD_INDEX = new Map(RAW_WORDS.map((w, i) => [w, i]));
 const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
 
+// 保存する設定。ここに足したキーは restoreSettings で検証して戻すこと（保存値は信用しない）
 function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
                 'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort'];
@@ -62,6 +64,8 @@ function sessionSignature(app) {
        ...(state.weakFilter !== 'all' ? [state.mode] : [])]); // 苦手で絞るときは出題範囲がモードで変わる
 }
 
+// 保存先 SESSION_KEY は { vocab, grammar } の2枠。今の app の枠だけ書き換え、もう片方は残す。
+// 本ごとの続きは home.js の saveBookSessionSnapshot が別に持つ（同じ形）
 function sessionSnapshot() {
   const sessions = loadJSON(SESSION_KEY, {});
   // 回答済みの問題は開き直したときに出し直さないよう、次の問題から再開する
@@ -113,6 +117,7 @@ function isSheetOpen() {
   return document.getElementById('bottom-sheet').classList.contains('open');
 }
 
+// バックアップ画面の「戻る」の行き先。'settings'（設定ページから開いた）か 'weak'（苦手リストから開いた）
 let backupSource = 'settings';
 
 function closeSheet() {
@@ -143,6 +148,7 @@ function closeFilterSheet() {
     toggle.classList.remove('active');
     toggle.setAttribute('aria-expanded', 'false');
   }
+  // 暗幕（sheet-overlay）は絞り込みと下のシートで共用。シートが開いているなら残す
   const bottomSheet = document.getElementById('bottom-sheet');
   if (!bottomSheet || !bottomSheet.classList.contains('open')) {
     document.getElementById('sheet-overlay').classList.remove('open');
@@ -163,6 +169,8 @@ function handleOverlayClick() {
   closeFilterSheet();
 }
 
+// render は中身を #weak-list-content に描く関数（activeSheetRender に覚えて、あとで描き直せるようにする）。
+// isFixedTheme が true なら、アプリのテーマに関わらず暗い固定配色（sheet-fixed-dark）で出す
 function openSheet(title, render, isFixedTheme = false) {
   closeFilterSheet();
   document.getElementById('sheet-title').innerText = title;

@@ -1,4 +1,7 @@
-// ---- 画面 ----
+// ==================== バックアップ・復元の画面 ====================
+// 下から出るシート（#weak-list-content）に、backupView.step ごとの HTML を描く。
+// step は home（入口）/ confirm（復元前の確認）/ undo（取り消しの確認）。ボタンは data-backup 属性で、
+// クリックは weak-list.js の委譲ハンドラから handleBackupAction に渡る。
 
 // 単語の苦手はモードごとの件数、学習済みはどれかのモードで答えた単語の数
 function wordCounts(weakByMode, seenByMode) {
@@ -9,6 +12,7 @@ function wordCounts(weakByMode, seenByMode) {
   };
 }
 
+// この端末の今の記録の件数。wordsDue / grammarDue は復習日が来ているもの（isDue）の数
 function currentCounts() {
   const dueCount = data => Object.values(data).filter(isDue).length;
   return {
@@ -49,6 +53,8 @@ function countsFromRaw(records) {
   };
 }
 
+// 復元前の確認と取り消しの確認で使う、「今の記録」と「入れ替わる記録」の比較表。
+// left / right は currentCounts() か countsFromRaw() の形。extraRows には行を足せる
 function compareTable(leftLabel, rightLabel, left, right, extraRows = '') {
   return `
     <table class="backup-table compare">
@@ -211,6 +217,7 @@ function backupUndoHtml() {
     </div>`;
 }
 
+// backupSource は戻り先（苦手リストから開いたか、設定ページから開いたか）。settings.js で持っている
 function renderBackupSheet() {
   const v = backupView;
   let backLabel = backupSource === 'weak' ? '‹ 苦手リストに戻る' : '‹ 設定に戻る';
@@ -289,7 +296,7 @@ function handleBackupAction(action) {
         return openSheet('苦手リスト', renderWeakList, false);
       }
       return closeSheet(); // 設定ページから開いたので、シートを閉じれば設定ページに戻る
-    case 'gdrive-login':
+    case 'gdrive-login': // 未連携のときの「連携」ボタンも、連携済みの「今すぐ同期」と同じ saveToGoogleDrive を呼ぶ
       return saveToGoogleDrive({ interactive: true });
     case 'gdrive-sync':
       return saveToGoogleDrive({ interactive: true });
@@ -318,7 +325,7 @@ function handleBackupAction(action) {
     case 'mode-overwrite':
       backupView.restoreMode = 'overwrite';
       return refreshBackupSheet();
-    case 'restore':
+    case 'restore': // 統合か上書きかは backupView.restoreMode。実際の書き込みは backup-io.js の runRestore
       return runRestore();
     case 'undo':
       backupView = { step: 'undo' };

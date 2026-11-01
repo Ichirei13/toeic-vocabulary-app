@@ -1,4 +1,6 @@
 // ==================== 苦手リスト ====================
+// 下のシートに出す一覧。単語はモードごとに別の苦手記録を持つので、モードを切り替えて見る。
+// 並び替えは state.weakSort（設定に保存される）。クリックの振り分けは末尾の委譲ハンドラ。
 
 function renderWeakList() {
   if (state.app === 'grammar') renderGrammarWeakList();
@@ -7,6 +9,7 @@ function renderWeakList() {
 }
 
 // items は { entry } を持つ配列。order は「ABC順」「本・章順」の比べ方
+// （weakSort が new / old / due 以外のときと、'order' を選んだときに使う）
 function sortWeakItems(items, order) {
   const compare = {
     new: (a, b) => b.entry.added - a.entry.added,
@@ -66,6 +69,8 @@ function renderWordWeakList() {
   container.innerHTML = html;
 }
 
+// 苦手から外す。削除した印（markWeakDeleted）も残すのは、バックアップや Drive の統合で、
+// 別の端末に残っている古い記録から苦手に復活しないようにするため
 function removeWeak(key) {
   if (state.app === 'grammar') {
     delete state.grammarWeakData[key];

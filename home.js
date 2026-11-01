@@ -39,9 +39,9 @@ const STUDY_CORE_FALLBACK = {
 };
 window.StudyCore = Object.assign({}, STUDY_CORE_FALLBACK, window.StudyCore || {});
 
-const HOME_PRESETS_KEY = 'toeic_home_presets_v1';
-const BOOK_SESSIONS_KEY = 'toeic_book_sessions_v1';
-const DAILY_ACTIVITY_KEY = 'toeic_daily_activity_v1';
+const HOME_PRESETS_KEY = 'toeic_home_presets_v1';   // 本ごとの前回の絞り込みと、最後に開いた本
+const BOOK_SESSIONS_KEY = 'toeic_book_sessions_v1'; // 本ごとの出題の続き（settings.js の SESSION_KEY と同じ形）
+const DAILY_ACTIVITY_KEY = 'toeic_daily_activity_v1'; // 日別の学習記録 { days: { 'YYYY-MM-DD': {...} } }
 
 // ==================== 日別学習ログ・連続日数（ストリーク） & 解答ペース計測 ====================
 
@@ -71,6 +71,7 @@ function localDateStr(ms = Date.now()) {
   return `${y}-${m}-${day}`;
 }
 
+// 1日分は { a: 解答数, c: 正解数, fast: 即答数, sec: 合計秒数, g: その日の目標 }（recordAnswerPaceAndActivity が書く）
 function loadDailyActivity() {
   let raw = null;
   try {
@@ -442,6 +443,8 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
   return { streakInfo, list };
 }
 
+// ホームに並べる本。id は state.sourceFilter（単語）/ state.grammarBook（文法）の値と一致させる。
+// sub の問題数は手書きなので、問題を増減したら合わせること
 const HOME_BOOKS = {
   vocab: [
     { id: 'teppan', mascot: 'vocab-teppan', title: 'TEPPAN英単語', sub: '頻出1,400語・目標スコア別' },
@@ -497,6 +500,7 @@ function loadHomePresets() {
   return { lastBook, presets };
 }
 
+// { lastBook: { vocab, grammar }, presets: { 'vocab:teppan': {...}, 'grammar:kin': {...} } }
 let homeState = loadHomePresets();
 
 function saveHomePresets() {
@@ -533,6 +537,7 @@ function recordCurrentBookPreset(updateLastBook = false) {
 }
 
 // 参考書ごとの途中セッション保存（他の参考書に行っても前の参考書の続きを保持できるようにする）
+// 保存する形は settings.js の sessionSnapshot と同じ。違うのは本ごとのキー（'grammar:kin' など）で持つ点
 function saveBookSessionSnapshot() {
   const bookSessions = loadJSON(BOOK_SESSIONS_KEY, {});
   if (state.app === 'grammar') {
@@ -559,6 +564,7 @@ function saveBookSessionSnapshot() {
   } catch (e) {}
 }
 
+// 保存した続きを戻せたら true。条件（sig）が変わっていたり、問題が見つからなかったら false（settings.js の restoreSession と同じ判定）
 function restoreBookSessionSnapshot(kind, bookId) {
   const bookSessions = loadJSON(BOOK_SESSIONS_KEY, {});
   const saved = bookSessions[`${kind}:${bookId}`];

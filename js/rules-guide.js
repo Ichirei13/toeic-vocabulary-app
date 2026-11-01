@@ -77,6 +77,8 @@ function renderRuleGuide() {
 
   KIN_CHAPTERS.filter(c => state.guideChapter === 'all' || state.guideChapter === c.ch).forEach(c => {
     const notes = KIN_CHAPTER_NOTES[c.ch];
+    // KIN_PHASES（章の解き方。data/grammar.js）がなくても動くよう typeof で確かめる。
+    // 優先順位は、解き方 → KIN_CHAPTER_NOTES の手書きメモ → 「まだ登録されていません」
     const phaseInfo = typeof KIN_PHASES !== 'undefined' ? KIN_PHASES.find(p => p.chapter === c.ch) : null;
     const rules = KIN_RULES.filter(r => r.ch === c.ch);
     html += `<div class="guide-chapter">
@@ -112,6 +114,10 @@ function startRuleDrill(number) {
   applyGrammarFilters();
   closeSheet();
 }
+
+// ---- Obsidian との苦手の受け渡し ----
+// 書き出しは { app, exportedAt, weak: 苦手の記録 }。読み込みは { weak, mastered: [id…] } か、苦手の記録そのもの。
+// 読み込んだ分は「今更新した」扱い（u を今の時刻にする）にして、統合で新しい方として残す。mastered は苦手から外す
 
 function exportObsidianGrammarSync() {
   const payload = {
@@ -151,6 +157,7 @@ function applyObsidianSyncPayload(data) {
   renderGrammarWeakList();
 }
 
+// data/obsidian_grammar_sync.json があればそれを読み、なければファイル選択を開く（どちらも失敗時は何も表示しない）
 async function importObsidianGrammarSync() {
   try {
     const res = await fetch('data/obsidian_grammar_sync.json?t=' + Date.now());
