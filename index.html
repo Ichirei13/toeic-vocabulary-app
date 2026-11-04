@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>TOEIC Drill</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,6 +18,7 @@
 <!-- Google Identity Services (Google Drive連携) -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/theme-ios.css">
 </head>
 <body>
 <div id="app">
@@ -213,7 +214,7 @@
 <!--
   読み込み順（上から順に実行され、全ファイルが同じグローバルを共有する）。順序を変えるときは各ファイル冒頭の「前提」を見る。
   新しいファイルを足したら sw.js の ASSETS と upload.py の FILES にも足す（tests/test_file_lists.py が食い違いを検出する）。
-    1. data/   問題データ（RAW_WORDS, RAW_GRAMMAR）
+    1. data/   問題データ（RAW_WORDS, RAW_GRAMMAR）と単語の豆知識（WORD_TIPS）
     2. src/    DOM を触らない純粋ロジック（Node の単体テストあり）
     3. js/util.js → theme-audio → review-interval → word-stats
                共通関数 → テーマ・音 → 復習間隔 → 記録と state の作成（最上位で state を作るので、ここまでが土台）
@@ -225,6 +226,7 @@
     7. home.js   ホーム画面と画面切り替え（currentAppPage はここで定義。それ以前のファイルは typeof で確かめてから使う）
 -->
 <script src="data/words.js"></script>
+<script src="data/tips.js"></script>
 <script src="data/grammar.js"></script>
 <script src="src/filter-count.js"></script>
 <script src="src/activity.js"></script>

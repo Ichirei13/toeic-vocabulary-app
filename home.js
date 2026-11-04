@@ -1003,7 +1003,8 @@ function renderSettingsPage() {
     { id: 'quizlet', name: 'Quizlet', color: '#4255ff', bg: '#0a092d' },
     { id: 'forest', name: 'フォレスト', color: '#10b981', bg: '#0a1713' },
     { id: 'nordic', name: 'チャコール', color: '#a1a1aa', bg: '#18181b' },
-    { id: 'light', name: 'セピア', color: '#d97706', bg: '#f6f3ed' }
+    { id: 'light', name: 'セピア', color: '#d97706', bg: '#f6f3ed' },
+    { id: 'ios', name: 'iOS', color: '#007aff', bg: '#f2f2f7' }
   ];
 
   container.innerHTML = `

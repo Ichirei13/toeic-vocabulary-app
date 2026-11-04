@@ -1,0 +1,401 @@
+/* === iOS 風テーマ（iOS 26 Liquid Glass を Web で近似） ===
+   すべて [data-theme="ios"] の中に閉じてあり、他のテーマには影響しない。
+   ライト/ダークは端末の設定（prefers-color-scheme）に従う。
+   Safari では本物の屈折は出せないので、ぼかし + 彩度 + 縁の光沢で近づけている。 */
+
+[data-theme="ios"] {
+  color-scheme: light;
+  --ios-blue: #007aff;
+  --ios-glass: rgba(255, 255, 255, 0.62);
+  --ios-glass-edge-top: rgba(255, 255, 255, 0.9);
+  --ios-glass-edge-bottom: rgba(255, 255, 255, 0.25);
+  --ios-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --ios-separator: rgba(60, 60, 67, 0.18);
+  --ios-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ios-tab-space: calc(74px + max(8px, env(safe-area-inset-bottom, 0px)));
+
+  --bg-page: #f2f2f7;
+  --bg-page-gradient: linear-gradient(180deg, #f2f2f7 0%, #f2f2f7 100%);
+  --text-page: #000000;
+  --bg-card: #ffffff;
+  --text-card: #000000;
+  --text-card-muted: rgba(60, 60, 67, 0.6);
+  --bg-card-border: rgba(60, 60, 67, 0.1);
+  --ui-surface: rgba(120, 120, 128, 0.12);
+  --ui-border: rgba(60, 60, 67, 0.16);
+  --text-muted: rgba(60, 60, 67, 0.6);
+  --accent: #007aff;
+  --accent-glow: rgba(0, 122, 255, 0.28);
+  --accent-btn-bg: #007aff;
+  --accent-btn-text: #ffffff;
+  --correct: #34c759;
+  --correct-bg: #34c759;
+  --correct-border: #30b350;
+  --correct-glow: rgba(52, 199, 89, 0.28);
+  --wrong: #ff3b30;
+  --wrong-bg: #ff3b30;
+  --wrong-border: #e0352b;
+  --wrong-glow: rgba(255, 59, 48, 0.28);
+  --sheet-bg: #f2f2f7;
+  --sheet-text: #000000;
+  --sheet-close-bg: rgba(120, 120, 128, 0.16);
+  --top-sheet-bg: #f2f2f7;
+  --top-sheet-border: rgba(60, 60, 67, 0.18);
+  --gold: #ff9500;
+  --ios-segment-active: #ffffff;
+  --ios-tint-bg: rgba(0, 122, 255, 0.12);
+  --ios-red-tint-bg: rgba(255, 59, 48, 0.12);
+  /* 設定画面・シートが使う固定ダーク色（--fd-*）も、iOS の grouped 配色に差し替える */
+  --fd-bg: #f2f2f7;
+  --fd-surface: #ffffff;
+  --fd-field: #f2f2f7;
+  --fd-border: rgba(60, 60, 67, 0.14);
+  --fd-text: #000000;
+  --fd-muted: rgba(60, 60, 67, 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="ios"] {
+    color-scheme: dark;
+    --ios-blue: #0a84ff;
+    --ios-glass: rgba(44, 44, 46, 0.55);
+    --ios-glass-edge-top: rgba(255, 255, 255, 0.28);
+    --ios-glass-edge-bottom: rgba(255, 255, 255, 0.06);
+    --ios-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --ios-separator: rgba(84, 84, 88, 0.55);
+
+    --bg-page: #000000;
+    --bg-page-gradient: linear-gradient(180deg, #000000 0%, #000000 100%);
+    --text-page: #ffffff;
+    --bg-card: #1c1c1e;
+    --text-card: #ffffff;
+    --text-card-muted: rgba(235, 235, 245, 0.6);
+    --bg-card-border: rgba(84, 84, 88, 0.45);
+    --ui-surface: rgba(118, 118, 128, 0.24);
+    --ui-border: rgba(84, 84, 88, 0.6);
+    --text-muted: rgba(235, 235, 245, 0.6);
+    --accent: #0a84ff;
+    --accent-glow: rgba(10, 132, 255, 0.35);
+    --accent-btn-bg: #0a84ff;
+    --correct: #30d158;
+    --correct-bg: #30d158;
+    --correct-border: #28b84c;
+    --wrong: #ff453a;
+    --wrong-bg: #ff453a;
+    --wrong-border: #e03d33;
+    --sheet-bg: #1c1c1e;
+    --sheet-text: #ffffff;
+    --sheet-close-bg: rgba(118, 118, 128, 0.32);
+    --top-sheet-bg: #1c1c1e;
+    --top-sheet-border: rgba(84, 84, 88, 0.6);
+    --gold: #ff9f0a;
+    --ios-segment-active: #636366;
+    --ios-tint-bg: rgba(10, 132, 255, 0.24);
+    --ios-red-tint-bg: rgba(255, 69, 58, 0.24);
+    --fd-bg: #000000;
+    --fd-surface: #1c1c1e;
+    --fd-field: #2c2c2e;
+    --fd-border: rgba(84, 84, 88, 0.5);
+    --fd-text: #ffffff;
+    --fd-muted: rgba(235, 235, 245, 0.6);
+  }
+}
+
+/* --- 全体: システムフォントと、iOS らしい触り心地 --- */
+[data-theme="ios"] body,
+[data-theme="ios"] #app,
+[data-theme="ios"] button,
+[data-theme="ios"] input,
+[data-theme="ios"] select,
+[data-theme="ios"] textarea {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+}
+[data-theme="ios"] body { font-feature-settings: normal; }
+[data-theme="ios"] {
+  -webkit-tap-highlight-color: transparent;
+}
+[data-theme="ios"] body { overscroll-behavior: none; }
+[data-theme="ios"] button { -webkit-touch-callout: none; touch-action: manipulation; }
+
+/* 押したときの縮みはバネの動きで */
+[data-theme="ios"] button {
+  transition: transform 0.35s var(--ios-spring), opacity 0.2s ease, background-color 0.2s ease;
+}
+[data-theme="ios"] button:active { transform: scale(0.97); opacity: 0.85; }
+
+/* --- 下部の浮遊ガラスタブバー（既存の .top-page-nav を CSS だけで下に移す） --- */
+[data-theme="ios"] #app { padding-bottom: var(--ios-tab-space); }
+
+[data-theme="ios"] .top-page-nav {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  padding: 5px;
+  gap: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--ios-glass);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    var(--ios-glass-shadow),
+    inset 0 1px 0 var(--ios-glass-edge-top),
+    inset 0 -1px 0 var(--ios-glass-edge-bottom);
+}
+[data-theme="ios"] .top-page-brand { display: none; }
+[data-theme="ios"] .top-page-tabs {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+}
+[data-theme="ios"] .top-page-tab {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+[data-theme="ios"] .top-page-tab::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  -webkit-mask: var(--tab-icon) center / contain no-repeat;
+  mask: var(--tab-icon) center / contain no-repeat;
+}
+[data-theme="ios"] .top-page-tab.active {
+  background: var(--ui-surface);
+  color: var(--ios-blue);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 var(--ios-glass-edge-top), inset 0 -1px 0 var(--ios-glass-edge-bottom);
+}
+[data-theme="ios"] .top-page-tab:active { transform: scale(0.94); }
+/* SF Symbols 風の線画（house / pencil.line / arrow.clockwise / gearshape の近似） */
+[data-theme="ios"] .top-page-tab[data-page="home"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 11 12 3.8l8.5 7.2'/%3E%3Cpath d='M5.5 9.8V20h13V9.8'/%3E%3Cpath d='M10 20v-5.5h4V20'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .top-page-tab[data-page="practice"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20l1-4 11-11a2 2 0 0 1 3 3L8 19l-4 1z'/%3E%3Cpath d='M14 7l3 3'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .top-page-tab[data-page="review"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.5-5.8'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .top-page-tab[data-page="settings"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6'/%3E%3C/svg%3E");
+}
+
+/* --- シート: ガラス + つまみ --- */
+[data-theme="ios"] .sheet-overlay {
+  background: rgba(0, 0, 0, 0.32);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-theme="ios"] .bottom-sheet,
+[data-theme="ios"] .top-sheet {
+  background: var(--ios-glass);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  backdrop-filter: blur(32px) saturate(180%);
+  box-shadow: var(--ios-glass-shadow), inset 0 1px 0 var(--ios-glass-edge-top);
+  transition-timing-function: var(--ios-spring);
+  transition-duration: 0.45s;
+}
+[data-theme="ios"] .bottom-sheet { border-radius: 28px 28px 0 0; }
+[data-theme="ios"] .bottom-sheet::before {
+  width: 36px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--ios-separator);
+}
+
+/* --- ボタン: 丸いカプセルと押し込み --- */
+[data-theme="ios"] .next-btn,
+[data-theme="ios"] .home-btn-primary,
+[data-theme="ios"] .type-check-btn,
+[data-theme="ios"] .filter-apply-btn,
+[data-theme="ios"] .nudge-btn-primary {
+  border-radius: 999px;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+/* --- カード類: ふちの影を薄く、角丸を大きく --- */
+[data-theme="ios"] .card,
+[data-theme="ios"] .grammar-card,
+[data-theme="ios"] .home-main-book-card,
+[data-theme="ios"] .home-other-card,
+[data-theme="ios"] .review-block,
+[data-theme="ios"] .settings-section {
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* --- 設定画面のリスト: Inset Grouped 風 --- */
+[data-theme="ios"] .settings-menu-list {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card);
+  gap: 0;
+}
+[data-theme="ios"] .settings-menu-item {
+  border-radius: 0;
+  border: none;
+  border-bottom: 0.5px solid var(--ios-separator);
+  background: transparent;
+}
+[data-theme="ios"] .settings-menu-item:last-child { border-bottom: none; }
+
+/* --- セグメントコントロール: 白いつまみが灰色のトラックの上を動く形 --- */
+[data-theme="ios"] .segments {
+  border: none;
+  border-radius: 10px;
+  padding: 2px;
+}
+[data-theme="ios"] .segment {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: background-color 0.3s var(--ios-spring), box-shadow 0.3s var(--ios-spring), transform 0.3s var(--ios-spring);
+}
+[data-theme="ios"] .segment.active {
+  background: var(--ios-segment-active);
+  color: var(--text-page);
+  font-weight: 600;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+/* --- 選択肢: 白いカードが並ぶ形（正解・不正解の色は既存のまま） --- */
+[data-theme="ios"] .choice-btn:not(.correct):not(.wrong) {
+  background: var(--bg-card);
+  border-color: var(--bg-card-border);
+  color: var(--text-card);
+}
+[data-theme="ios"] .choice-btn:not(.correct):not(.wrong):active { background: var(--ui-surface); }
+[data-theme="ios"] .choice-btn.correct,
+[data-theme="ios"] .choice-btn.wrong { box-shadow: none; }
+
+/* --- 見出し: Large Title --- */
+[data-theme="ios"] .title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+[data-theme="ios"] .home-main-book-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
+
+/* --- 設定画面: 色がベタ書きの部品を iOS の配色に --- */
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark::before { background: var(--ios-separator) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .sheet-close { background: var(--sheet-close-bg) !important; }
+[data-theme="ios"] .settings-section { border: none; }
+[data-theme="ios"] .settings-theme-card,
+[data-theme="ios"] .settings-menu-item {
+  border-color: var(--fd-border);
+  color: var(--fd-text);
+}
+[data-theme="ios"] .settings-theme-card:hover,
+[data-theme="ios"] .settings-menu-item:hover {
+  background: var(--ui-surface);
+  border-color: var(--fd-border);
+}
+[data-theme="ios"] .settings-theme-card.active {
+  background: rgba(0, 122, 255, 0.12);
+  border-color: var(--ios-blue);
+  color: var(--ios-blue);
+  box-shadow: none;
+}
+[data-theme="ios"] .settings-theme-check { color: var(--ios-blue); }
+[data-theme="ios"] .settings-menu-item-arrow { color: var(--text-muted); }
+
+/* === ホームのカード: 灰色背景の上に白いカード（枠線なし）を置く === */
+[data-theme="ios"] .home-message-bar,
+[data-theme="ios"] .home-goal-row {
+  background: var(--bg-card);
+  border: none;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+[data-theme="ios"] .home-weak-bar,
+[data-theme="ios"] .home-other-card,
+[data-theme="ios"] .home-main-book-card {
+  background: var(--bg-card);
+  border: none;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+/* 「他の参考書」は、灰色の枠の中に灰色のカードを入れず、白いカードだけを並べる */
+[data-theme="ios"] .home-others-scroll {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+[data-theme="ios"] .home-streak-badge { color: var(--gold); }
+
+/* === ボタンは 3 種類に統一する ===
+   主ボタン = 青の塗り / 副ボタン = 薄い青の塗り + 青い文字（枠線なし） / 破壊的な操作 = 薄い赤の塗り + 赤い文字 */
+[data-theme="ios"] .home-btn-primary,
+[data-theme="ios"] .home-btn-secondary {
+  min-height: 44px;
+  border: none;
+  border-radius: 999px;
+  font-weight: 600;
+}
+[data-theme="ios"] .home-btn-primary {
+  background: var(--ios-blue);
+  color: #ffffff;
+  box-shadow: none;
+}
+[data-theme="ios"] .home-btn-secondary {
+  background: var(--ios-tint-bg);
+  color: var(--ios-blue);
+}
+[data-theme="ios"] .home-weak-btn,
+[data-theme="ios"] .home-other-btn {
+  border: none;
+  border-radius: 999px;
+  background: var(--ios-tint-bg);
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+[data-theme="ios"] .home-weak-btn { padding: 8px 14px; }
+[data-theme="ios"] .home-other-btn { padding: 6px 12px; }
+[data-theme="ios"] .home-weak-btn.solve {
+  background: var(--ios-red-tint-bg);
+  color: var(--wrong);
+  box-shadow: none;
+}
+[data-theme="ios"] .home-other-btn.primary {
+  background: var(--ios-blue);
+  color: #ffffff;
+}
+/* 「わからない」: 点線の枠をやめ、文字だけのボタンにする */
+[data-theme="ios"] .dont-know-btn {
+  border: none;
+  background: transparent;
+  color: var(--ios-blue);
+  font-weight: 500;
+}
+[data-theme="ios"] .filter-toggle {
+  border: none;
+  border-radius: 999px;
+}
+[data-theme="ios"] .nudge-btn-secondary {
+  border: none;
+  border-radius: 999px;
+  background: var(--ios-tint-bg);
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+[data-theme="ios"] .backup-open-btn {
+  border: none;
+  border-radius: 14px;
+  background: var(--ios-tint-bg);
+  color: var(--ios-blue);
+  font-weight: 600;
+}

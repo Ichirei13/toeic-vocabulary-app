@@ -4,9 +4,13 @@ function setAppTheme(theme) {
   try { localStorage.setItem('toeic_app_theme', theme); } catch(e){}
 }
 // 前回選んだテーマを、画面が描かれる前に反映する（旧キー toeic_preview_theme の記録も引き継ぐ）
+// URL に ?theme=ios を付けると、保存せずにそのテーマで開く（試用リンク用。設定のカードを押したときだけ保存される）
 (function() {
   let saved = 'ink';
   try { saved = localStorage.getItem('toeic_app_theme') || localStorage.getItem('toeic_preview_theme') || 'ink'; } catch(e){}
+  const PREVIEW_THEMES = ['ios'];
+  const asked = new URLSearchParams(location.search).get('theme');
+  if (PREVIEW_THEMES.includes(asked)) saved = asked;
   document.documentElement.setAttribute('data-theme', saved);
 })();
 

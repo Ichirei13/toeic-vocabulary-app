@@ -1,13 +1,14 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れたらキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v4';
+const CACHE = 'toeic-drill-v5';
 const ASSETS = [
   './',
   'index.html',
   'home.css',
   'home.js',
   'css/app.css',
+  'css/theme-ios.css',
   'js/util.js',
   'js/theme-audio.js',
   'js/review-interval.js',
@@ -55,6 +56,7 @@ const ASSETS = [
   'icons/pomeranian-maskable-512.png',
   'icons/pomeranian-apple-touch.png',
   'data/words.js',
+  'data/tips.js',
   'data/grammar.js',
   'manifest.webmanifest',
   'icons/icon-192.png',

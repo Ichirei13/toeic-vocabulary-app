@@ -19,6 +19,13 @@ function posTagHtml(word, showPos) {
   return `<div class="pos-tag" id="pos-tag"${hasVisible ? '' : ' hidden'}>${no}<span id="pos-text"${showPos ? '' : ' hidden'}>${word.p}</span>${statHtml}</div>`;
 }
 
+// 豆知識（data/tips.js）。無い単語は空文字。回答前は答えのヒントになるので隠し、showAnswerDetails で出す
+function tipHtml(word, hidden) {
+  const tip = typeof WORD_TIPS !== 'undefined' && WORD_TIPS[word.w];
+  if (!tip) return '';
+  return `<div class="tip-box" id="tip-box"${hidden ? ' hidden' : ''}><span class="tip-label">💡 豆知識</span>${escapeHtml(tip)}</div>`;
+}
+
 function revealPos() {
   const tag = document.getElementById('pos-tag');
   const text = document.getElementById('pos-text');
@@ -78,6 +85,7 @@ function renderCurrent() {
         ${posTagHtml(word, false)}
         <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w : word.m}</div>
         <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${state.mode === 'e2j' ? word.m : word.w}</div>
+        ${tipHtml(word, true)}
       </div>
     `;
 
@@ -115,6 +123,7 @@ function renderCurrent() {
             <div class="pos-tag">${word.p}</div>
             <div class="meaning-display">${word.m}</div>
             <div style="font-size: 14px; line-height: 1.5; color: ${word.e ? '#555' : 'var(--muted)'}; font-style: ${word.e ? 'normal' : 'italic'};">${word.e || '（例文なし）'}</div>
+            ${tipHtml(word, false)}
           </div>
         </div>
       </div>
@@ -143,6 +152,7 @@ function renderCurrent() {
         </div>
         <div class="type-result" id="type-result" style="display:none;"></div>
         <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}</div>
+        ${tipHtml(word, true)}
       </div>
     `;
     const input = document.getElementById('type-input');
@@ -211,10 +221,15 @@ function answerChoice(isCorrect, selectedBtn) {
   showAnswerDetails();
 }
 
-// 回答後に品詞と例文を見せて次へボタンを出す（4択・タイプ共通）
+// 回答後に品詞・例文・豆知識を見せて次へボタンを出す（4択・タイプ共通）
 function showAnswerDetails() {
   revealPos();
   document.getElementById('example-box').style.display = 'block';
+  const tip = document.getElementById('tip-box');
+  if (tip) {
+    tip.hidden = false;
+    tip.scrollIntoView({ block: 'nearest' }); // カードの高さが足りない画面でも豆知識まで見えるようにする
+  }
   showNextButton(state.reviewIndex === null ? nextWord : reviewNext);
   updateFooter();
 }

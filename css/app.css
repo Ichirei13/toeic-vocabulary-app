@@ -1016,6 +1016,27 @@ body {
   padding-top: 10px;
   display: none;
 }
+/* 回答後の豆知識（語源・TOEIC での出方）。例文の下に小さく出す */
+.tip-box {
+  font-size: 13px;
+  color: var(--text-card-muted);
+  line-height: 1.7;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.1);
+  text-align: left;
+}
+.tip-box[hidden] { display: none; }
+.tip-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+}
+.card-back .tip-box { margin-top: 12px; width: 100%; }
 
 /* Choices */
 .choices {
