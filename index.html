@@ -224,6 +224,7 @@
     5. js/backup-core → gdrive → backup-io → backup-ui   バックアップと Google ドライブ連携
     6. js/keyboard → boot   キー操作の登録 → 起動処理（boot.js は js/ の最後）
     7. home.js   ホーム画面と画面切り替え（currentAppPage はここで定義。それ以前のファイルは typeof で確かめてから使う）
+    8. js/ios-chrome.js   iOS テーマ専用のスワイプ格納（タブバーと演習画面の見出し行）。他のテーマでは何もしない
 -->
 <script src="data/words.js"></script>
 <script src="data/tips.js"></script>
@@ -252,5 +253,6 @@
 <script src="js/keyboard.js"></script>
 <script src="js/boot.js"></script>
 <script src="home.js"></script>
+<script src="js/ios-chrome.js"></script>
 </body>
 </html>

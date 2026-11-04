@@ -399,3 +399,84 @@
   color: var(--ios-blue);
   font-weight: 600;
 }
+
+/* === スワイプで格納（js/ios-chrome.js が .ios-nav-stowed / .ios-top-stowed を付け外しする） === */
+/* 指で動かすので、バーと見出し行ではブラウザの縦スクロールを止める（この範囲はもともとスクロールしない） */
+[data-theme="ios"] .top-page-nav,
+[data-theme="ios"] #practice-page .header,
+[data-theme="ios"] #practice-page #app-type-segments { touch-action: none; -webkit-user-select: none; user-select: none; }
+
+/* 戻すためのつまみ。格納中だけ見える */
+.ios-grabber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.ios-grabber span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--text-muted);
+  opacity: 0.55;
+}
+.ios-grabber-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(4px, env(safe-area-inset-bottom, 0px));
+  margin: 0 auto;
+  width: 140px;
+  height: 22px;
+  z-index: 49;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.ios-grabber-top {
+  display: none;
+  width: 100%;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+/* タブバー: 下へ引っ込める。余白も縮めて、本文の高さを広げる */
+[data-theme="ios"] #app { transition: padding-bottom 0.45s var(--ios-spring); }
+[data-theme="ios"] .top-page-nav {
+  transition: transform 0.45s var(--ios-spring), visibility 0s;
+}
+[data-theme="ios"] #app.ios-nav-stowed { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+[data-theme="ios"] #app.ios-nav-stowed .top-page-nav {
+  transform: translateY(170%);
+  visibility: hidden;
+  transition: transform 0.45s var(--ios-spring), visibility 0s 0.45s;
+}
+[data-theme="ios"] #app.ios-nav-stowed .ios-grabber-bottom {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.2s;
+}
+
+/* 演習画面の見出し行: 上へ引っ込める */
+[data-theme="ios"] #practice-page .header,
+[data-theme="ios"] #practice-page #app-type-segments {
+  max-height: 160px;
+  transition: max-height 0.45s var(--ios-spring), padding 0.45s var(--ios-spring), margin 0.45s var(--ios-spring), opacity 0.25s ease, visibility 0s;
+}
+[data-theme="ios"] #practice-page.ios-top-stowed .header,
+[data-theme="ios"] #practice-page.ios-top-stowed #app-type-segments {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0 !important;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 0.45s var(--ios-spring), padding 0.45s var(--ios-spring), margin 0.45s var(--ios-spring), opacity 0.25s ease, visibility 0s 0.45s;
+}
+[data-theme="ios"] #practice-page.ios-top-stowed .ios-grabber-top { display: flex; }

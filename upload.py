@@ -52,6 +52,7 @@ FILES = [
     "js/backup-ui.js",
     "js/keyboard.js",
     "js/boot.js",
+    "js/ios-chrome.js",
     "data/words.js",
     "data/tips.js",
     "data/grammar.js",
