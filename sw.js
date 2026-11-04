@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れたらキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v6';
+const CACHE = 'toeic-drill-v7';
 const ASSETS = [
   './',
   'index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   'home.js',
   'css/app.css',
   'css/theme-ios.css',
+  'css/theme-ios-wide.css',
   'js/util.js',
   'js/theme-audio.js',
   'js/review-interval.js',
@@ -29,6 +30,7 @@ const ASSETS = [
   'js/keyboard.js',
   'js/boot.js',
   'js/ios-chrome.js',
+  'js/ios-wide.js',
   'src/filter-count.js',
   'src/activity.js',
   'src/review.js',

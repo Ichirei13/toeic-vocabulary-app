@@ -1,0 +1,90 @@
+/* === iOS テーマ × 横画面（幅 1000px 以上）===
+   左のサイドバー | 中央寄せの本文 | 右の絞り込みパネル の 3 列にする（Mac / iPad の横向き向け）。
+   すべて @media (min-width: 1000px) と [data-theme="ios"] の中に閉じてあり、
+   他のテーマと、幅が 1000px に満たない画面には影響しない。css/theme-ios.css の「後」に読み込むこと。 */
+
+@media (min-width: 1000px) {
+  /* --- 全体: 左サイドバー | 本文 | 右の絞り込みパネル（パネルが無いときは幅 0） --- */
+  [data-theme="ios"] #app,
+  [data-theme="ios"] #app.page-home,
+  [data-theme="ios"] #app.page-review {
+    max-width: none; /* home.css の #app.page-home { max-width: 1080px } などを上書き */
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  /* 下のタブバー用の余白は要らない（演習画面の情報行の分も含めて 0） */
+  [data-theme="ios"] #app,
+  [data-theme="ios"] #app.ios-nav-stowed,
+  [data-theme="ios"] #app.ios-nav-stowed:has(#practice-page.active) { padding-bottom: 0; }
+
+  /* --- 左のサイドバー（既存の .top-page-nav を縦に並べ直す） --- */
+  [data-theme="ios"] .top-page-nav,
+  [data-theme="ios"] #app.ios-nav-stowed .top-page-nav {
+    position: static;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 18px;
+    margin: 12px 0 12px 12px;
+    padding: 16px 10px;
+    border-radius: 24px;
+    transform: none;      /* 格納の状態が残っていても、サイドバーは隠さない */
+    visibility: visible;
+  }
+  [data-theme="ios"] .top-page-brand { display: flex; padding: 4px 8px; font-size: 15px; }
+  [data-theme="ios"] .top-page-tabs { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
+  [data-theme="ios"] .top-page-tab {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+  [data-theme="ios"] .top-page-tab::before { width: 22px; height: 22px; }
+  /* 下のつまみは、タブバーを格納した後の戻し口。サイドバーは常に出すので要らない */
+  [data-theme="ios"] .ios-grabber-bottom,
+  [data-theme="ios"] .ios-grabber-footer { display: none !important; }
+
+  /* --- 本文: 読みやすい幅で、サイドバーの右の列の中央に置く --- */
+  [data-theme="ios"] .app-page-view { grid-column: 2; grid-row: 1; justify-self: center; }
+  [data-theme="ios"] #practice-page { max-width: 720px; }
+  [data-theme="ios"] #review-page { max-width: 720px; }
+  [data-theme="ios"] #settings-page { max-width: 640px; }
+  [data-theme="ios"] #home-page { max-width: 1080px; }
+
+  /* --- 右の絞り込みパネル（既存の #filter-drawer = .top-sheet）---
+     上から降りる動きをやめ、本文の右の列に置く。出すかどうかは、#app.ios-filter-panel-open（js/ios-wide.js）か、
+     既存の .open（home の「範囲を指定」などから開かれたとき）。演習画面のときだけ出す。 */
+  [data-theme="ios"] .top-sheet {
+    display: none;
+    position: static;
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    width: 320px;
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px));
+    margin: 12px 12px 12px 0;
+    padding: 18px 16px 16px;
+    border-radius: 24px;
+    border-bottom: none !important;
+    transition: none;
+  }
+  /* home.css の .top-sheet:not(.open) が、閉じたシートを上へ押し出す（transform は !important）。
+     パネルは .open が無くても出すので、同じ強さで打ち消し、操作も効くようにする */
+  [data-theme="ios"] .top-sheet,
+  [data-theme="ios"] .top-sheet:not(.open) {
+    transform: none !important;
+    pointer-events: auto;
+  }
+  [data-theme="ios"] #app.ios-filter-panel-open:has(#practice-page.active) .top-sheet,
+  [data-theme="ios"] #app:has(#practice-page.active) .top-sheet.open { display: flex; }
+  /* 暗幕は、下のシート（苦手リストなど）が開いているときだけ */
+  [data-theme="ios"] #app:not(:has(.bottom-sheet.open)) .sheet-overlay { display: none; }
+}

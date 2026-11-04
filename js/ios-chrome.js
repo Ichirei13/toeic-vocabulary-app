@@ -16,6 +16,7 @@
   if (!app || !nav || !practice) return;
 
   const isIos = () => document.documentElement.getAttribute('data-theme') === 'ios';
+  const wide = window.matchMedia('(min-width: 1000px)'); // 横画面ではタブバーがサイドバーになるので、格納しない
   const read = key => { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } };
   const write = (key, on) => {
     try { if (on) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch (e) {}
@@ -56,6 +57,7 @@
       }
     };
     el.addEventListener('pointerdown', e => {
+      if (follow && wide.matches) return; // follow が true なのはタブバー（.top-page-nav）だけ
       if (!isIos() || pointerId !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
       startX = e.clientX; startY = e.clientY; pointerId = e.pointerId; moved = 0; dragging = false;
       document.addEventListener('pointermove', move);
