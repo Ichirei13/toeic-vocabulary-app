@@ -1,6 +1,7 @@
 // iOS テーマ専用: 下部のタブバーと、演習画面の見出し・モード切替の行を、スワイプで格納する
 // （iOS 26 でスクロール中にバーが引っ込む動きの近似）。
 //   タブバー: バーを下にスワイプ → 画面の下に格納。残ったつまみをタップ／上にスワイプで戻る
+//     （つまみは、演習画面では下の情報行の真上、ほかの画面では画面の最下部に出る）
 //   見出し行: 見出し・モード切替の行を上にスワイプ → 画面の上に格納。つまみをタップ／下にスワイプで戻る
 // 他のテーマには何も足さない（iOS テーマのときだけつまみを作り、別のテーマになったら取り除く）。
 // 格納したかどうかは端末に覚えさせる。見た目の動きは css/theme-ios.css 側。
@@ -85,6 +86,7 @@
 
   let bottomGrabber = null;
   let topGrabber = null;
+  let footerGrabber = null;
 
   // iOS テーマのときだけつまみを作り、ほかのテーマに切り替わったら取り除く
   function sync() {
@@ -93,11 +95,18 @@
       topGrabber = makeGrabber('ios-grabber-top', '見出しを表示', () => setTopStowed(false), 1);
       app.appendChild(bottomGrabber);
       practice.insertBefore(topGrabber, practice.firstChild);
+      // 演習画面では、画面の最下部（ホームバーと重なる）ではなく、下の情報行の真上に出す
+      const footer = practice.querySelector('.footer');
+      if (footer) {
+        footerGrabber = makeGrabber('ios-grabber-footer', 'タブバーを表示', () => setNavStowed(false), -1);
+        practice.insertBefore(footerGrabber, footer);
+      }
       setNavStowed(read(NAV_KEY));
       setTopStowed(read(TOP_KEY));
     } else if (!isIos() && bottomGrabber) {
       bottomGrabber.remove(); topGrabber.remove();
-      bottomGrabber = topGrabber = null;
+      if (footerGrabber) footerGrabber.remove();
+      bottomGrabber = topGrabber = footerGrabber = null;
       app.classList.remove('ios-nav-stowed');
       practice.classList.remove('ios-top-stowed');
     }

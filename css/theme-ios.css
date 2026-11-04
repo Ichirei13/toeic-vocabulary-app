@@ -461,6 +461,27 @@
   transition-delay: 0.2s;
 }
 
+/* 演習画面では、つまみを下の情報行（.footer）の真上に置く。
+   画面の最下部に置くと、ホームバーと重なって操作しづらい。情報行が下の余白（セーフエリア）を持つので、
+   #app 側の余白は 0 にして、本文の高さをさらに広げる。 */
+.ios-grabber-footer {
+  width: 100%;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: height 0.45s var(--ios-spring), opacity 0.2s ease;
+}
+[data-theme="ios"] #app.ios-nav-stowed .ios-grabber-footer {
+  height: 24px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: height 0.45s var(--ios-spring), opacity 0.3s ease 0.2s;
+}
+[data-theme="ios"] #practice-page.active ~ .ios-grabber-bottom { display: none; }
+[data-theme="ios"] #app.ios-nav-stowed:has(#practice-page.active) { padding-bottom: 0; }
+
 /* 演習画面の見出し行: 上へ引っ込める */
 [data-theme="ios"] #practice-page .header,
 [data-theme="ios"] #practice-page #app-type-segments {
@@ -480,3 +501,50 @@
   transition: max-height 0.45s var(--ios-spring), padding 0.45s var(--ios-spring), margin 0.45s var(--ios-spring), opacity 0.25s ease, visibility 0s 0.45s;
 }
 [data-theme="ios"] #practice-page.ios-top-stowed .ios-grabber-top { display: flex; }
+
+/* === 書体: 単語や入力欄の等幅フォントをやめ、ほかの文字と同じ iOS のシステムフォントにそろえる === */
+[data-theme="ios"] .word-display,
+[data-theme="ios"] .type-input,
+[data-theme="ios"] .type-result-yours,
+[data-theme="ios"] .type-result-answer {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Hiragino Sans", system-ui, sans-serif;
+}
+
+/* === 下線をなくす: フッターの「苦手リスト」「ルール・章」は HTML に下線が直書きされているので !important で上書き。
+   iOS のテキストボタンのように、青い文字だけで押せることを示す === */
+[data-theme="ios"] .footer .stats span[onclick] {
+  text-decoration: none !important;
+  color: var(--ios-blue);
+}
+
+/* === 絵文字を線画のアイコンに（SF Symbols 風。ウェブでは本物を使えないので近似）===
+   home.js が <span class="ico ico-◯◯">絵文字</span> と包んでいる。ほかのテーマでは絵文字のまま。
+   iOS テーマでは、絵文字を枠の外に押し出して隠し、同じ枠に文字色（currentColor）の線画を描く。 */
+[data-theme="ios"] .ico {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 0.15em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-indent: 200%;
+  vertical-align: -0.18em;
+  background-color: currentColor;
+  -webkit-mask: var(--ico) center / contain no-repeat;
+  mask: var(--ico) center / contain no-repeat;
+}
+[data-theme="ios"] .ico-pin {
+  --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s-6.5-5.6-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.4 12 21 12 21z'/%3E%3Ccircle cx='12' cy='10.5' r='2.3'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .ico-target {
+  --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Ccircle cx='12' cy='12' r='1' fill='black'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .ico-sliders {
+  --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6h3.6M12.4 6H20M4 12h8.6M17.4 12H20M4 18h2.6M11.4 18H20'/%3E%3Ccircle cx='10' cy='6' r='2.4'/%3E%3Ccircle cx='15' cy='12' r='2.4'/%3E%3Ccircle cx='9' cy='18' r='2.4'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .ico-play {
+  --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 5.5v13l11-6.5z'/%3E%3C/svg%3E");
+}
+[data-theme="ios"] .ico-flame {
+  --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3c.7 3.2 5.2 5.2 5.2 10a5.2 5.2 0 0 1-10.4 0c0-2.1.9-3.5 2.1-4.7.2 1.3.9 2.2 2 2.4C10.8 8.4 10.9 5.6 12 3z'/%3E%3C/svg%3E");
+}

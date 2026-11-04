@@ -848,7 +848,7 @@ function renderHomePage() {
     <section class="home-main-book-card" aria-label="学習中の参考書">
       <div class="home-main-book-top">
         <div>
-          <div class="home-main-book-eyebrow">📌 学習中の参考書（前回解いた1冊）</div>
+          <div class="home-main-book-eyebrow"><span class="ico ico-pin" aria-hidden="true">📌</span> 学習中の参考書（前回解いた1冊）</div>
           <h2 class="home-main-book-title">
             ${bookMascotMarkup(activeBook, 36)}
             <span>${escapeHtml(activeBook.title)}</span>
@@ -874,15 +874,15 @@ function renderHomePage() {
       </div>
 
       <div class="home-preset-summary">
-        <span>🎯 前回のしぼりこみ: <strong>${escapeHtml(presetText)}</strong></span>
+        <span><span class="ico ico-target" aria-hidden="true">🎯</span> 前回のしぼりこみ: <strong>${escapeHtml(presetText)}</strong></span>
       </div>
 
       <div class="home-main-actions">
         <button type="button" class="home-btn-secondary" data-home-action="specify-range" data-kind="${kind}" data-book="${activeBook.id}">
-          🎛️ 範囲を指定
+          <span class="ico ico-sliders" aria-hidden="true">🎛️</span> 範囲を指定
         </button>
         <button type="button" class="home-btn-primary" data-home-action="continue-book" data-kind="${kind}" data-book="${activeBook.id}">
-          ▶️ つづきから
+          <span class="ico ico-play" aria-hidden="true">▶️</span> つづきから
         </button>
       </div>
     </section>
@@ -891,7 +891,7 @@ function renderHomePage() {
     <section class="home-weak-bar" aria-label="苦手問題">
       <div class="home-weak-info">
         <div class="home-weak-title">
-          <span>🔥 苦手問題（${kind === 'grammar' ? '文法' : `単語・${MODE_LABELS[state.mode || 'e2j']}`}）</span>
+          <span><span class="ico ico-flame" aria-hidden="true">🔥</span> 苦手問題（${kind === 'grammar' ? '文法' : `単語・${MODE_LABELS[state.mode || 'e2j']}`}）</span>
         </div>
         <div class="home-weak-sub">
           登録 <strong>${allProg.weak}</strong> ${allProg.unit} ・ 今日の要復習 <strong>${allProg.due}</strong> ${allProg.unit}
