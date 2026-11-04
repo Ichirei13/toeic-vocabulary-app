@@ -425,6 +425,15 @@
   touch-action: manipulation; 
 }
 
+/* 画面は #app（高さ 100dvh）の中で完結していて、ページ全体はスクロールさせない。
+   body を min-height: 100vh にすると、iPhone の Safari では 100vh が見えている高さより大きく、その差の分だけ
+   ページ全体が動いて画面の位置がずれていた。 */
+html {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0; padding: 0;
   background-color: var(--bg-page);
@@ -432,7 +441,8 @@ body {
   color: var(--text-page);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
   font-feature-settings: "palt";
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
