@@ -69,7 +69,7 @@ function renderCurrent() {
   }
 
   if (!review && state.currentIndex >= state.pool.length) {
-    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('vocab') : ''}</div>`;
+    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('vocab') : ''}${typeof completionActionsHtml === 'function' ? completionActionsHtml('vocab') : ''}</div>`;
     choicesDiv.innerHTML = '';
     updateFooter();
     return;

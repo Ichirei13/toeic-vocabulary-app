@@ -165,6 +165,15 @@ function sessionReviewHtml(kind) {
   return text ? `<div class="review-result">${counter.graduated > 0 ? pomeranianImage('celebrate', 'review-mascot', 32) : ''}<span>${escapeHtml(text)}</span></div>` : '';
 }
 
+// 演習の完了画面に足すボタン。苦手が残っていれば「苦手を解く」を主ボタン、「復習ページへ」を副ボタンにし、
+// 苦手が 0 問のときは「復習ページへ」だけを出す
+function completionActionsHtml(kind) {
+  const weak = getBookProgress(kind, 'all').weak;
+  return `<div class="completion-actions">${weak > 0
+    ? `<button type="button" class="completion-btn primary" data-completion-action="solve-weak" data-kind="${kind}">苦手を解く（${weak}）</button>`
+    : ''}<button type="button" class="completion-btn" data-completion-action="open-review">復習ページへ</button></div>`;
+}
+
 // 目標を変える。今日の分にも反映し、昨日以前の日には触れない
 function setDailyGoal(goal) {
   prefs.dailyGoal = StudyCore.normalizeGoal(goal);
@@ -1657,6 +1666,17 @@ function initHomeAndPages() {
         saveHomePresets();
         renderHomePage();
       }
+    });
+  }
+
+  // 完了画面のボタン（苦手を解く・復習ページへ）。完了画面は演習のたびに描き直されるので、親で受ける
+  const quizEl = document.getElementById('quiz-container');
+  if (quizEl) {
+    quizEl.addEventListener('click', e => {
+      const btn = e.target.closest('[data-completion-action]');
+      if (!btn) return;
+      if (btn.dataset.completionAction === 'solve-weak') startWeakDrillFromHome(btn.dataset.kind);
+      else if (btn.dataset.completionAction === 'open-review') switchAppPage('review');
     });
   }
 

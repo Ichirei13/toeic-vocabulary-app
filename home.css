@@ -1360,3 +1360,23 @@
   padding: 0;
 }
 
+
+/* 完了画面：苦手を解く（主）・復習ページへ（副） */
+.completion-actions { display: flex; flex-direction: column; gap: 8px; margin: 14px auto 0; width: 100%; max-width: 260px; }
+.completion-btn {
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--text-card, var(--text-page));
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 11px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.completion-btn:active { transform: scale(0.98); }
+.completion-btn.primary {
+  background: var(--accent-btn-bg, var(--accent));
+  border-color: var(--accent-btn-bg, var(--accent));
+  color: var(--accent-btn-text, #fff);
+}
