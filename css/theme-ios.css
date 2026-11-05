@@ -218,6 +218,9 @@
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 1px 1px rgba(0, 0, 0, 0.04);
 }
 
+/* 絞り込みの選択中のチップ: 青の塗りに白い文字（黒だと読みにくい）。セグメントは白いつまみなので、そのまま */
+[data-theme="ios"] .top-sheet .chip.active { color: #ffffff; }
+
 /* --- 選択肢: 白いカードが並ぶ形（正解・不正解の色は既存のまま） --- */
 [data-theme="ios"] .choice-btn:not(.correct):not(.wrong) {
   background: var(--bg-card);
