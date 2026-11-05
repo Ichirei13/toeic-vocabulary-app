@@ -1,0 +1,264 @@
+/* === 画面の枠（全テーマ共通）===
+   下の浮いたタブバー、スワイプ格納（js/shell-chrome.js）、横画面版（幅 1000px 以上: 左のサイドバー | 本文 | 右の絞り込みパネル）。
+   色は各テーマの変数（--top-sheet-bg など）を使う。iOS のガラスと青は css/theme-ios.css 側。
+   選択子は :root（どのテーマにも当たり、テーマの属性が付く前の読み込み中も効く。詳細度は [data-theme="ios"] と同じ）。
+   読み込み順: home.css → css/app.css → css/shell.css → css/theme-ios.css */
+
+:root {
+  --shell-tab-space: calc(74px + max(8px, env(safe-area-inset-bottom, 0px)));
+  --shell-spring: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* --- 下の浮いたタブバー（既存の .top-page-nav を CSS だけで下に移す） --- */
+:root #app { padding-bottom: var(--shell-tab-space); }
+
+:root .top-page-nav {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  padding: 5px;
+  gap: 0;
+  border: 1px solid var(--top-sheet-border);
+  border-radius: 999px;
+  background: var(--top-sheet-bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+:root .top-page-brand { display: none; }
+:root .top-page-tabs {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 0;
+  gap: 2px;
+}
+:root .top-page-tab {
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px 4px;
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+:root .top-page-tab::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  background-color: currentColor;
+  -webkit-mask: var(--tab-icon) center / contain no-repeat;
+  mask: var(--tab-icon) center / contain no-repeat;
+}
+:root .top-page-tab:active { transform: scale(0.94); }
+/* SF Symbols 風の線画（house / pencil.line / arrow.clockwise / gearshape の近似） */
+:root .top-page-tab[data-page="home"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 11 12 3.8l8.5 7.2'/%3E%3Cpath d='M5.5 9.8V20h13V9.8'/%3E%3Cpath d='M10 20v-5.5h4V20'/%3E%3C/svg%3E");
+}
+:root .top-page-tab[data-page="practice"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20l1-4 11-11a2 2 0 0 1 3 3L8 19l-4 1z'/%3E%3Cpath d='M14 7l3 3'/%3E%3C/svg%3E");
+}
+:root .top-page-tab[data-page="review"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.5-5.8'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/svg%3E");
+}
+:root .top-page-tab[data-page="settings"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6'/%3E%3C/svg%3E");
+}
+
+/* === スワイプで格納（js/shell-chrome.js が .nav-stowed / .top-stowed を付け外しする） === */
+/* 指で動かすので、バーと見出し行ではブラウザの縦スクロールを止める（この範囲はもともとスクロールしない） */
+:root .top-page-nav,
+:root #practice-page .header,
+:root #practice-page #app-type-segments { touch-action: none; -webkit-user-select: none; user-select: none; }
+
+/* 戻すためのつまみ。格納中だけ見える */
+.shell-grabber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+.shell-grabber span {
+  width: 40px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--text-muted);
+  opacity: 0.55;
+}
+.shell-grabber-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(4px, env(safe-area-inset-bottom, 0px));
+  margin: 0 auto;
+  width: 140px;
+  height: 22px;
+  z-index: 49;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.shell-grabber-top {
+  display: none;
+  width: 100%;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+/* タブバー: 下へ引っ込める。余白も縮めて、本文の高さを広げる */
+:root #app { transition: padding-bottom 0.45s var(--shell-spring); }
+:root .top-page-nav {
+  transition: transform 0.45s var(--shell-spring), visibility 0s;
+}
+:root #app.nav-stowed { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
+:root #app.nav-stowed .top-page-nav {
+  transform: translateY(170%);
+  visibility: hidden;
+  transition: transform 0.45s var(--shell-spring), visibility 0s 0.45s;
+}
+:root #app.nav-stowed .shell-grabber-bottom {
+  opacity: 1;
+  pointer-events: auto;
+  transition-delay: 0.2s;
+}
+
+/* 演習画面では、つまみを下の情報行（.footer）の真上に置く。
+   画面の最下部に置くと、ホームバーと重なって操作しづらい。情報行が下の余白（セーフエリア）を持つので、
+   #app 側の余白は 0 にして、本文の高さをさらに広げる。 */
+.shell-grabber-footer {
+  width: 100%;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: height 0.45s var(--shell-spring), opacity 0.2s ease;
+}
+:root #app.nav-stowed .shell-grabber-footer {
+  height: 24px;
+  opacity: 1;
+  pointer-events: auto;
+  transition: height 0.45s var(--shell-spring), opacity 0.3s ease 0.2s;
+}
+:root #practice-page.active ~ .shell-grabber-bottom { display: none; }
+:root #app.nav-stowed:has(#practice-page.active) { padding-bottom: 0; }
+
+/* 演習画面の見出し行: 上へ引っ込める */
+:root #practice-page .header,
+:root #practice-page #app-type-segments {
+  max-height: 160px;
+  transition: max-height 0.45s var(--shell-spring), padding 0.45s var(--shell-spring), margin 0.45s var(--shell-spring), opacity 0.25s ease, visibility 0s;
+}
+:root #practice-page.top-stowed .header,
+:root #practice-page.top-stowed #app-type-segments {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0 !important;
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: max-height 0.45s var(--shell-spring), padding 0.45s var(--shell-spring), margin 0.45s var(--shell-spring), opacity 0.25s ease, visibility 0s 0.45s;
+}
+:root #practice-page.top-stowed .shell-grabber-top { display: flex; }
+
+@media (min-width: 1000px) {
+  /* --- 全体: 左サイドバー | 本文 | 右の絞り込みパネル（パネルが無いときは幅 0） --- */
+  :root #app,
+  :root #app.page-home,
+  :root #app.page-review {
+    max-width: none; /* home.css の #app.page-home { max-width: 1080px } などを上書き */
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  /* 下のタブバー用の余白は要らない（演習画面の情報行の分も含めて 0） */
+  :root #app,
+  :root #app.nav-stowed,
+  :root #app.nav-stowed:has(#practice-page.active) { padding-bottom: 0; }
+
+  /* --- 左のサイドバー（既存の .top-page-nav を縦に並べ直す） --- */
+  :root .top-page-nav,
+  :root #app.nav-stowed .top-page-nav {
+    position: static;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: stretch;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 18px;
+    margin: 12px 0 12px 12px;
+    padding: 16px 10px;
+    border-radius: 24px;
+    transform: none;      /* 格納の状態が残っていても、サイドバーは隠さない */
+    visibility: visible;
+  }
+  :root .top-page-brand { display: flex; padding: 4px 8px; font-size: 15px; }
+  :root .top-page-tabs { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
+  :root .top-page-tab {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+  :root .top-page-tab::before { width: 22px; height: 22px; }
+  /* 下のつまみは、タブバーを格納した後の戻し口。サイドバーは常に出すので要らない */
+  :root .shell-grabber-bottom,
+  :root .shell-grabber-footer { display: none !important; }
+
+  /* --- 本文: 読みやすい幅で、サイドバーの右の列の中央に置く --- */
+  :root .app-page-view { grid-column: 2; grid-row: 1; justify-self: center; }
+  :root #practice-page { max-width: 640px; }
+  :root #review-page { max-width: 720px; }
+  :root #settings-page { max-width: 640px; }
+  :root #home-page { max-width: 1080px; }
+
+  /* --- 右の絞り込みパネル（既存の #filter-drawer = .top-sheet）---
+     上から降りる動きをやめ、本文の右の列に置く。出すかどうかは、#app.filter-panel-open（js/wide-layout.js）か、
+     既存の .open（home の「範囲を指定」などから開かれたとき）。演習画面のときだけ出す。 */
+  :root .top-sheet {
+    display: none;
+    position: static;
+    grid-column: 3;
+    grid-row: 1;
+    align-self: stretch; /* サイドバーと同じく、画面の高さいっぱいに広げる（中身が多ければパネルの中でスクロール） */
+    width: clamp(320px, 30vw, 380px); /* 広い画面ほど広く。1000px では 320px にして、問題の幅を残す */
+    max-height: none;    /* 元の .top-sheet の max-height: 85vh を外す */
+    margin: 12px 12px 12px 0;
+    padding: 24px 22px 22px;
+    gap: 16px;
+    border-radius: 24px;
+    border: 1px solid var(--top-sheet-border);
+    border-bottom: 1px solid var(--top-sheet-border) !important; /* 元の .top-sheet の border-bottom: 2px !important を打ち消す */
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+    transition: none;
+  }
+  :root .top-sheet .filter-section-group { margin-bottom: 8px; }
+  /* 「この条件で解く」（件数つき）は、パネルの中身をスクロールしても、下に残す */
+  :root .top-sheet .filter-apply-btn { position: sticky; bottom: 0; margin-top: auto; flex-shrink: 0; }
+  /* 日付・品詞などのチップは、横スクロールではなく折り返して全部見せる */
+  :root .top-sheet .filter-row { flex-wrap: wrap; overflow-x: visible; }
+  /* home.css の .top-sheet:not(.open) が、閉じたシートを上へ押し出す（transform は !important）。
+     パネルは .open が無くても出すので、同じ強さで打ち消し、操作も効くようにする */
+  :root .top-sheet,
+  :root .top-sheet:not(.open) {
+    transform: none !important;
+    pointer-events: auto;
+  }
+  :root #app.filter-panel-open:has(#practice-page.active) .top-sheet,
+  :root #app:has(#practice-page.active) .top-sheet.open { display: flex; }
+  /* 暗幕は、下のシート（苦手リストなど）が開いているときだけ */
+  :root #app:not(:has(.bottom-sheet.open)) .sheet-overlay { display: none; }
+}

@@ -12,7 +12,6 @@
   --ios-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.14), 0 1px 3px rgba(0, 0, 0, 0.08);
   --ios-separator: rgba(60, 60, 67, 0.18);
   --ios-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --ios-tab-space: calc(74px + max(8px, env(safe-area-inset-bottom, 0px)));
 
   --bg-page: #f2f2f7;
   --bg-page-gradient: linear-gradient(180deg, #f2f2f7 0%, #f2f2f7 100%);
@@ -123,19 +122,9 @@
 }
 [data-theme="ios"] button:active { transform: scale(0.97); opacity: 0.85; }
 
-/* --- 下部の浮遊ガラスタブバー（既存の .top-page-nav を CSS だけで下に移す） --- */
-[data-theme="ios"] #app { padding-bottom: var(--ios-tab-space); }
-
+/* --- 下部ナビ: ガラスの質感と青い選択色（位置・形・タブの並びは css/shell.css） --- */
 [data-theme="ios"] .top-page-nav {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: max(8px, env(safe-area-inset-bottom, 0px));
-  z-index: 50;
-  padding: 5px;
-  gap: 0;
   border: none;
-  border-radius: 999px;
   background: var(--ios-glass);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
@@ -144,54 +133,11 @@
     inset 0 1px 0 var(--ios-glass-edge-top),
     inset 0 -1px 0 var(--ios-glass-edge-bottom);
 }
-[data-theme="ios"] .top-page-brand { display: none; }
-[data-theme="ios"] .top-page-tabs {
-  flex: 1;
-  background: transparent;
-  border: none;
-  padding: 0;
-  gap: 2px;
-}
-[data-theme="ios"] .top-page-tab {
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-height: 52px;
-  padding: 6px 4px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-}
-[data-theme="ios"] .top-page-tab::before {
-  content: '';
-  width: 24px;
-  height: 24px;
-  background-color: currentColor;
-  -webkit-mask: var(--tab-icon) center / contain no-repeat;
-  mask: var(--tab-icon) center / contain no-repeat;
-}
 [data-theme="ios"] .top-page-tab.active {
   background: var(--ui-surface);
   color: var(--ios-blue);
   font-weight: 600;
   box-shadow: inset 0 1px 0 var(--ios-glass-edge-top), inset 0 -1px 0 var(--ios-glass-edge-bottom);
-}
-[data-theme="ios"] .top-page-tab:active { transform: scale(0.94); }
-/* SF Symbols 風の線画（house / pencil.line / arrow.clockwise / gearshape の近似） */
-[data-theme="ios"] .top-page-tab[data-page="home"] {
-  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 11 12 3.8l8.5 7.2'/%3E%3Cpath d='M5.5 9.8V20h13V9.8'/%3E%3Cpath d='M10 20v-5.5h4V20'/%3E%3C/svg%3E");
-}
-[data-theme="ios"] .top-page-tab[data-page="practice"] {
-  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20l1-4 11-11a2 2 0 0 1 3 3L8 19l-4 1z'/%3E%3Cpath d='M14 7l3 3'/%3E%3C/svg%3E");
-}
-[data-theme="ios"] .top-page-tab[data-page="review"] {
-  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.5-5.8'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/svg%3E");
-}
-[data-theme="ios"] .top-page-tab[data-page="settings"] {
-  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6'/%3E%3C/svg%3E");
 }
 
 /* --- シート: ガラス + つまみ --- */
@@ -400,108 +346,6 @@
   font-weight: 600;
 }
 
-/* === スワイプで格納（js/ios-chrome.js が .ios-nav-stowed / .ios-top-stowed を付け外しする） === */
-/* 指で動かすので、バーと見出し行ではブラウザの縦スクロールを止める（この範囲はもともとスクロールしない） */
-[data-theme="ios"] .top-page-nav,
-[data-theme="ios"] #practice-page .header,
-[data-theme="ios"] #practice-page #app-type-segments { touch-action: none; -webkit-user-select: none; user-select: none; }
-
-/* 戻すためのつまみ。格納中だけ見える */
-.ios-grabber {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-  touch-action: none;
-}
-.ios-grabber span {
-  width: 40px;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--text-muted);
-  opacity: 0.55;
-}
-.ios-grabber-bottom {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: max(4px, env(safe-area-inset-bottom, 0px));
-  margin: 0 auto;
-  width: 140px;
-  height: 22px;
-  z-index: 49;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-.ios-grabber-top {
-  display: none;
-  width: 100%;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-/* タブバー: 下へ引っ込める。余白も縮めて、本文の高さを広げる */
-[data-theme="ios"] #app { transition: padding-bottom 0.45s var(--ios-spring); }
-[data-theme="ios"] .top-page-nav {
-  transition: transform 0.45s var(--ios-spring), visibility 0s;
-}
-[data-theme="ios"] #app.ios-nav-stowed { padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)); }
-[data-theme="ios"] #app.ios-nav-stowed .top-page-nav {
-  transform: translateY(170%);
-  visibility: hidden;
-  transition: transform 0.45s var(--ios-spring), visibility 0s 0.45s;
-}
-[data-theme="ios"] #app.ios-nav-stowed .ios-grabber-bottom {
-  opacity: 1;
-  pointer-events: auto;
-  transition-delay: 0.2s;
-}
-
-/* 演習画面では、つまみを下の情報行（.footer）の真上に置く。
-   画面の最下部に置くと、ホームバーと重なって操作しづらい。情報行が下の余白（セーフエリア）を持つので、
-   #app 側の余白は 0 にして、本文の高さをさらに広げる。 */
-.ios-grabber-footer {
-  width: 100%;
-  height: 0;
-  opacity: 0;
-  overflow: hidden;
-  flex-shrink: 0;
-  pointer-events: none;
-  transition: height 0.45s var(--ios-spring), opacity 0.2s ease;
-}
-[data-theme="ios"] #app.ios-nav-stowed .ios-grabber-footer {
-  height: 24px;
-  opacity: 1;
-  pointer-events: auto;
-  transition: height 0.45s var(--ios-spring), opacity 0.3s ease 0.2s;
-}
-[data-theme="ios"] #practice-page.active ~ .ios-grabber-bottom { display: none; }
-[data-theme="ios"] #app.ios-nav-stowed:has(#practice-page.active) { padding-bottom: 0; }
-
-/* 演習画面の見出し行: 上へ引っ込める */
-[data-theme="ios"] #practice-page .header,
-[data-theme="ios"] #practice-page #app-type-segments {
-  max-height: 160px;
-  transition: max-height 0.45s var(--ios-spring), padding 0.45s var(--ios-spring), margin 0.45s var(--ios-spring), opacity 0.25s ease, visibility 0s;
-}
-[data-theme="ios"] #practice-page.ios-top-stowed .header,
-[data-theme="ios"] #practice-page.ios-top-stowed #app-type-segments {
-  max-height: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  margin-top: 0;
-  margin-bottom: 0 !important;
-  overflow: hidden;
-  opacity: 0;
-  visibility: hidden;
-  transition: max-height 0.45s var(--ios-spring), padding 0.45s var(--ios-spring), margin 0.45s var(--ios-spring), opacity 0.25s ease, visibility 0s 0.45s;
-}
-[data-theme="ios"] #practice-page.ios-top-stowed .ios-grabber-top { display: flex; }
-
 /* === 書体: 単語や入力欄の等幅フォントをやめ、ほかの文字と同じ iOS のシステムフォントにそろえる === */
 [data-theme="ios"] .word-display,
 [data-theme="ios"] .type-input,
@@ -547,4 +391,9 @@
 }
 [data-theme="ios"] .ico-flame {
   --ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3c.7 3.2 5.2 5.2 5.2 10a5.2 5.2 0 0 1-10.4 0c0-2.1.9-3.5 2.1-4.7.2 1.3.9 2.2 2 2.4C10.8 8.4 10.9 5.6 12 3z'/%3E%3C/svg%3E");
+}
+
+/* === 横画面（幅 1000px 以上）: 右の絞り込みパネルは、iOS では枠なし（ガラスの影は上の .top-sheet の指定） === */
+@media (min-width: 1000px) {
+  [data-theme="ios"] .top-sheet { border: none; border-bottom: none !important; }
 }
