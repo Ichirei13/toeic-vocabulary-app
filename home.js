@@ -36,6 +36,17 @@ const STUDY_CORE_FALLBACK = {
   createSessionReview: () => ({ reviewed: 0, graduated: 0 }),
   noteReviewAnswer: counter => counter,
   reviewSummaryText: () => '',
+  POMO_DEFAULT_SETTINGS: { work: 25, brk: 5, long: 15, every: 4, auto: true, subject: '' },
+  POMO_RANGES: { work: { min: 1, max: 120 }, brk: { min: 1, max: 60 }, long: { min: 1, max: 60 }, every: { min: 2, max: 8 } },
+  clampPomoInt: () => null,
+  normalizePomoSettings: () => ({ work: 25, brk: 5, long: 15, every: 4, auto: true, subject: '' }),
+  pomoSettingsPatch: () => null,
+  pomoDurationSec: mode => (mode === 'long' ? 900 : mode === 'short' ? 300 : 1500),
+  nextPomoPhase: (mode, cycle) => ({ mode: mode === 'work' ? 'short' : 'work', cycle: mode === 'work' ? cycle + 1 : cycle }),
+  formatPomoTime: sec => { const s = Math.max(0, Math.floor(Number(sec) || 0)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; },
+  recordPomoSession: log => log || {},
+  sanitizePomoLog: () => { throw new Error('src/pomodoro.js を読み込めていません'); },
+  mergePomoLog: () => { throw new Error('src/pomodoro.js を読み込めていません'); },
 };
 window.StudyCore = Object.assign({}, STUDY_CORE_FALLBACK, window.StudyCore || {});
 
@@ -131,6 +142,7 @@ function savePrefs() {
 function reloadHomeExtras() {
   dailyActivity = loadDailyActivity();
   prefs = loadPrefs();
+  if (typeof reloadPomoExtras === 'function') reloadPomoExtras();
   if (currentAppPage === 'home') renderHomePage();
 }
 
@@ -474,7 +486,7 @@ const WEAK_FILTER_LABELS = {
   due: '要復習のみ',
 };
 
-const APP_PAGES = ['home', 'practice', 'review', 'settings'];
+const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings'];
 let currentAppPage = 'home'; // APP_PAGES のどれか
 let homeCategory = 'vocab';  // ホーム画面上の切り替えスイッチ ('vocab' | 'grammar')
 let pendingFilterJumpToPractice = false;
@@ -1191,6 +1203,7 @@ function switchAppPage(page, options = {}) {
   if (appEl) {
     appEl.classList.toggle('page-home', page === 'home');
     appEl.classList.toggle('page-review', page === 'review');
+    appEl.classList.toggle('page-timer', page === 'timer');
   }
 
   // シートが開いていれば閉じる（オプションで維持指定がない場合）
@@ -1219,11 +1232,15 @@ function switchAppPage(page, options = {}) {
     renderHomePage();
   } else if (page === 'review') {
     renderReviewPage();
+  } else if (page === 'timer') {
+    if (typeof renderTimerPage === 'function') renderTimerPage();
   } else if (page === 'settings') {
     renderSettingsPage();
   } else if (page === 'practice') {
     checkFilterNudge();
   }
+
+  if (typeof syncPomoMiniPill === 'function') syncPomoMiniPill();
 
   // 演習画面にいるときだけ数える（戻ってきたときは、未回答の問題の経過時間を続きから表示する）
   syncLiveTimer();

@@ -17,6 +17,10 @@ function buildBackup({ forDrive = false } = {}) {
   if (!forDrive) {
     data.activity = loadJSON(EXTRA_KEYS.activity, {});
     data.prefs = loadJSON(EXTRA_KEYS.prefs, {});
+    const rawPomoLog = loadJSON(EXTRA_KEYS.pomoLog, null);
+    if (rawPomoLog !== null) data.pomoLog = rawPomoLog;
+    const rawPomoSettings = loadJSON(EXTRA_KEYS.pomoSettings, null);
+    if (rawPomoSettings !== null) data.pomoSettings = rawPomoSettings;
   }
   return {
     app: BACKUP_APP_ID,
@@ -175,6 +179,8 @@ function parseBackup(text) {
   if (d.session !== undefined && !isPlainObject(d.session)) return fail('出題の続きの記録の形が正しくありません。');
   if (d.activity !== undefined && !isPlainObject(d.activity)) return fail('日別の学習記録の形が正しくありません。');
   if (d.prefs !== undefined && !isPlainObject(d.prefs)) return fail('表示設定の形が正しくありません。');
+  if (d.pomoLog !== undefined && !isPlainObject(d.pomoLog)) return fail('ポモドーロの記録の形が正しくありません。');
+  if (d.pomoSettings !== undefined && !isPlainObject(d.pomoSettings)) return fail('ポモドーロ設定の形が正しくありません。');
 
   const words = sanitizeWeakByMode(d.weakWords);
   const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
@@ -184,6 +190,8 @@ function parseBackup(text) {
   const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
   const weakDeleted = sanitizeWeakDeleted(d.weakDeleted);
   const activity = d.activity === undefined ? null : StudyCore.sanitizeActivity(d.activity);
+  const pomoLog = d.pomoLog === undefined ? null : StudyCore.sanitizePomoLog(d.pomoLog);
+  const pomoSettings = d.pomoSettings === undefined ? undefined : (StudyCore.pomoSettingsPatch(d.pomoSettings) || {});
   const knownWords = new Set(RAW_WORDS.map(w => w.w));
   const weakWordKeys = new Set(VOCAB_MODES.flatMap(m => Object.keys(words.data[m])));
   const exportedAt = Date.parse(backup.exportedAt);
@@ -212,8 +220,10 @@ function parseBackup(text) {
         ...(StudyCore.paceTargetPatch(d.prefs.paceTarget) ? { paceTarget: StudyCore.paceTargetPatch(d.prefs.paceTarget) } : {}),
         ...(typeof d.prefs.liveTimer === 'boolean' ? { liveTimer: d.prefs.liveTimer } : {}),
       },
+      pomoLog: pomoLog ? pomoLog.log : undefined,
+      pomoSettings,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration + (activity ? activity.invalid : 0),
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration + (activity ? activity.invalid : 0) + (pomoLog ? pomoLog.invalid : 0),
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: [...new Set([...Object.keys(grammar.data).map(Number), ...seenGrammar.data])].filter(id => !GRAMMAR_BY_ID.has(id)).length,
@@ -353,6 +363,16 @@ function runRestore() {
       mergedPrefs.paceTarget = isOverwrite ? { ...curPrefs.paceTarget, ...extras.prefs.paceTarget } : { ...extras.prefs.paceTarget, ...curPrefs.paceTarget };
     }
     rawByKey[EXTRA_KEYS.prefs] = JSON.stringify(mergedPrefs);
+  }
+  if (extras.pomoLog !== undefined) {
+    const curPomoLog = StudyCore.sanitizePomoLog(loadJSON(EXTRA_KEYS.pomoLog, {})).log;
+    const mergedPomoLog = isOverwrite ? extras.pomoLog : StudyCore.mergePomoLog(curPomoLog, extras.pomoLog);
+    rawByKey[EXTRA_KEYS.pomoLog] = JSON.stringify(mergedPomoLog);
+  }
+  if (extras.pomoSettings !== undefined) {
+    const curPomoSet = loadJSON(EXTRA_KEYS.pomoSettings, {});
+    const mergedPomoSet = isOverwrite ? { ...curPomoSet, ...extras.pomoSettings } : { ...extras.pomoSettings, ...curPomoSet };
+    rawByKey[EXTRA_KEYS.pomoSettings] = JSON.stringify(mergedPomoSet);
   }
   try {
     replaceRecords(rawByKey, true, isOverwrite ? '上書き復元' : '統合復元');

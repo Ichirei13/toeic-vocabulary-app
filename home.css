@@ -1022,3 +1022,320 @@
 @media (prefers-reduced-motion: reduce) {
   #practice-page.has-feedback .card { transition: none; }
 }
+
+/* ==================== ポモドーロタイマー（集中画面 & Dynamic Island 風ミニピル） ==================== */
+#timer-page {
+  padding: 10px 20px max(18px, env(safe-area-inset-bottom, 18px));
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  --pomo-active: var(--accent);
+}
+#timer-page.is-break {
+  --pomo-active: var(--correct);
+}
+.pomo-page-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+  width: 100%;
+  margin: 0 auto;
+}
+.pomo-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 2px;
+}
+.pomo-page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-page);
+}
+.pomo-today-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.pomo-phase-segments .segment {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+}
+
+.pomo-card {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 20px;
+  padding: 18px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.pomo-mode-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--pomo-active);
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.12);
+}
+.pomo-ring-wrap {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pomo-ring {
+  transform: rotate(-90deg);
+  display: block;
+}
+.pomo-ring-bg {
+  stroke: rgba(128, 128, 128, 0.16);
+}
+.pomo-ring-fg {
+  stroke: var(--pomo-active);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.35s linear, stroke 0.35s ease;
+}
+.pomo-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.pomo-clock {
+  font-size: 52px;
+  font-weight: 300;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-page);
+}
+.pomo-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 10px;
+}
+.pomo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(128, 128, 128, 0.28);
+  transition: background-color 0.25s ease, transform 0.25s ease;
+}
+.pomo-dot.fill {
+  background: var(--pomo-active);
+  transform: scale(1.1);
+}
+
+.pomo-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  margin-top: 2px;
+}
+.pomo-btn-main,
+.pomo-btn-sub {
+  font-family: inherit;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 700;
+  transition: transform 0.15s ease, opacity 0.2s ease, background-color 0.2s ease;
+}
+.pomo-btn-main {
+  flex: 1.8;
+  background: var(--pomo-active);
+  color: #ffffff;
+  padding: 10px 18px;
+}
+.pomo-btn-sub {
+  flex: 1;
+  background: rgba(128, 128, 128, 0.16);
+  color: var(--text-page);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 12px;
+}
+.pomo-pip-btn {
+  margin-top: 2px;
+  width: 100%;
+  max-width: 340px;
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.pomo-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pomo-sec-title {
+  margin: 4px 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+.pomo-grouped-list {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.pomo-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--ui-border);
+  font-size: 13.5px;
+  color: var(--text-page);
+}
+.pomo-list-row:last-child {
+  border-bottom: none;
+}
+.pomo-list-row label {
+  flex: 1;
+  color: var(--text-page);
+}
+.pomo-num-input,
+.pomo-text-input {
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--text-page);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  text-align: right;
+}
+.pomo-num-input {
+  width: 74px;
+  font-variant-numeric: tabular-nums;
+}
+.pomo-text-input {
+  width: 170px;
+  font-size: 13px;
+}
+.pomo-toggle-row {
+  cursor: pointer;
+}
+.pomo-toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pomo-active);
+}
+.pomo-sub-hint {
+  margin: 2px 6px 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+/* Dynamic Island 風ミニピル（他ページでの常駐表示） */
+.pomo-mini-pill {
+  position: absolute;
+  top: max(6px, env(safe-area-inset-top, 6px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 55;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 999px;
+  background: rgba(24, 24, 27, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.32);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
+}
+.pomo-mini-pill[hidden] {
+  display: none !important;
+}
+.pomo-mini-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  padding: 2px 4px 2px 0;
+  cursor: pointer;
+}
+.pomo-mini-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0a84ff;
+  box-shadow: 0 0 8px rgba(10, 132, 255, 0.8);
+}
+.pomo-mini-pill.is-break .pomo-mini-dot {
+  background: #30d158;
+  box-shadow: 0 0 8px rgba(48, 209, 88, 0.8);
+}
+.pomo-mini-pill.is-paused .pomo-mini-dot {
+  opacity: 0.55;
+  box-shadow: none;
+}
+.pomo-mini-phase {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.88;
+}
+.pomo-mini-clock {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.pomo-mini-toggle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+

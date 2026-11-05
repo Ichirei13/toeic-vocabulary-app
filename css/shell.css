@@ -63,6 +63,9 @@
 :root .top-page-tab[data-page="review"] {
   --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 12a8 8 0 1 1-2.5-5.8'/%3E%3Cpath d='M20 4v5h-5'/%3E%3C/svg%3E");
 }
+:root .top-page-tab[data-page="timer"] {
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='13' r='8'/%3E%3Cpath d='M12 9v4l2.5 2'/%3E%3Cpath d='M9.5 3h5'/%3E%3Cpath d='M12 3v2'/%3E%3C/svg%3E");
+}
 :root .top-page-tab[data-page="settings"] {
   --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6'/%3E%3C/svg%3E");
 }
@@ -190,7 +193,8 @@
   /* --- 全体: 左サイドバー | 本文 | 右の絞り込みパネル（パネルが無いときは幅 0） --- */
   :root #app,
   :root #app.page-home,
-  :root #app.page-review {
+  :root #app.page-review,
+  :root #app.page-timer {
     max-width: none; /* home.css の #app.page-home { max-width: 1080px } などを上書き */
     display: grid;
     grid-template-columns: 240px minmax(0, 1fr) auto;
@@ -239,6 +243,7 @@
   :root .app-page-view { grid-column: 2; grid-row: 1; justify-self: center; }
   :root #practice-page { max-width: 640px; }
   :root #review-page { max-width: 720px; }
+  :root #timer-page { max-width: 640px; }
   :root #settings-page { max-width: 640px; }
   :root #home-page { max-width: 1080px; }
 

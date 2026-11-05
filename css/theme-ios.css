@@ -400,3 +400,60 @@
 @media (min-width: 1000px) {
   [data-theme="ios"] .top-sheet { border: none; border-bottom: none !important; }
 }
+
+/* === ポモドーロタイマー（集中画面 & Dynamic Island 風ミニピル）の iOS スタイル === */
+[data-theme="ios"] #timer-page {
+  --pomo-active: var(--ios-blue);
+}
+[data-theme="ios"] #timer-page.is-break {
+  --pomo-active: var(--correct);
+}
+[data-theme="ios"] .pomo-card {
+  background: var(--bg-card);
+  border: none;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+[data-theme="ios"] .pomo-mode-badge {
+  background: var(--ios-tint-bg);
+  color: var(--pomo-active);
+}
+[data-theme="ios"] #timer-page.is-break .pomo-mode-badge {
+  background: rgba(52, 199, 89, 0.14);
+}
+[data-theme="ios"] .pomo-clock {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Hiragino Sans", system-ui, sans-serif;
+  font-weight: 300;
+}
+[data-theme="ios"] .pomo-btn-main {
+  background: var(--pomo-active);
+  color: #ffffff;
+  box-shadow: none;
+  font-weight: 600;
+}
+[data-theme="ios"] .pomo-btn-sub,
+[data-theme="ios"] .pomo-pip-btn {
+  border: none;
+  background: var(--ios-tint-bg);
+  color: var(--ios-blue);
+  font-weight: 600;
+}
+[data-theme="ios"] .pomo-grouped-list {
+  background: var(--bg-card);
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+[data-theme="ios"] .pomo-list-row {
+  border-bottom: 0.5px solid var(--ios-separator);
+}
+[data-theme="ios"] .pomo-list-row:last-child {
+  border-bottom: none;
+}
+[data-theme="ios"] .pomo-num-input,
+[data-theme="ios"] .pomo-text-input {
+  border: none;
+  background: var(--ui-surface);
+  border-radius: 8px;
+}
+

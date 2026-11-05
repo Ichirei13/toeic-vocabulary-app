@@ -79,10 +79,15 @@ const RECORD_KEYS = {
   session: SESSION_KEY,
 };
 const RECORD_STORAGE_KEYS = Object.values(RECORD_KEYS);
-// 日別の学習記録と表示設定。バックアップと復元の取り消しには含めるが、
+// 日別の学習記録・表示設定・ポモドーロタイマー記録。バックアップと復元の取り消しには含めるが、
 // Google ドライブ同期の対象（RECORD_KEYS / RECORD_STORAGE_KEYS）には含めない。
-// 値は home.js の DAILY_ACTIVITY_KEY / PREFS_KEY と同じ文字列
-const EXTRA_KEYS = { activity: 'toeic_daily_activity_v1', prefs: 'toeic_prefs_v1' };
+// 値は home.js の DAILY_ACTIVITY_KEY / PREFS_KEY、pomodoro.js の POMO_LOG_KEY / POMO_SETTINGS_KEY と同じ文字列
+const EXTRA_KEYS = {
+  activity: 'toeic_daily_activity_v1',
+  prefs: 'toeic_prefs_v1',
+  pomoLog: 'toeic_pomo_log_v1',
+  pomoSettings: 'toeic_pomo_settings_v1',
+};
 const EXTRA_STORAGE_KEYS = Object.values(EXTRA_KEYS);
 const LOCAL_BACKUP_KEYS = [...RECORD_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS];
 const BACKUP_UNDO_KEY = 'toeic_backup_undo';     // 直前の復元を取り消すための、復元する前の記録（1回分）
