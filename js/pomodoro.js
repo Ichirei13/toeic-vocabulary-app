@@ -345,6 +345,107 @@ function updatePomoPip() {
 }
 
 // ---------- Dynamic Island 風ミニピル（他ページでの常駐表示） ----------
+// ピルはドラッグで好きな場所に動かせる。位置は画面に対する中心の割合（0〜1）で、この端末だけに保存する
+// （画面の大きさや向きが変わっても、はみ出さない位置に補正される。バックアップには含めない）。
+const POMO_PILL_KEY = 'toeic_pomo_pill_v1';
+const POMO_PILL_DRAG_PX = 6; // これ未満の動きはタップとして扱う
+const POMO_PILL_MARGIN = 4;
+let pomoPillPos = loadPomoPillPos();
+
+function loadPomoPillPos() {
+  const raw = loadJSON(POMO_PILL_KEY, null);
+  if (!raw || !Number.isFinite(raw.x) || !Number.isFinite(raw.y)) return null;
+  return { x: Math.min(1, Math.max(0, raw.x)), y: Math.min(1, Math.max(0, raw.y)) };
+}
+
+function applyPomoPillPos(pill) {
+  if (!pill) return;
+  if (!pomoPillPos) {
+    pill.style.left = pill.style.top = pill.style.transform = '';
+    return;
+  }
+  if (pill.hidden) return;
+  const probe = pill.querySelector('.pomo-safe-probe');
+  const cs = probe ? getComputedStyle(probe) : null;
+  const safeTop = cs ? parseFloat(cs.paddingTop) || 0 : 0;
+  const safeBottom = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
+  const r = pill.getBoundingClientRect();
+  const vw = document.documentElement.clientWidth;
+  const vh = window.innerHeight;
+  const minLeft = POMO_PILL_MARGIN;
+  const minTop = Math.max(POMO_PILL_MARGIN, safeTop);
+  const left = Math.max(minLeft, Math.min(pomoPillPos.x * vw - r.width / 2, vw - r.width - POMO_PILL_MARGIN));
+  const top = Math.max(minTop, Math.min(pomoPillPos.y * vh - r.height / 2, vh - r.height - Math.max(POMO_PILL_MARGIN, safeBottom)));
+  pill.style.left = `${left}px`;
+  pill.style.top = `${top}px`;
+  pill.style.transform = 'none';
+}
+
+function resetPomoPillPos() {
+  pomoPillPos = null;
+  try { localStorage.removeItem(POMO_PILL_KEY); } catch (e) {}
+  applyPomoPillPos(document.getElementById('pomo-mini-pill'));
+}
+
+function bindPomoPillDrag(pill) {
+  let drag = null;
+  let suppressClick = false;
+
+  // 動き・指を離す操作は、ピルの外に出ても拾えるよう画面全体（window）で受ける
+  const onMove = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (!drag.moved) {
+      if (Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < POMO_PILL_DRAG_PX) return;
+      drag.moved = true;
+      pill.classList.add('is-dragging');
+    }
+    e.preventDefault();
+    const size = pill.getBoundingClientRect();
+    const cx = e.clientX - drag.offX + size.width / 2;
+    const cy = e.clientY - drag.offY + size.height / 2;
+    pomoPillPos = { x: cx / document.documentElement.clientWidth, y: cy / window.innerHeight };
+    applyPomoPillPos(pill);
+    // 画面の端で補正された位置を保存する
+    const r = pill.getBoundingClientRect();
+    pomoPillPos = {
+      x: Math.min(1, Math.max(0, (r.left + r.width / 2) / document.documentElement.clientWidth)),
+      y: Math.min(1, Math.max(0, (r.top + r.height / 2) / window.innerHeight)),
+    };
+  };
+
+  const end = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    if (drag.moved) {
+      suppressClick = true; // ドラッグの指を離したときに、ボタンが押されたことにしない（次の操作を始めるときに解除する）
+      setTimeout(() => { suppressClick = false; }, 100);
+      pill.classList.remove('is-dragging');
+      saveJSON(POMO_PILL_KEY, pomoPillPos);
+    }
+    drag = null;
+  };
+
+  pill.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    suppressClick = false;
+    const r = pill.getBoundingClientRect();
+    drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, offX: e.clientX - r.left, offY: e.clientY - r.top, moved: false };
+    window.addEventListener('pointermove', onMove, { passive: false });
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  });
+  pill.addEventListener('click', e => {
+    if (suppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+}
+
+window.addEventListener('resize', () => applyPomoPillPos(document.getElementById('pomo-mini-pill')));
+
 function ensurePomoMiniPill() {
   let pill = document.getElementById('pomo-mini-pill');
   if (pill) return pill;
@@ -363,7 +464,9 @@ function ensurePomoMiniPill() {
       <span class="pomo-mini-clock" id="pomo-mini-clock">25:00</span>
     </button>
     <button type="button" class="pomo-mini-toggle" id="pomo-mini-toggle" aria-label="一時停止・再開">⏸</button>
+    <span class="pomo-safe-probe" aria-hidden="true"></span>
   `;
+  bindPomoPillDrag(pill);
   pill.querySelector('#pomo-mini-open').addEventListener('click', () => {
     if (typeof switchAppPage === 'function') switchAppPage('timer');
   });
@@ -395,6 +498,7 @@ function syncPomoMiniPill() {
     toggleEl.textContent = pomoState.running ? '⏸' : '▶';
     toggleEl.setAttribute('aria-label', pomoState.running ? '一時停止' : '再開');
   }
+  applyPomoPillPos(pill); // 文字の幅が変わっても、画面からはみ出さないようにする
 }
 
 // ---------- 専用ページ (#timer-page) の描画と部分更新 ----------
@@ -546,6 +650,8 @@ function renderTimerPage() {
           </label>
         </div>
         <p class="pomo-sub-hint" id="pomo-subject-auto-hint">${pomoSettings.subject ? `記録ラベル: ${escapeHtml(pomoSettings.subject)}` : `学習中の教材と自動連動中: ${escapeHtml(autoSub)}`}</p>
+        <p class="pomo-sub-hint">他のページに出る小さなタイマーは、ドラッグで好きな場所に動かせます。</p>
+        <button type="button" class="pomo-pip-btn pomo-pill-reset" id="pomo-pill-reset">小さなタイマーの位置をもとに戻す</button>
       </section>
     </div>
   `;
@@ -558,6 +664,10 @@ function renderTimerPage() {
   container.querySelector('#pomo-reset-btn').addEventListener('click', resetPomo);
   container.querySelector('#pomo-skip-btn').addEventListener('click', skipPomo);
   container.querySelector('#pomo-pip-btn').addEventListener('click', openPomoPip);
+  container.querySelector('#pomo-pill-reset').addEventListener('click', () => {
+    resetPomoPillPos();
+    if (typeof showToast === 'function') showToast('小さなタイマーの位置をもとに戻しました');
+  });
 
   container.querySelectorAll('[data-pomo-phase]').forEach(btn => {
     btn.addEventListener('click', () => {

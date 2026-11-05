@@ -1267,7 +1267,11 @@
 
 /* Dynamic Island 風ミニピル（他ページでの常駐表示） */
 .pomo-mini-pill {
-  position: absolute;
+  position: fixed;
+  touch-action: none; /* 指で引っ張ったときにページがスクロールしないようにする */
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
   top: max(6px, env(safe-area-inset-top, 6px));
   left: 50%;
   transform: translateX(-50%);
@@ -1286,6 +1290,23 @@
 }
 .pomo-mini-pill[hidden] {
   display: none !important;
+}
+.pomo-mini-pill.is-dragging {
+  cursor: grabbing;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+}
+/* 画面上下の安全領域（ノッチ・ホームバー）の大きさを JS が読むための目印。見えない */
+.pomo-safe-probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  visibility: hidden;
+  pointer-events: none;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pomo-pill-reset {
+  margin-top: 6px;
 }
 .pomo-mini-main {
   display: inline-flex;
