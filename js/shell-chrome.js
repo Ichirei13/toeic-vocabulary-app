@@ -5,6 +5,7 @@
 //   見出し行: 見出し・モード切替の行を上にスワイプ → 画面の上に格納。つまみをタップ／下にスワイプで戻る
 // 格納したかどうかは端末に覚えさせる。見た目の動きは css/shell.css 側。
 // 幅 1000px 以上（横画面）では、タブバーがサイドバーになるので、タブバーは格納しない。
+// 背の低い画面（スマホの横向きなど）では、本人が選ぶまでは、最初から格納しておく（問題の場所を広げるため）。
 (function () {
   const NAV_KEY = 'toeic_nav_stowed';
   const TOP_KEY = 'toeic_top_stowed';
@@ -16,6 +17,7 @@
   if (!app || !nav || !practice) return;
 
   const wide = window.matchMedia('(min-width: 1000px)');
+  const short = window.matchMedia('(max-height: 520px) and (max-width: 999px)'); // CSS（css/shell.css）の薄いバーの条件と同じ
   const read = key => { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } };
   const write = (key, on) => {
     try { if (on) localStorage.setItem(key, '1'); else localStorage.removeItem(key); } catch (e) {}
@@ -65,9 +67,17 @@
     });
   }
 
+  // タブバーの格納は 3 つの状態: 格納（'1'）／表示を本人が選んだ（'0'）／まだ選んでいない（なし）。
+  // 選んでいないときは、画面に任せる（背の低い画面では格納、それ以外は表示）。変数で持つので、保存できなくても動く
+  let navChoice = null;
+  try { const v = localStorage.getItem(NAV_KEY); navChoice = v === '1' ? true : v === '0' ? false : null; } catch (e) {}
+  function applyNav() {
+    app.classList.toggle('nav-stowed', navChoice === null ? short.matches : navChoice);
+  }
   function setNavStowed(on) {
-    app.classList.toggle('nav-stowed', on);
-    write(NAV_KEY, on);
+    navChoice = on;
+    try { localStorage.setItem(NAV_KEY, on ? '1' : '0'); } catch (e) {}
+    applyNav();
   }
   function setTopStowed(on) {
     practice.classList.toggle('top-stowed', on);
@@ -93,7 +103,8 @@
   // 演習画面では、画面の最下部（ホームバーと重なる）ではなく、下の情報行の真上に出す
   const footer = practice.querySelector('.footer');
   if (footer) practice.insertBefore(makeGrabber('shell-grabber-footer', 'タブバーを表示', () => setNavStowed(false), -1), footer);
-  setNavStowed(read(NAV_KEY));
+  applyNav();
+  short.addEventListener('change', applyNav);
   setTopStowed(read(TOP_KEY));
 
   // 格納する側（バーと見出し行）にスワイプを付ける

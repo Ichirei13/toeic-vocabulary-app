@@ -10,7 +10,8 @@ const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
 // 保存する設定。ここに足したキーは restoreSettings で検証して戻すこと（保存値は信用しない）
 function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
-                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort'];
+                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort',
+                'wordbookRed', 'wordbookTest'];
   return Object.fromEntries(keys.map(k => [k, state[k]]));
 }
 
@@ -54,6 +55,10 @@ function restoreSettings() {
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
+  // 単語帳PDFのオプション。真偽値でなければオン
+  const wordbook = StudyCore.normalizeOptions({ red: saved.wordbookRed, test: saved.wordbookTest });
+  state.wordbookRed = wordbook.red;
+  state.wordbookTest = wordbook.test;
 }
 
 // 今の絞り込みを表す値。保存した出題順はこれが一致するときだけ使う（データが増減したときも作り直す）

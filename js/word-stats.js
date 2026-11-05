@@ -263,7 +263,9 @@ let state = {
   reviewIndex: null, // 「前へ」で見直し中の問題の番号。null なら今の問題を出している
 
   weakSort: 'new', // 苦手リストの並び順
-  weakListMode: 'e2j' // 単語の苦手リストで表示しているモード
+  weakListMode: 'e2j', // 単語の苦手リストで表示しているモード
+  wordbookRed: true, // 単語帳PDFで日本語を赤字にする
+  wordbookTest: true // 単語帳PDFに確認テストをつける
 };
 // 初期値の作成に grammarStats と grammarWeakData を使うので、state ができたあとで読み込む
 state.grammarSeen = loadGrammarSeen();

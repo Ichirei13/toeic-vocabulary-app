@@ -34,6 +34,17 @@ function weakListHeader(items, orderLabel) {
     </div>`;
 }
 
+// 単語帳PDFのオプション（日本語を赤字・確認テスト）と出力ボタン。押したときの動きは末尾の委譲ハンドラと js/weak-print.js
+function wordbookControlsHtml() {
+  const chip = (opt, on, label) => `<button class="chip ${on ? 'active' : ''}" data-wordbook-opt="${opt}">${label}</button>`;
+  return `
+    <div class="filter-row" style="flex-wrap:wrap;margin-bottom:4px;">
+      ${chip('red', state.wordbookRed, '日本語を赤字')}
+      ${chip('test', state.wordbookTest, '確認テスト')}
+      <button class="chip" data-wordbook-print>単語帳PDF</button>
+    </div>`;
+}
+
 function renderWordWeakList() {
   const container = document.getElementById('weak-list-content');
   const mode = state.weakListMode;
@@ -53,6 +64,7 @@ function renderWordWeakList() {
   sortWeakItems(items, (a, b) => a.key.localeCompare(b.key, 'en', { sensitivity: 'base' }));
 
   html += weakListHeader(items, 'ABC順');
+  html += wordbookControlsHtml();
   items.forEach(({ key, entry, word }) => {
     const stText = wordStatLabel(key, mode);
     html += `
@@ -113,6 +125,15 @@ document.getElementById('weak-list-content').addEventListener('click', e => {
     renderWeakList();
     return;
   }
+  const wordbookOpt = e.target.closest('[data-wordbook-opt]');
+  if (wordbookOpt) {
+    const key = wordbookOpt.dataset.wordbookOpt === 'red' ? 'wordbookRed' : 'wordbookTest';
+    state[key] = !state[key];
+    saveSettings();
+    renderWeakList();
+    return;
+  }
+  if (e.target.closest('[data-wordbook-print]')) return openWordbook();
   const delBtn = e.target.closest('[data-remove-weak]');
   if (delBtn) removeWeak(delBtn.dataset.removeWeak);
   if (e.target.closest('[data-obsidian-export]')) exportObsidianGrammarSync();

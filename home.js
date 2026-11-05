@@ -990,7 +990,7 @@ function renderSettingsPage() {
   const container = document.getElementById('settings-page-content');
   if (!container) return;
 
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'ink';
+  const currentTheme = document.documentElement.getAttribute('data-theme') || DEFAULT_THEME;
   const wordCount = getWeakWordCount();
   const grammarCount = getWeakGrammarCount();
   const wordSummary = summarizeStats(state.wordStats);

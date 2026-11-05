@@ -169,6 +169,23 @@
 }
 :root #practice-page.top-stowed .shell-grabber-top { display: flex; }
 
+/* --- 背の低い画面（スマホの横向きなど）: バーを薄くして、問題の場所を残す --- */
+@media (max-height: 520px) and (max-width: 999px) {
+  :root { --shell-tab-space: calc(48px + max(4px, env(safe-area-inset-bottom, 0px))); }
+  :root .top-page-nav {
+    bottom: max(4px, env(safe-area-inset-bottom, 0px));
+    padding: 2px;
+  }
+  :root .top-page-tab {
+    flex-direction: row;
+    gap: 6px;
+    min-height: 36px;
+    padding: 2px 4px;
+    font-size: 11px;
+  }
+  :root .top-page-tab::before { width: 18px; height: 18px; }
+}
+
 @media (min-width: 1000px) {
   /* --- 全体: 左サイドバー | 本文 | 右の絞り込みパネル（パネルが無いときは幅 0） --- */
   :root #app,

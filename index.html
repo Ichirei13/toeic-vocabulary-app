@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" data-theme="ios">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -219,7 +219,7 @@
     2. src/    DOM を触らない純粋ロジック（Node の単体テストあり）
     3. js/util.js → theme-audio → review-interval → word-stats
                共通関数 → テーマ・音 → 復習間隔 → 記録と state の作成（最上位で state を作るので、ここまでが土台）
-    4. js/grammar-drill → filter-sheet → vocab-filter → review-prev → vocab-drill → filter-nudge → settings → rules-guide → weak-list
+    4. js/grammar-drill → filter-sheet → vocab-filter → review-prev → vocab-drill → filter-nudge → settings → rules-guide → weak-list → weak-print
                関数宣言が中心で、動き出すのは boot.js 以降。最上位で実行するのは rules-guide.js（RAW_GRAMMAR から KIN_RULES を作る）と
                weak-list.js（シートのクリック登録）だけ
     5. js/backup-core → gdrive → backup-io → backup-ui   バックアップと Google ドライブ連携
@@ -235,6 +235,7 @@
 <script src="src/activity.js"></script>
 <script src="src/review.js"></script>
 <script src="src/pace.js"></script>
+<script src="src/wordbook.js"></script>
 <script src="js/util.js"></script>
 <script src="js/theme-audio.js"></script>
 <script src="js/review-interval.js"></script>
@@ -248,6 +249,7 @@
 <script src="js/settings.js"></script>
 <script src="js/rules-guide.js"></script>
 <script src="js/weak-list.js"></script>
+<script src="js/weak-print.js"></script>
 <script src="js/backup-core.js"></script>
 <script src="js/gdrive.js"></script>
 <script src="js/backup-io.js"></script>
