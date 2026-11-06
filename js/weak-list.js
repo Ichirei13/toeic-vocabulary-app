@@ -22,12 +22,17 @@ function sortWeakItems(items, order) {
 
 // 件数・要復習数と並び替えボタン（単語・文法共通）
 function weakListHeader(items, orderLabel) {
+  const { mode, days, graduateStreak } = getWeakSettings();
   const due = items.filter(x => isDue(x.entry)).length;
+  const ready = items.filter(x => x.entry && x.entry.streak >= graduateStreak - 1).length;
   const sorts = [['new', '新しい順'], ['old', '古い順'], ['due', '復習日順'], ['order', orderLabel]];
+  const modeDesc = mode === 'immediate'
+    ? `日付に関係なく、${graduateStreak}回正解すると苦手から外れます（テスト対策）`
+    : `復習日（${days === 1 ? '翌日' : `${days}日後`}）に正解すると苦手から外れます（${graduateStreak}回正解で克服）`;
   return `
     <div class="weak-list-summary">
-      苦手 ${items.length}件 ・ 要復習 <strong>${due}</strong>件<br>
-      復習日以降に正解するたびに ${REVIEW_INTERVALS.join('日→')}日後 と間隔が延び、最後も正解すると苦手から外れます
+      苦手 ${items.length}件（要復習: <strong>${due}</strong>件 ・ あと1回で克服: ${ready}件）<br>
+      ${modeDesc}
     </div>
     <div class="filter-row" style="flex-wrap:wrap;margin-bottom:4px;">
       ${sorts.map(([k, label]) => `<button class="chip ${state.weakSort === k ? 'active' : ''}" data-weak-sort="${k}">${label}</button>`).join('')}

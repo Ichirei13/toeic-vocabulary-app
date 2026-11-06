@@ -264,6 +264,9 @@ let state = {
 
   weakSort: 'new', // 苦手リストの並び順
   weakListMode: 'e2j', // 単語の苦手リストで表示しているモード
+  weakReviewMode: 'interval', // 'interval'（間隔復習）| 'immediate'（即時・テスト対策）
+  weakIntervalDays: 1, // 間隔復習の日数
+  weakGraduateStreak: 2, // 克服に必要な連続正解数
   wordbookRed: true, // 単語帳PDFで日本語を赤字にする
   wordbookTest: true // 単語帳PDFに確認テストをつける
 };

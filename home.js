@@ -1076,6 +1076,41 @@ function renderSettingsPage() {
         <p class="settings-hint" id="setting-goal-msg" role="status" aria-live="polite"></p>
       </section>
 
+      <!-- 苦手・復習設定 -->
+      <section class="settings-section">
+        <div class="settings-section-header">
+          <span class="settings-icon">🔁</span>
+          <h3 class="settings-section-title">苦手・復習の設定</h3>
+        </div>
+        <p class="settings-desc">間違えた問題の復習タイミングや、苦手から外れるまでの条件を設定します。</p>
+
+        <div class="settings-field">
+          <label>復習のタイミング</label>
+        </div>
+        <div class="settings-chips" role="group" aria-label="復習タイミング">
+          <button type="button" class="settings-chip${state.weakReviewMode === 'interval' ? ' active' : ''}" onclick="setWeakReviewMode('interval')">間隔復習（日数あり）</button>
+          <button type="button" class="settings-chip${state.weakReviewMode === 'immediate' ? ' active' : ''}" onclick="setWeakReviewMode('immediate')">日付なし（即時・テスト対策）</button>
+        </div>
+        <p class="settings-hint">「間隔復習」は1回正解すると指定日数待ってから復習します。「日付なし」は復習予定日を待たずにいつでも解け、正解するたびにステップが進みます。</p>
+
+        <div id="weak-interval-days-field" class="settings-field" style="${state.weakReviewMode === 'immediate' ? 'display:none;' : ''}">
+          <label for="setting-weak-days">復習の間隔（日数）</label>
+          <input id="setting-weak-days" class="settings-number" type="number" inputmode="numeric" min="1" max="30" step="1" value="${state.weakIntervalDays || 1}" onchange="handleWeakIntervalDaysSetting(this)">
+        </div>
+        <div id="weak-interval-days-chips" class="settings-chips" role="group" aria-label="復習日数のかんたん設定" style="${state.weakReviewMode === 'immediate' ? 'display:none;' : ''}">
+          ${[1, 2, 3, 7].map(d => `<button type="button" class="settings-chip${state.weakIntervalDays === d ? ' active' : ''}" onclick="setWeakIntervalDaysFromChip(${d})">${d}日後${d === 1 ? '（翌日）' : ''}</button>`).join('')}
+        </div>
+
+        <div class="settings-field" style="margin-top: 14px;">
+          <label for="setting-weak-streak">克服に必要な正解数</label>
+          <input id="setting-weak-streak" class="settings-number" type="number" inputmode="numeric" min="1" max="5" step="1" value="${state.weakGraduateStreak || 2}" onchange="handleWeakStreakSetting(this)">
+        </div>
+        <div class="settings-chips" role="group" aria-label="正解数のかんたん設定">
+          ${[1, 2, 3].map(n => `<button type="button" class="settings-chip${state.weakGraduateStreak === n ? ' active' : ''}" onclick="setWeakStreakFromChip(${n})">${n}回正解で克服</button>`).join('')}
+        </div>
+        <p class="settings-hint">この回数だけ正解すると苦手リストから自動的に外れます（途中で間違えるとリセットされます）。</p>
+      </section>
+
       <!-- データ管理設定 -->
       <section class="settings-section">
         <div class="settings-section-header">
@@ -1193,6 +1228,39 @@ function resetLearningGoals() {
   savePrefs();
   renderSettingsPage();
   showGoalSettingMessage('目標を標準（10問・単語 5秒・文法 20秒）に戻しました。');
+}
+
+function setWeakReviewMode(mode) {
+  state.weakReviewMode = mode;
+  saveSettings();
+  renderSettingsPage();
+  updateWeakBadge();
+}
+
+function handleWeakIntervalDaysSetting(input) {
+  const val = parseInt(input.value, 10);
+  state.weakIntervalDays = Number.isInteger(val) && val > 0 ? Math.min(30, val) : 1;
+  saveSettings();
+  renderSettingsPage();
+}
+
+function setWeakIntervalDaysFromChip(days) {
+  state.weakIntervalDays = days;
+  saveSettings();
+  renderSettingsPage();
+}
+
+function handleWeakStreakSetting(input) {
+  const val = parseInt(input.value, 10);
+  state.weakGraduateStreak = Number.isInteger(val) && val > 0 ? Math.min(10, val) : 2;
+  saveSettings();
+  renderSettingsPage();
+}
+
+function setWeakStreakFromChip(streak) {
+  state.weakGraduateStreak = streak;
+  saveSettings();
+  renderSettingsPage();
 }
 
 // 3ページの切り替え関数

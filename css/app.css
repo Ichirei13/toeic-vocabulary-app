@@ -1642,8 +1642,34 @@ body {
 .weak-list-summary { font-size: 12px; color: var(--text-card-muted); margin: -4px 0 8px; }
 .weak-mode-row { flex-wrap: wrap; margin-bottom: 12px; }
 .weak-list-summary strong { color: var(--wrong); }
-.weak-due { font-size: 11px; color: var(--text-card-muted); margin-top: 4px; }
+.weak-due {
+  font-size: 11px;
+  color: var(--text-card-muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .weak-due.now { color: var(--wrong); font-weight: 700; }
+.weak-due.waiting { color: var(--gold, #c9933b); font-weight: 600; }
+.weak-dots {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.weak-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.15);
+  display: inline-block;
+}
+.weak-due.now .weak-dot {
+  border: 1px solid var(--wrong);
+}
+.weak-dot.filled {
+  background: var(--correct);
+}
 .weak-badge {
   background: var(--wrong);
   color: white;

@@ -11,7 +11,7 @@ const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
 function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
                 'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort',
-                'wordbookRed', 'wordbookTest'];
+                'wordbookRed', 'wordbookTest', 'weakReviewMode', 'weakIntervalDays', 'weakGraduateStreak'];
   return Object.fromEntries(keys.map(k => [k, state[k]]));
 }
 
@@ -55,6 +55,9 @@ function restoreSettings() {
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
+  state.weakReviewMode = pick(saved.weakReviewMode, ['immediate', 'interval'], 'interval');
+  state.weakIntervalDays = Number.isInteger(saved.weakIntervalDays) && saved.weakIntervalDays > 0 ? saved.weakIntervalDays : 1;
+  state.weakGraduateStreak = Number.isInteger(saved.weakGraduateStreak) && saved.weakGraduateStreak > 0 ? saved.weakGraduateStreak : 2;
   // 単語帳PDFのオプション。真偽値でなければオン
   const wordbook = StudyCore.normalizeOptions({ red: saved.wordbookRed, test: saved.wordbookTest });
   state.wordbookRed = wordbook.red;
