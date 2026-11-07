@@ -13,14 +13,18 @@ function getWeakSettings() {
 }
 
 // 苦手1件の形を確かめる。前のバージョンの記録（復習日なし）は「今すぐ復習」からやり直し、直せないものは null
+// 注意: 起動時は word-stats.js の `let state = {…}` を初期化している最中にここが呼ばれる。
+// その時点で state（= getWeakSettings）に触ると ReferenceError で起動が止まるので、設定値は参照しない。
+// 連続正解数の上限は設定の最大値（10）で判定する。克服の判定は updateWeakEntry 側で現在の設定に対して行う。
+const MAX_WEAK_STREAK = 10;
+
 function normalizeWeakEntry(e) {
   if (!e || typeof e !== 'object' || Array.isArray(e)) return null;
-  const { graduateStreak } = getWeakSettings();
   const added = Number.isFinite(e.added) && e.added > 0 ? e.added : Date.now();
   const u = Number.isFinite(e.u) && e.u > 0 ? { u: e.u } : {}; // 最終更新時刻。同期で新しい方を選ぶのに使う（古い記録には無い）
   if (e.due === undefined) return { streak: 0, added, due: 0, ...u };
   if (typeof e.due !== 'number' || !Number.isFinite(e.due) || e.due < 0) return null;
-  if (!Number.isInteger(e.streak) || e.streak < 0 || e.streak > graduateStreak) return null;
+  if (!Number.isInteger(e.streak) || e.streak < 0 || e.streak > MAX_WEAK_STREAK) return null;
   return { streak: e.streak, added, due: e.due, ...u };
 }
 
