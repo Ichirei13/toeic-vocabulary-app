@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes cal-tail { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-14deg); } }
+    @keyframes cal-point { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-10deg) translateY(-2px); } }
+    @keyframes cal-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3.5px); } }
+    @keyframes cal-target { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+    @keyframes cal-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+    .tail { transform-origin: 36px 136px; animation: cal-tail 0.75s ease-in-out infinite; }
+    .point-arm { transform-origin: 104px 120px; animation: cal-point 0.9s ease-in-out infinite; }
+    .head-group { transform-origin: 78px 92px; animation: cal-bob 1.4s ease-in-out infinite; }
+    .target-dot { transform-origin: 170px 81px; animation: cal-target 1.1s ease-in-out infinite; }
+    .eyes { transform-origin: 78px 92px; animation: cal-blink 3.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .tail, .point-arm, .head-group, .target-dot, .eyes { animation: none; }
+    }
+  </style>
+  <!-- Study Calendar Card (Right) -->
+  <rect x="104" y="42" width="84" height="84" rx="16" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+  <path d="M104 64 H188" stroke="#E4E7EC" stroke-width="4"/>
+  <!-- Green Checkmarks on Calendar -->
+  <rect x="114" y="72" width="18" height="18" rx="5" fill="#D7FFB8"/>
+  <path d="M118 81 L122 85 L129 76" stroke="#58CC02" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="137" y="72" width="18" height="18" rx="5" fill="#D7FFB8"/>
+  <path d="M141 81 L145 85 L152 76" stroke="#58CC02" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="114" y="95" width="18" height="18" rx="5" fill="#D7FFB8"/>
+  <path d="M118 104 L122 108 L129 99" stroke="#58CC02" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Glowing Target on Calendar -->
+  <g class="target-dot">
+    <circle cx="170" cy="81" r="11" fill="#FFC800" stroke="#FF9600" stroke-width="3"/>
+    <circle cx="170" cy="81" r="4" fill="#FFFFFF"/>
+  </g>
+  <!-- Tail & Legs -->
+  <path class="tail" d="M28 148 C10 142, 8 116, 22 104 C18 94, 28 86, 40 92 C44 110, 42 132, 28 148 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+  <path d="M44 136 C38 156, 40 180, 54 182 C64 182, 68 168, 70 158 L84 158 C86 168, 90 182, 100 182 C114 180, 116 156, 110 136 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+  <!-- Pointing Right Arm -->
+  <path class="point-arm" d="M104 126 C122 116, 136 104, 130 92 C124 84, 110 96, 98 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+  <!-- Chest & Bandana -->
+  <path d="M34 122 C28 136, 34 152, 48 156 C64 162, 92 162, 108 156 C122 152, 128 136, 122 122 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+  <path d="M48 124 L78 150 L108 124 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M55 124 L78 143 L101 124 Z" fill="#58CC02"/>
+  <!-- Head & Ears -->
+  <g class="head-group">
+    <path d="M36 86 L30 50 C30 40, 44 38, 58 54 C70 48, 86 48, 98 54 C112 38, 126 40, 126 50 L120 86 C134 96, 134 118, 116 126 C100 136, 56 136, 40 126 C22 118, 22 96, 36 86 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+    <path d="M39 76 L37 56 C37 52, 45 52, 52 62 Z" fill="#D6DCE5"/>
+    <path d="M117 76 L119 56 C119 52, 111 52, 104 62 Z" fill="#D6DCE5"/>
+    <!-- Sparkling Eyes & Smile -->
+    <g class="eyes">
+      <circle cx="58" cy="92" r="10" fill="#3B232E"/>
+      <circle cx="55" cy="88" r="3.5" fill="#FFFFFF"/>
+      <circle cx="98" cy="92" r="10" fill="#3B232E"/>
+      <circle cx="95" cy="88" r="3.5" fill="#FFFFFF"/>
+    </g>
+    <ellipse cx="78" cy="100" rx="6.5" ry="4.5" fill="#3B232E"/>
+    <path d="M68 108 Q78 122 88 108" fill="#FF6B8B" stroke="#3B232E" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

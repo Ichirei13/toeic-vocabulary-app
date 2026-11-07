@@ -162,7 +162,7 @@ function noteSessionReview(kind, wasWeak, isWeakNow, isCorrect) {
 function sessionReviewHtml(kind) {
   const counter = reviewCounter(kind);
   const text = StudyCore.reviewSummaryText(counter);
-  return text ? `<div class="review-result">${counter.graduated > 0 ? pomeranianImage('celebrate', 'review-mascot', 32) : ''}<span>${escapeHtml(text)}</span></div>` : '';
+  return text ? `<div class="review-result">${counter.graduated > 0 ? pomeranianImage('praise-medal', 'review-mascot', 32) : ''}<span>${escapeHtml(text)}</span></div>` : '';
 }
 
 // 目標を変える。今日の分にも反映し、昨日以前の日には触れない
@@ -398,6 +398,7 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
     if (prefs.dailyGoal > 0 && streakInfo.todayAnswered >= prefs.dailyGoal) {
       list.push({
         icon: '🎯',
+        pose: 'praise-trophy',
         html: `今日の目標 <b>${prefs.dailyGoal}問</b> を達成しました！この調子です！`,
       });
     }
@@ -412,6 +413,7 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
   if (streakInfo.todayFast >= 1) {
     list.push({
       icon: '⚡',
+      pose: 'speed-bolt',
       html: `ここがすごい：今日は目標タイム以内の<b>即答が ${streakInfo.todayFast}回</b>！本番さながらの解答スピードです！`,
     });
   } else if (avgPace !== null) {
@@ -425,6 +427,7 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
   if (mainProg.mastered > 0) {
     list.push({
       icon: '👑',
+      pose: 'praise-medal',
       html: `ここがすごい：<b>『${escapeHtml(activeBook.title)}』</b>の <b>${mainProg.masteredPct}%（${mainProg.mastered}${mainProg.unit}）</b> をすでに自分のものにしています！`,
     });
   }
@@ -441,6 +444,7 @@ function buildHomePraiseMessages(kind, activeBook, mainProg, allProg) {
   if (allProg.due > 0) {
     list.push({
       icon: '💡',
+      pose: 'status-idea',
       html: `現在、${kind === 'grammar' ? '文法' : '単語'}の<b>要復習問題が ${allProg.due}${allProg.unit}</b>あります。<button type="button" class="home-inline-link" data-home-action="open-review">復習へ</button>`,
     });
   }
@@ -806,6 +810,15 @@ function formatCurrentVocabPreset() {
 }
 
 // ホーム画面の描画
+// ホームの案内役のポーズ。22〜24時は夜ふかし、0〜4時は居眠り。それ以外は表示中のメッセージが持つポーズ、
+// 無ければ連続学習中は炎、まだなら通常。
+function homeGuidePose(msgItem, streakCount, hour = new Date().getHours()) {
+  if (hour >= 22) return 'status-night';
+  if (hour < 5) return 'status-sleep';
+  if (msgItem && msgItem.pose) return msgItem.pose;
+  return streakCount > 0 ? 'streak' : 'neutral';
+}
+
 function renderHomePage() {
   const container = document.getElementById('home-page');
   if (!container) return;
@@ -824,15 +837,17 @@ function renderHomePage() {
   const praiseModel = buildHomePraiseMessages(kind, activeBook, mainProg, allProg);
   const msgItem = praiseModel.list[praiseRotationIndex % praiseModel.list.length] || praiseModel.list[0];
   const streakCount = praiseModel.streakInfo.streak;
+  // 夜ふかしの時間帯は案内役が眠そうにし、それ以外は表示中のメッセージに合うポーズ
+  const guidePose = homeGuidePose(msgItem, streakCount);
   const streakBadgeHtml = streakCount > 0
-    ? `<span class="home-streak-badge" title="連続学習日数">${pomeranianImage('streak', 'home-guide-mascot', 36)}<span>${streakCount}日連続</span></span>`
-    : pomeranianImage('neutral', 'home-guide-mascot', 40);
+    ? `<span class="home-streak-badge" title="連続学習日数">${pomeranianImage(guidePose, 'home-guide-mascot', 36)}<span>${streakCount}日連続</span></span>`
+    : pomeranianImage(guidePose, 'home-guide-mascot', 40);
 
   const goalInfo = StudyCore.goalProgress(dailyActivity.days[localDateStr()], prefs.dailyGoal);
   lastRenderedDate = localDateStr();
   const goalRowHtml = `
     <button type="button" class="home-goal-row" data-home-action="open-goal" aria-haspopup="dialog">
-      <span class="home-goal-label">${pomeranianImage(goalInfo.reached ? 'celebrate' : 'goal-target', 'home-goal-mascot', 24)}<span>${goalInfo.reached ? '今日の目標 達成！' : '今日の目標'}</span></span>
+      <span class="home-goal-label">${pomeranianImage(goalInfo.reached ? 'praise-trophy' : goalMascotInfo(prefs.dailyGoal).pose, 'home-goal-mascot', 24)}<span>${goalInfo.reached ? '今日の目標 達成！' : '今日の目標'}</span></span>
       <span class="home-goal-count">${goalInfo.hasGoal ? `${goalInfo.answered} / ${goalInfo.goal}問` : `${goalInfo.answered}問（目標なし）`}</span>
       <span class="home-goal-track" aria-hidden="true"><i style="width:${Math.round(goalInfo.ratio * 100)}%"></i></span>
     </button>`;
@@ -903,7 +918,7 @@ function renderHomePage() {
     <section class="home-weak-bar" aria-label="苦手問題">
       <div class="home-weak-info">
         <div class="home-weak-title">
-          <span><span class="ico ico-flame" aria-hidden="true">🔥</span> 苦手問題（${kind === 'grammar' ? '文法' : `単語・${MODE_LABELS[state.mode || 'e2j']}`}）</span>
+          <span>${pomeranianImage('status-search', 'home-weak-mascot', 24)} 苦手問題（${kind === 'grammar' ? '文法' : `単語・${MODE_LABELS[state.mode || 'e2j']}`}）</span>
         </div>
         <div class="home-weak-sub">
           登録 <strong>${allProg.weak}</strong> ${allProg.unit} ・ 今日の要復習 <strong>${allProg.due}</strong> ${allProg.unit}
@@ -990,7 +1005,7 @@ function renderReviewPage() {
     <div class="review-page-inner">
       <h2 class="review-page-title">復習</h2>
       <p class="review-today">${mastered > 0
-        ? `${pomeranianImage('celebrate', 'review-mascot', 32)}<span>今日は苦手を <b>${mastered} 問</b> 克服しました！</span>`
+        ? `${pomeranianImage('praise-medal', 'review-mascot', 32)}<span>今日は苦手を <b>${mastered} 問</b> 克服しました！</span>`
         : '苦手を正解して、間隔をあけた復習を最後まで終えると「克服」になります。'}</p>
       ${block('vocab', '単語', `モード：${MODE_LABELS[state.mode || 'e2j']}`)}
       ${block('grammar', '文法', '全 4 冊')}
@@ -1048,6 +1063,16 @@ function renderSettingsPage() {
           <h3 class="settings-section-title">学習の目標</h3>
         </div>
         <p class="settings-desc">今日の目標問題数と、「即答」とみなす目標タイムを変更します。</p>
+        ${(() => {
+          const gm = typeof goalMascotInfo === 'function' ? goalMascotInfo(prefs.dailyGoal) : { pose: 'goal-target', title: `1日${prefs.dailyGoal}問`, desc: '毎日無理なく着実に力がつく王道ペースです。' };
+          return `<div class="settings-mascot-card" id="setting-goal-mascot-card">
+            ${pomeranianImage(gm.pose, 'settings-mascot-img', 52, 'id="setting-goal-mascot-img"')}
+            <div class="settings-mascot-copy">
+              <div class="settings-mascot-title" id="setting-goal-mascot-title">${escapeHtml(gm.title)}</div>
+              <div class="settings-mascot-desc" id="setting-goal-mascot-desc">${escapeHtml(gm.desc)}</div>
+            </div>
+          </div>`;
+        })()}
         <div class="settings-field">
           <label for="setting-goal">今日の目標（問）</label>
           <input id="setting-goal" class="settings-number" type="number" inputmode="numeric" min="0" max="${StudyCore.MAX_GOAL}" step="1" value="${prefs.dailyGoal}" onchange="handleGoalSetting(this)">
@@ -1083,6 +1108,13 @@ function renderSettingsPage() {
           <h3 class="settings-section-title">苦手・復習の設定</h3>
         </div>
         <p class="settings-desc">間違えた問題の復習タイミングや、苦手から外れるまでの条件を設定します。</p>
+        <div class="settings-mascot-card">
+          ${pomeranianImage(state.weakReviewMode === 'immediate' ? 'cheer-pompoms' : 'sad-bandage', 'settings-mascot-img', 52)}
+          <div class="settings-mascot-copy">
+            <div class="settings-mascot-title">${state.weakReviewMode === 'immediate' ? '即時復習・テスト直前応援モード' : '間隔復習・定着サポートモード'}</div>
+            <div class="settings-mascot-desc">${state.weakReviewMode === 'immediate' ? '予定日を待たずに何度でも挑戦！一気に苦手を減らしましょう。' : `正解から${state.weakIntervalDays || 1}日後に再出題し、${state.weakGraduateStreak || 2}回連続正解で克服になります。`}</div>
+          </div>
+        </div>
 
         <div class="settings-field">
           <label>復習のタイミング</label>
@@ -1122,7 +1154,7 @@ function renderSettingsPage() {
         <div class="settings-menu-list">
           <button type="button" class="settings-menu-item" onclick="openBackupFromSettings()">
             <div class="settings-menu-item-left">
-              <div class="settings-menu-item-icon">💾</div>
+              <div class="settings-menu-item-icon">${pomeranianImage('cloud-sync', 'settings-menu-mascot', 32)}</div>
               <div>
                 <div class="settings-menu-item-title">学習記録のバックアップ・復元</div>
                 <div class="settings-menu-item-subtitle">${(typeof isGoogleDriveLinked === 'function' && isGoogleDriveLinked()) ? '☁️ Google ドライブ自動同期中' : 'JSON書き出し・Google ドライブ自動同期'}</div>
@@ -1156,6 +1188,39 @@ function renderSettingsPage() {
           </div>
         </div>
       </section>
+
+      <!-- ポメちゃん図鑑（ポーズ＆アニメーション一覧） -->
+      <section class="settings-section" id="pome-gallery-section">
+        <div class="settings-section-header">
+          <span class="settings-icon">🐾</span>
+          <h3 class="settings-section-title">ポメちゃん図鑑（全48ポーズ・アニメ対応）</h3>
+        </div>
+        <p class="settings-desc">アプリの各場面で応援してくれる白ポメラニアンの全アニメーション一覧です（カードをタップするとジャンプします）。</p>
+        <details class="pome-gallery-details">
+          <summary class="pome-gallery-summary">すべてのポーズを見る（タップで開閉）</summary>
+          <div class="pome-gallery-grid">
+            ${[
+              ['neutral', '通常・挨拶'], ['encourage', 'いいね・応援'], ['praise-clap', 'パチパチ拍手'], ['praise-heart', 'ハートぎゅっ'],
+              ['praise-highfive', 'ハイタッチ！'], ['praise-star-eyes', '目がキラキラ星'], ['praise-dance', 'ごきげんダンス'], ['praise-party', 'クラッカー祝'],
+              ['praise-medal', '金メダル'], ['praise-flower', '花束ギフト'], ['celebrate', '達成ジャンプ'], ['praise-trophy', 'トロフィー'],
+              ['master-cape', '990マスター'], ['streak', 'ストリーク炎'], ['speed-bolt', '爆速・瞬殺'], ['reflect', '首かしげ'],
+              ['sad-tears', 'うるうる垂れ耳'], ['sad-cry', 'えーん大泣き'], ['sad-sweat', 'あちゃ〜冷や汗'], ['sad-dizzy', '目がぐるぐる'],
+              ['sad-shock', 'ガーン！'], ['sad-ghost', '燃え尽き魂抜け'], ['sad-rain', '雨雲しょぼん'], ['sad-bandage', 'どんまい励まし'],
+              ['cheer-pompoms', 'ポンポン応援団'], ['goal-0-relaxed', '目標なし・雲'], ['goal-5-casual', '1日5問・新芽'], ['goal-target', '1日10問・的'],
+              ['goal-20-active', '1日20問・筋トレ'], ['goal-30-intense', '1日30問・特訓'], ['goal-calendar', '学習カレンダー'], ['pomo-tomato', 'ポモドーロ集中'],
+              ['status-timer', 'タイマー計測'], ['status-listening', '発音リスニング'], ['status-idea', 'ひらめき電球'], ['status-search', '弱点チェック'],
+              ['cloud-sync', 'クラウド守護'], ['status-night', '夜ふかし学習'], ['status-sleep', 'すやすや居眠り'], ['vocab-teppan', 'TEPPAN単語'],
+              ['vocab-daily', '日々の単語'], ['vocab-flashcards', '単語カード束'], ['vocab-type', 'タイプ入力'], ['course-kin', '金の文法'],
+              ['course-sekaiichi', '世界一英文法'], ['course-polaris', 'ポラリス2'], ['course-toplevel', 'トップレベル'], ['app-icon', 'アプリアイコン']
+            ].map(([pose, label]) => `
+              <div class="pome-gallery-card" onclick="const img=this.querySelector('img');if(img){img.classList.remove('pome-pop');void img.offsetWidth;img.classList.add('pome-pop');}">
+                ${pomeranianImage(pose, 'pome-gallery-img', 56, 'loading="lazy"')}
+                <span>${label}</span>
+              </div>
+            `).join('')}
+          </div>
+        </details>
+      </section>
     </div>
   `;
 }
@@ -1171,6 +1236,20 @@ function syncGoalChips() {
   document.querySelectorAll('.settings-chip[data-goal]').forEach(chip => {
     chip.classList.toggle('active', Number(chip.dataset.goal) === prefs.dailyGoal);
   });
+  if (typeof goalMascotInfo === 'function') {
+    const gm = goalMascotInfo(prefs.dailyGoal);
+    const img = document.getElementById('setting-goal-mascot-img');
+    const title = document.getElementById('setting-goal-mascot-title');
+    const desc = document.getElementById('setting-goal-mascot-desc');
+    if (img) {
+      setPomeranianPose(img, gm.pose);
+      img.classList.remove('pome-pop');
+      void img.offsetWidth;
+      img.classList.add('pome-pop');
+    }
+    if (title) title.textContent = gm.title;
+    if (desc) desc.textContent = gm.desc;
+  }
 }
 
 // 今日の目標の入力欄。範囲外は範囲内に直し、数でなければ元の値に戻す
@@ -1489,7 +1568,7 @@ function renderGoalDialog() {
   ].join('');
   dlg.innerHTML = `
     <div class="goal-dialog-head">
-      <h2 id="goal-dialog-title">学習カレンダー</h2>
+      <h2 id="goal-dialog-title">${pomeranianImage('goal-calendar', 'goal-dialog-mascot', 28)}<span>学習カレンダー</span></h2>
       <button type="button" class="goal-dialog-close" data-goal-action="close" aria-label="閉じる">✕</button>
     </div>
     <p class="goal-dialog-overview">累計 <b>${StudyCore.studiedDays(dailyActivity.days)}日</b> 学習 ・ 連続 <b>${streak.streak}日</b></p>

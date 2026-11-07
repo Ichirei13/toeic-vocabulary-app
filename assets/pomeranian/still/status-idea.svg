@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Eureka Glowing Lightbulb Above Head -->
+  <g class="bulb" transform="translate(100 26) scale(1.12) translate(-100 -26)">
+    <circle cx="100" cy="26" r="16" fill="#FFC800" stroke="#4B4B4B" stroke-width="4.5"/>
+    <rect x="94" y="40" width="12" height="7" rx="2" fill="#98A2B3" stroke="#4B4B4B" stroke-width="3.5"/>
+    <path d="M100 4 V0 M74 16 L66 12 M126 16 L134 12 M72 32 L64 34 M128 32 L136 34" stroke="#FFC800" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <!-- Body & Bandana -->
+  <path d="M62 132 C56 152, 58 178, 74 180 C86 180, 90 164, 92 154 L108 154 C110 164, 114 180, 126 180 C142 178, 144 152, 138 132 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M50 118 C42 132, 50 150, 66 154 C84 162, 116 162, 134 154 C150 150, 158 132, 150 118 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M64 120 L100 148 L136 120 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 120 L100 140 L128 120 Z" fill="#58CC02"/>
+  <!-- Pointing Up Paw ('Aha!') -->
+  <path d="M140 120 C158 108, 168 86, 158 72 C150 64, 140 80, 134 100 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Head & Ears -->
+  <path d="M52 80 L46 44 C46 34, 60 32, 76 48 C90 42, 110 42, 124 48 C140 32, 154 34, 154 44 L148 80 C164 92, 164 114, 144 124 C126 134, 74 134, 56 124 C36 114, 36 92, 52 80 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="78" cy="86" r="11" fill="#3B232E"/>
+  <circle cx="74" cy="82" r="4" fill="#FFFFFF"/>
+  <circle cx="122" cy="86" r="11" fill="#3B232E"/>
+  <circle cx="118" cy="82" r="4" fill="#FFFFFF"/>
+  <ellipse cx="100" cy="94" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M88 102 Q100 116 112 102" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

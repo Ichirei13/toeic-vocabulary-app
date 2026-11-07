@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-gloom { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+    .gloom-lines { animation: pom-gloom 0.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .gloom-lines { animation: none; }
+    }
+  </style>
+  <!-- Comical Shock Gloom Lines -->
+  <g class="gloom-lines" stroke="#1CB0F6" stroke-width="5" stroke-linecap="round">
+    <line x1="132" y1="16" x2="132" y2="38"/>
+    <line x1="146" y1="14" x2="146" y2="42"/>
+    <line x1="160" y1="18" x2="160" y2="46"/>
+  </g>
+  <!-- Body & Bandana -->
+  <path d="M62 128 C54 150, 56 176, 72 178 C84 178, 88 164, 92 154 L108 154 C112 164, 116 178, 128 178 C144 176, 146 150, 138 128 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M50 114 C42 128, 50 146, 66 150 C84 158, 116 158, 134 150 C150 146, 158 128, 150 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M64 116 L100 146 L136 116 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 116 L100 138 L128 116 Z" fill="#58CC02"/>
+  <!-- Head & Ears -->
+  <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Wide Shocked Eyes & Dropped Jaw -->
+  <circle cx="76" cy="78" r="12" fill="#FFFFFF" stroke="#3B232E" stroke-width="5"/>
+  <circle cx="76" cy="78" r="4" fill="#3B232E"/>
+  <circle cx="124" cy="78" r="12" fill="#FFFFFF" stroke="#3B232E" stroke-width="5"/>
+  <circle cx="124" cy="78" r="4" fill="#3B232E"/>
+  <ellipse cx="100" cy="86" rx="6" ry="4" fill="#3B232E"/>
+  <ellipse cx="100" cy="104" rx="10" ry="13" fill="#3B232E"/>
+  <ellipse cx="100" cy="108" rx="6" ry="7" fill="#FF6B8B"/>
+  <!-- Paws on Cheeks in Shock -->
+  <circle cx="56" cy="102" r="11" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+  <circle cx="144" cy="102" r="11" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

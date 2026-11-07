@@ -225,7 +225,7 @@ function renderCurrentGrammar() {
   }
 
   if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
-    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}</div>`;
+    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.grammarScore, state.grammarAnsweredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}</div>`;
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
     updateFooter();

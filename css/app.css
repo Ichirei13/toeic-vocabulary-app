@@ -248,6 +248,8 @@
 }
 .duo-banner-icon img { width: 44px; height: 44px; display: block; }
 .pomeranian-picture { display: contents; }
+.tip-mascot { display: inline-block; vertical-align: -5px; margin-right: 2px; object-fit: contain; }
+.type-mascot { display: block; margin: 0 auto 6px; object-fit: contain; }
 .duo-banner-text { min-width: 0; overflow-wrap: anywhere; }
 .duo-banner-title {
   font-size: 14px;

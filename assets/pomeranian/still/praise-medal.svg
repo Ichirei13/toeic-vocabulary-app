@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Tail & Legs -->
+  <path d="M156 138 C180 132, 184 102, 166 88 C172 78, 160 68, 146 76 C142 96, 144 122, 156 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Puffed Proud Chest -->
+  <path d="M44 112 C34 128, 44 148, 62 152 C82 160, 118 160, 138 152 C156 148, 166 128, 156 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Head & Ears -->
+  <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M55 62 L53 38 C53 34, 62 34, 70 46 Z" fill="#D6DCE5"/>
+  <path d="M145 62 L147 38 C147 34, 138 34, 130 46 Z" fill="#D6DCE5"/>
+  <!-- Smug Proud Eyes & Grin -->
+  <path d="M66 76 Q78 66 90 76" fill="none" stroke="#3B232E" stroke-width="6" stroke-linecap="round"/>
+  <path d="M110 76 Q122 66 134 76" fill="none" stroke="#3B232E" stroke-width="6" stroke-linecap="round"/>
+  <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M88 94 Q100 106 112 94" fill="none" stroke="#3B232E" stroke-width="5" stroke-linecap="round"/>
+  <!-- Blue Ribbon & Shiny Gold 1st Medal -->
+  <path d="M70 116 L94 142 L106 142 L130 116" stroke="#1CB0F6" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <g class="medal" transform="translate(100 148) scale(1.1) translate(-100 -148)">
+    <circle cx="100" cy="148" r="20" fill="#FFC800" stroke="#4B4B4B" stroke-width="5"/>
+    <polygon points="100,136 103,143 111,144 105,149 107,157 100,153 93,157 95,149 89,144 97,143" fill="#FFF7E6"/>
+  </g>
+</svg>

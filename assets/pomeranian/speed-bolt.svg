@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-dash { 0%, 100% { transform: translateX(0) translateY(0); } 50% { transform: translateX(6px) translateY(-4px); } }
+    @keyframes pom-zap { 0%, 100% { opacity: 0.55; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
+    .runner { animation: pom-dash 0.35s ease-in-out infinite; }
+    .zap { transform-origin: 100px 100px; animation: pom-zap 0.3s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .runner, .zap { animation: none; }
+    }
+  </style>
+  <!-- Speed Lines & Lightning Bolts (⚡ 爆速・瞬殺) -->
+  <g class="zap">
+    <line x1="12" y1="72" x2="42" y2="72" stroke="#FFC800" stroke-width="5" stroke-linecap="round"/>
+    <line x1="6" y1="108" x2="34" y2="108" stroke="#1CB0F6" stroke-width="5" stroke-linecap="round"/>
+    <line x1="16" y1="142" x2="46" y2="142" stroke="#FFC800" stroke-width="5" stroke-linecap="round"/>
+    <polygon points="164,22 146,54 162,54 148,84 182,46 164,46" fill="#FFC800"/>
+  </g>
+  <g class="runner">
+    <!-- Streaming Tail & Sprinting Body -->
+    <path d="M44 134 C18 128, 14 98, 34 86 C28 76, 40 68, 52 76 C56 96, 54 120, 44 134 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M56 128 C44 146, 36 166, 50 172 C62 174, 76 158, 86 148 L112 148 C124 160, 142 174, 154 166 C164 158, 150 138, 138 124 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Chest & Bandana -->
+    <path d="M52 112 C44 126, 52 144, 68 148 C86 156, 118 156, 136 148 C152 144, 160 126, 152 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M66 114 L102 144 L138 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M74 114 L102 136 L130 114 Z" fill="#58CC02"/>
+    <!-- Determined Sprinting Head -->
+    <path d="M56 72 L50 32 C50 22, 64 20, 80 38 C94 32, 114 32, 128 38 C144 20, 158 22, 158 32 L152 72 C168 84, 168 108, 148 118 C130 128, 78 128, 60 118 C40 108, 40 84, 56 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M72 64 L90 70" stroke="#4B4B4B" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M136 64 L118 70" stroke="#4B4B4B" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="82" cy="78" r="10" fill="#3B232E"/>
+    <circle cx="78" cy="74" r="3.5" fill="#FFFFFF"/>
+    <circle cx="126" cy="78" r="10" fill="#3B232E"/>
+    <circle cx="122" cy="74" r="3.5" fill="#FFFFFF"/>
+    <ellipse cx="104" cy="86" rx="7" ry="5" fill="#3B232E"/>
+    <path d="M92 94 Q104 108 116 94" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

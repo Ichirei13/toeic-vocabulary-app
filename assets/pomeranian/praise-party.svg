@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-pop-confetti { 0%, 100% { transform: scale(0.9) translate(0, 0); opacity: 0.7; } 50% { transform: scale(1.12) translate(6px, -6px); opacity: 1; } }
+    .burst { transform-origin: 152px 92px; animation: pom-pop-confetti 0.7s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .burst { animation: none; }
+    }
+  </style>
+  <!-- Tail & Legs -->
+  <path d="M38 138 C16 132, 12 102, 30 88 C24 78, 36 68, 50 76 C54 96, 52 122, 38 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M58 126 C52 148, 54 176, 70 178 C82 178, 86 162, 88 152 L104 152 C106 162, 110 178, 122 178 C138 176, 140 148, 134 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Chest & Bandana -->
+  <path d="M46 112 C38 126, 46 144, 62 148 C80 156, 114 156, 132 148 C148 144, 156 126, 148 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M60 114 L96 144 L132 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M68 114 L96 136 L124 114 Z" fill="#58CC02"/>
+  <!-- Head, Ears & Striped Party Hat -->
+  <path d="M48 72 L42 34 C42 24, 56 22, 72 38 C86 32, 106 32, 120 38 C136 22, 150 24, 150 34 L144 72 C160 84, 160 108, 140 118 C122 128, 70 128, 52 118 C32 108, 32 84, 48 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <polygon points="96,8 74,40 118,40" fill="#1CB0F6" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M82 28 H110" stroke="#FFC800" stroke-width="5"/>
+  <circle cx="96" cy="8" r="6" fill="#FF4B72"/>
+  <!-- Eyes & Big Smile -->
+  <circle cx="74" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="70" cy="74" r="4" fill="#FFFFFF"/>
+  <circle cx="118" cy="78" r="11" fill="#3B232E"/>
+  <circle cx="114" cy="74" r="4" fill="#FFFFFF"/>
+  <ellipse cx="96" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M84 94 Q96 112 108 94" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Party Popper Cone & Confetti Burst -->
+  <polygon points="128,132 152,98 166,112" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="128" cy="128" r="10" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+  <g class="burst">
+    <path d="M162 94 Q176 80 186 84" stroke="#FF4B72" stroke-width="5" stroke-linecap="round"/>
+    <path d="M156 86 Q164 68 176 66" stroke="#58CC02" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="184" cy="72" r="5" fill="#FFC800"/>
+    <circle cx="164" cy="58" r="4.5" fill="#1CB0F6"/>
+    <rect x="176" y="96" width="9" height="6" rx="2" transform="rotate(20 176 96)" fill="#58CC02"/>
+  </g>
+</svg>

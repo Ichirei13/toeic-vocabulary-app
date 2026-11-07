@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-note { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-6px) rotate(6deg); } }
+    @keyframes pom-breath { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.03); } }
+    .note { transform-origin: 158px 30px; animation: pom-note 1.8s ease-in-out infinite; }
+    .body-group { transform-origin: 100px 150px; animation: pom-breath 2.4s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .note, .body-group { animation: none; }
+    }
+  </style>
+  <!-- Soft Cloud Cushion (0問: 目標なし・マイペース) -->
+  <ellipse cx="100" cy="158" rx="68" ry="22" fill="#E0F2FE" stroke="#4B4B4B" stroke-width="5"/>
+  <!-- Musical Note / Relaxed Float -->
+  <g class="note">
+    <path d="M154 42 V22 L170 18 V38" stroke="#1CB0F6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="150" cy="42" r="5" fill="#1CB0F6"/>
+    <circle cx="166" cy="38" r="5" fill="#1CB0F6"/>
+  </g>
+  <g class="body-group">
+    <!-- Curled Relaxed Body -->
+    <path d="M46 132 C38 114, 52 98, 74 102 L130 102 C154 102, 166 124, 152 146 C136 162, 62 162, 46 132 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Bandana -->
+    <path d="M68 116 L100 142 L132 116 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M75 116 L100 135 L125 116 Z" fill="#58CC02"/>
+    <!-- Head & Ears -->
+    <path d="M52 76 L46 38 C46 28, 60 26, 76 42 C90 36, 110 36, 124 42 C140 26, 154 28, 154 38 L148 76 C164 88, 164 112, 144 122 C126 132, 74 132, 56 122 C36 112, 36 88, 52 76 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M55 66 L53 44 C53 40, 62 40, 70 50 Z" fill="#D6DCE5"/>
+    <path d="M145 66 L147 44 C147 40, 138 40, 130 50 Z" fill="#D6DCE5"/>
+    <!-- Relaxed Gentle Smile -->
+    <path d="M68 82 Q78 72 88 82" fill="none" stroke="#3B232E" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M112 82 Q122 72 132 82" fill="none" stroke="#3B232E" stroke-width="5.5" stroke-linecap="round"/>
+    <ellipse cx="100" cy="90" rx="6.5" ry="4.5" fill="#3B232E"/>
+    <path d="M90 98 Q100 106 110 98" fill="none" stroke="#3B232E" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

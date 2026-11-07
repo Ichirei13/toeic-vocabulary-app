@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <!-- Streak Flame Aura -->
-  <path class="flame-outer" d="M36 164 C14 136, 18 92, 42 68 C38 84, 48 90, 54 74 C62 42, 86 18, 102 10 C98 30, 112 40, 120 24 C144 46, 156 76, 150 92 C160 84, 168 72, 166 58 C184 88, 186 134, 164 164 Z" fill="#FF9600"/>
-  <path class="flame-inner" d="M52 164 C36 142, 40 106, 60 86 C74 62, 92 44, 102 36 C116 54, 132 74, 140 96 C156 116, 160 144, 148 164 Z" fill="#FFC800"/>
+  <path class="flame-outer" transform="translate(100 164) scale(0.96 1.06) translate(-100 -164)" d="M36 164 C14 136, 18 92, 42 68 C38 84, 48 90, 54 74 C62 42, 86 18, 102 10 C98 30, 112 40, 120 24 C144 46, 156 76, 150 92 C160 84, 168 72, 166 58 C184 88, 186 134, 164 164 Z" fill="#FF9600"/>
+  <path class="flame-inner" transform="translate(100 164) scale(1.04 0.94) translate(-100 -164)" d="M52 164 C36 142, 40 106, 60 86 C74 62, 92 44, 102 36 C116 54, 132 74, 140 96 C156 116, 160 144, 148 164 Z" fill="#FFC800"/>
   <!-- Body & Legs -->
   <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
   <!-- Fired-up Double Paw Pump -->
-  <g class="paws">
+  <g class="paws" transform="translate(0 -5)">
     <path d="M54 122 C32 110, 26 86, 38 76 C48 68, 58 84, 64 104 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
     <path d="M146 122 C168 110, 174 86, 162 76 C152 68, 142 84, 136 104 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
   </g>

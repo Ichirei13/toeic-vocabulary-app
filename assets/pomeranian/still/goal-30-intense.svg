@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Lightning & Flame Boost (30問: ストイック猛特訓) -->
+  <g class="flame" transform="translate(100 164) scale(1 1.07) translate(-100 -164)">
+    <path d="M36 164 C14 134, 18 88, 44 64 C40 80, 50 86, 56 70 C64 38, 86 16, 102 8 C98 28, 112 38, 120 22 C144 44, 156 74, 150 90 C160 82, 168 70, 166 56 C184 86, 186 132, 164 164 Z" fill="#FF4B4B"/>
+    <path d="M50 164 C34 140, 38 102, 58 82 C72 58, 92 40, 102 32 C116 50, 132 70, 140 92 C156 112, 160 142, 148 164 Z" fill="#FF9600"/>
+  </g>
+  <g class="bolts" transform="translate(0 -5)">
+    <polygon points="28,36 16,58 28,58 20,80 42,52 28,52" fill="#FFC800"/>
+    <polygon points="172,36 160,58 172,58 164,80 186,52 172,52" fill="#FFC800"/>
+  </g>
+  <!-- Body & Double Fist Pump -->
+  <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M54 122 C32 110, 26 86, 38 76 C48 68, 58 84, 64 104 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M146 122 C168 110, 174 86, 162 76 C152 68, 142 84, 136 104 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M50 114 C42 128, 50 146, 66 150 C84 158, 116 158, 134 150 C150 146, 158 128, 150 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Bandana -->
+  <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+  <!-- Head & Golden Headband -->
+  <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M48 54 Q100 44 152 54 L150 64 Q100 54 50 64 Z" fill="#FFC800" stroke="#4B4B4B" stroke-width="4.5" stroke-linejoin="round"/>
+  <!-- Star Eyes & Fired-up Smile -->
+  <circle cx="78" cy="80" r="11" fill="#3B232E"/>
+  <polygon points="78,72 80,77 85,79 80,81 78,86 76,81 71,79 76,77" fill="#FFC800"/>
+  <circle cx="122" cy="80" r="11" fill="#3B232E"/>
+  <polygon points="122,72 124,77 129,79 124,81 122,86 120,81 115,79 120,77" fill="#FFC800"/>
+  <ellipse cx="100" cy="88" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M86 96 Q100 114 114 96" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
