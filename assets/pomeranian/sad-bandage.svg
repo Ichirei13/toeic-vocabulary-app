@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-nod { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+    .comfort-head { animation: pom-nod 1.6s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .comfort-head { animation: none; }
+    }
+  </style>
+  <!-- Tail & Legs -->
+  <path d="M42 138 C18 132, 14 102, 32 88 C26 78, 38 68, 52 76 C56 96, 54 122, 42 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M62 126 C56 148, 58 176, 74 178 C86 178, 90 162, 92 152 L108 152 C110 162, 114 178, 126 178 C142 176, 144 148, 138 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Chest & Bandana -->
+  <path d="M48 112 C40 126, 48 144, 64 148 C82 156, 118 156, 136 148 C152 144, 160 126, 152 112 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+  <!-- Gentle Comforting Head with Cute Cheek Bandage -->
+  <g class="comfort-head">
+    <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M55 62 L53 38 C53 34, 62 34, 70 46 Z" fill="#D6DCE5"/>
+    <path d="M145 62 L147 38 C147 34, 138 34, 130 46 Z" fill="#D6DCE5"/>
+    <!-- Kind Sympathetic Brows & Eyes -->
+    <path d="M66 64 Q76 60 84 66" stroke="#4B4B4B" stroke-width="4" stroke-linecap="round"/>
+    <path d="M134 64 Q124 60 116 66" stroke="#4B4B4B" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="78" cy="78" r="11" fill="#3B232E"/>
+    <circle cx="74" cy="74" r="4" fill="#FFFFFF"/>
+    <circle cx="122" cy="78" r="11" fill="#3B232E"/>
+    <circle cx="118" cy="74" r="4" fill="#FFFFFF"/>
+    <!-- Little Band-Aid on Cheek -->
+    <rect x="128" y="88" width="22" height="10" rx="4" transform="rotate(-18 139 93)" fill="#FFCC80" stroke="#4B4B4B" stroke-width="3"/>
+    <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+    <path d="M90 96 Q100 103 110 96" fill="none" stroke="#3B232E" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <!-- Offering a Green Recovery Heart / Clover -->
+  <path d="M148 118 C140 108, 128 116, 134 128 C138 136, 148 142, 148 142 C148 142, 158 136, 162 128 C168 116, 156 108, 148 118 Z" fill="#58CC02" stroke="#4B4B4B" stroke-width="4.5" stroke-linejoin="round"/>
+  <circle cx="132" cy="130" r="10" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

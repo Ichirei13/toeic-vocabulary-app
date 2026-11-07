@@ -70,6 +70,9 @@ NODE_PATH=$(npm root -g) node tests/practice-chrome.test.js
 
 # 文法の出題済み記録・絞り込み・バックアップ（版6）
 NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
+
+# 苦手単語帳PDF（オプションの保存、苦手リストのボタン、A4で溢れないか。PDFを実際に作って測る）
+NODE_PATH=$(npm root -g) node tests/wordbook-ui.test.js
 ```
 
 ### 検証項目

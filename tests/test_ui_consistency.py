@@ -19,8 +19,9 @@ def test_index_html_has_all_book_badges_and_selectors():
     assert '.badge-toplevel' in html
     assert '#grammar-book-segments' in html
 
-    # Check state validation
-    assert "'polaris2'" in html and "'toplevel'" in html
+    # 本の定義表に 4 冊とも入っている（保存した設定の検証もこの表の id を使う）
+    assert "polaris2: {" in html and "toplevel: {" in html
+    assert "GRAMMAR_BOOK_IDS" in html
 
     # Check 5-choice support and keyboard shortcuts
     assert "'E'" in html or '"E"' in html
@@ -37,7 +38,7 @@ def test_grammar_ui_functions_execution():
     html = read_app_source()
     grammar_js = Path("/Users/reiji/myapps/toeic_practice/data/grammar.js").read_text(encoding="utf-8")
 
-    func_match = re.search(r"function getBookBadge\(.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)
+    func_match = re.search(r"const GRAMMAR_BOOKS = \{.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)
     assert func_match is not None, "Could not find getBookBadge / getGrammarChapters in index.html"
     func_code = func_match.group(0)
 

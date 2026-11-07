@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-lantern { 0%, 100% { opacity: 0.85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+    .glow { transform-origin: 42px 136px; animation: pom-lantern 1.8s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .glow { animation: none; }
+    }
+  </style>
+  <!-- Crescent Moon & Stars -->
+  <path d="M44 26 C32 28, 28 44, 40 52 C50 58, 60 50, 56 42 C46 44, 40 34, 44 26 Z" fill="#FFC800"/>
+  <circle cx="74" cy="24" r="3" fill="#FFC800"/>
+  <circle cx="168" cy="36" r="3.5" fill="#FFC800"/>
+  <!-- Warm Desk Lantern (Left) -->
+  <circle class="glow" cx="42" cy="136" r="32" fill="#FFC800" opacity="0.22"/>
+  <rect x="28" y="118" width="28" height="36" rx="8" fill="#FFF7E6" stroke="#4B4B4B" stroke-width="4.5"/>
+  <path d="M42 128 C36 136, 38 144, 42 144 C46 144, 48 136, 42 128 Z" fill="#FF9600"/>
+  <rect x="24" y="152" width="36" height="8" rx="3" fill="#D19A66" stroke="#4B4B4B" stroke-width="4"/>
+  <!-- Pomeranian Reading in Nightcap -->
+  <path d="M72 80 L66 44 C66 34, 80 32, 94 48 C108 42, 126 42, 140 48 C154 32, 168 34, 168 44 L162 80 C176 92, 176 116, 156 126 C138 136, 92 136, 74 126 C56 116, 56 92, 72 80 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Starry Blue Nightcap -->
+  <path d="M74 58 C82 20, 142 16, 166 48 C154 52, 148 64, 154 76 C128 60, 96 60, 74 58 Z" fill="#1E3A8A" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="158" cy="78" r="9" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="4.5"/>
+  <circle cx="106" cy="40" r="3.5" fill="#FFC800"/>
+  <circle cx="130" cy="44" r="3" fill="#FFC800"/>
+  <!-- Gentle Focused Eyes -->
+  <circle cx="94" cy="90" r="10" fill="#3B232E"/>
+  <circle cx="90" cy="86" r="3.5" fill="#FFFFFF"/>
+  <circle cx="136" cy="90" r="10" fill="#3B232E"/>
+  <circle cx="132" cy="86" r="3.5" fill="#FFFFFF"/>
+  <ellipse cx="115" cy="98" rx="6.5" ry="4.5" fill="#3B232E"/>
+  <path d="M106 106 Q115 114 124 106" fill="none" stroke="#3B232E" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- Bandana & Open Book on Desk -->
+  <path d="M84 124 L115 148 L146 124 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M74 162 L84 144 Q115 140 146 144 L156 162 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="4.5" stroke-linejoin="round"/>
+  <circle cx="90" cy="144" r="9" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="4.5"/>
+  <circle cx="140" cy="144" r="9" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="4.5"/>
+</svg>

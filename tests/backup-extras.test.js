@@ -242,6 +242,88 @@ test('settings_goal_input_clamps_and_saves', () => withPage({}, async page => {
   assert.strictEqual(r.stored.paceTarget.grammar, 120);
 }));
 
+test('pomodoro_timer_mini_pill_and_backup_roundtrip', () => withPage({}, async page => {
+  const r = await page.evaluate(() => {
+    switchAppPage('timer');
+    const clockBefore = document.getElementById('pomo-clock')?.textContent;
+    const pillHiddenOnTimer = document.getElementById('pomo-mini-pill')?.hidden;
+    document.getElementById('pomo-start-btn').click();
+    switchAppPage('practice');
+    const pillVisibleOnPractice = !document.getElementById('pomo-mini-pill')?.hidden;
+    document.getElementById('pomo-mini-toggle').click(); // 一時停止
+    const paused = !pomoState.running;
+    document.getElementById('pomo-mini-open').click(); // タップでタイマー画面へ戻る
+    const returnedToTimer = currentAppPage === 'timer';
+    // スキップで完了記録を保存し、バックアップ書き出し・復元を検証
+    pomoState.remaining = 60; // 24分経過状態
+    skipPomo();
+    const backup = buildBackup();
+    return { clockBefore, pillHiddenOnTimer, pillVisibleOnPractice, paused, returnedToTimer, backupPomoLog: backup.data.pomoLog };
+  });
+  assert.strictEqual(r.clockBefore, '25:00');
+  assert.strictEqual(r.pillHiddenOnTimer, true);
+  assert.strictEqual(r.pillVisibleOnPractice, true);
+  assert.strictEqual(r.paused, true);
+  assert.strictEqual(r.returnedToTimer, true);
+  const dates = Object.keys(r.backupPomoLog || {});
+  assert.strictEqual(dates.length, 1);
+  assert.strictEqual(r.backupPomoLog[dates[0]].sets, 1);
+}));
+
+// ミニピルを動かすテスト用に、タイマーを動かして演習ページへ移る（ピルが出る）
+const startTimerAndLeave = page => page.evaluate(() => {
+  switchAppPage('timer');
+  document.getElementById('pomo-start-btn').click();
+  switchAppPage('practice');
+});
+const pillRect = page => page.evaluate(() => {
+  const r = document.getElementById('pomo-mini-pill').getBoundingClientRect();
+  return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+});
+
+test('pomodoro_mini_pill_can_be_dragged_anywhere_and_remembers_its_place', () => withPage({}, async page => {
+  await startTimerAndLeave(page);
+  const before = await pillRect(page);
+  // 時計の部分を持って引っ張る。指を離しても、ボタンが押されたことにはならない
+  await page.mouse.move(before.cx - 20, before.cy);
+  await page.mouse.down();
+  await page.mouse.move(120, 420, { steps: 8 });
+  await page.mouse.up();
+  const after = await pillRect(page);
+  assert(Math.abs(after.cx - (120 + 20)) < 3 && Math.abs(after.cy - 420) < 3, `指の位置に動いていない: ${JSON.stringify(after)}`);
+  const state = await page.evaluate(() => ({ page: currentAppPage, running: pomoState.running, saved: JSON.parse(localStorage.getItem('toeic_pomo_pill_v1')) }));
+  assert.strictEqual(state.page, 'practice', 'ドラッグの終わりにタイマー画面が開いてしまった');
+  assert.strictEqual(state.running, true);
+  assert(Math.abs(state.saved.x - after.cx / 420) < 0.01 && Math.abs(state.saved.y - after.cy / 800) < 0.01, '位置が保存されていない');
+  // 引っ張らずに押したときは、今までどおり ⏸ が効く
+  const t = await page.evaluate(() => { const r = document.getElementById('pomo-mini-toggle').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  await page.mouse.click(t.x, t.y);
+  assert.strictEqual(await page.evaluate(() => pomoState.running), false);
+  // 画面の外へ持っていっても、はみ出さない
+  const p = await pillRect(page);
+  await page.mouse.move(p.cx, p.cy);
+  await page.mouse.down();
+  await page.mouse.move(-200, -200, { steps: 6 });
+  await page.mouse.up();
+  const edge = await pillRect(page);
+  assert(edge.left >= 0 && edge.top >= 0, `画面の外に出た: ${JSON.stringify(edge)}`);
+}));
+
+test('pomodoro_mini_pill_restores_saved_place_and_stays_on_screen_when_resized', () => withPage({ toeic_pomo_pill_v1: JSON.stringify({ x: 0.8, y: 0.9 }) }, async page => {
+  await startTimerAndLeave(page);
+  const r1 = await pillRect(page);
+  assert(Math.abs(r1.cx - 0.8 * 420) < 3 && Math.abs(r1.cy - 0.9 * 800) < 3, `保存した場所に出ていない: ${JSON.stringify(r1)}`);
+  await page.setViewportSize({ width: 300, height: 500 });
+  await page.waitForFunction(() => document.documentElement.clientWidth === 300 && document.getElementById('pomo-mini-pill').getBoundingClientRect().right <= 300);
+  const r2 = await pillRect(page);
+  assert(r2.right <= 300 && r2.bottom <= 500 && r2.left >= 0 && r2.top >= 0, `小さな画面ではみ出した: ${JSON.stringify(r2)}`);
+  // 「もとに戻す」で上の中央へ
+  await page.evaluate(() => { switchAppPage('timer'); document.getElementById('pomo-pill-reset').click(); switchAppPage('practice'); });
+  const r3 = await pillRect(page);
+  assert(Math.abs(r3.cx - 150) < 3 && r3.top < 20, `もとの位置に戻っていない: ${JSON.stringify(r3)}`);
+  assert.strictEqual(await page.evaluate(() => localStorage.getItem('toeic_pomo_pill_v1')), null);
+}));
+
 // ==================== 実行 ====================
 
 (async () => {

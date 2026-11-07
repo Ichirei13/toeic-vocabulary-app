@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-cheer-l { 0%, 100% { transform: rotate(-12deg) translateY(0); } 50% { transform: rotate(14deg) translateY(-8px); } }
+    @keyframes pom-cheer-r { 0%, 100% { transform: rotate(12deg) translateY(-8px); } 50% { transform: rotate(-14deg) translateY(0); } }
+    .pom-l { transform-origin: 42px 92px; animation: pom-cheer-l 0.5s ease-in-out infinite; }
+    .pom-r { transform-origin: 158px 92px; animation: pom-cheer-r 0.5s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .pom-l, .pom-r { animation: none; }
+    }
+  </style>
+  <!-- Tail & Jumping Legs -->
+  <path d="M152 142 C176 136, 180 108, 162 94 C168 84, 156 74, 144 82 C140 102, 142 126, 152 142 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M64 130 C56 150, 60 176, 74 178 C86 178, 90 162, 92 152 L108 150 C114 162, 122 174, 134 170 C146 166, 144 142, 136 126 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Chest & Bandana -->
+  <path d="M50 114 C42 128, 50 146, 66 150 C84 158, 116 158, 134 150 C150 146, 158 128, 150 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+  <!-- Head & Ears -->
+  <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M66 78 Q78 66 90 78" fill="none" stroke="#3B232E" stroke-width="6" stroke-linecap="round"/>
+  <path d="M110 78 Q122 66 134 78" fill="none" stroke="#3B232E" stroke-width="6" stroke-linecap="round"/>
+  <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+  <path d="M88 94 Q100 114 112 94" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Cheerleading Pom-Poms (Left & Right) -->
+  <g class="pom-l">
+    <circle cx="34" cy="86" r="24" fill="#58CC02" stroke="#4B4B4B" stroke-width="5" stroke-dasharray="10 4"/>
+    <circle cx="34" cy="86" r="12" fill="#FFC800"/>
+  </g>
+  <g class="pom-r">
+    <circle cx="166" cy="86" r="24" fill="#58CC02" stroke="#4B4B4B" stroke-width="5" stroke-dasharray="10 4"/>
+    <circle cx="166" cy="86" r="12" fill="#FFC800"/>
+  </g>
+</svg>

@@ -1,3 +1,13 @@
 # upload.py が記録する同期状態と、pull 時に退避したファイル
 .upload_state.json
 *.bak
+
+# macOS と Python が自動で作るファイル
+.DS_Store
+__pycache__/
+
+# ローカルツール・設定
+.claude/
+
+# 古い index.html などのバックアップ置き場（手元だけ）
+archive/

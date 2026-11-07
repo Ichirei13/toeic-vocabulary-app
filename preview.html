@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="ink">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>絞り込み促進 UI プレビュー | TOEIC Drill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* 基本テーマ変数 */
+:root, [data-theme="ink"] {
+  --bg-page: #181512;
+  --bg-page-gradient: radial-gradient(ellipse at 50% 0%, #2b231b 0%, #181512 78%);
+  --text-page: #f4ecdc;
+  --bg-card: linear-gradient(165deg, #fbf7ee 0%, #f1e7d4 100%);
+  --text-card: #181512;
+  --text-card-muted: #6b6152;
+  --bg-card-border: rgba(255, 255, 255, 0.65);
+  --ui-surface: rgba(244, 236, 220, 0.07);
+  --ui-border: rgba(244, 236, 220, 0.14);
+  --text-muted: #b0a38f;
+  --accent: #d4a759;
+  --accent-glow: rgba(212, 167, 89, 0.28);
+  --accent-btn-bg: linear-gradient(135deg, #deb66c, #c99c50);
+  --accent-btn-text: #181512;
+  --sheet-bg: #f9f5ec;
+  --sheet-text: #181512;
+  --sheet-close-bg: rgba(24, 21, 18, 0.08);
+}
+[data-theme="duolingo"] {
+  --bg-page: #131f24;
+  --bg-page-gradient: radial-gradient(ellipse at 50% 0%, #1c2e36 0%, #131f24 85%);
+  --text-page: #ffffff;
+  --bg-card: #202f36;
+  --text-card: #ffffff;
+  --text-card-muted: #afbac0;
+  --bg-card-border: #37464f;
+  --ui-surface: rgba(255, 255, 255, 0.06);
+  --ui-border: #2c3c45;
+  --text-muted: #8b99a0;
+  --accent: #58cc02;
+  --accent-glow: rgba(88, 204, 2, 0.4);
+  --accent-btn-bg: #58cc02;
+  --accent-btn-text: #ffffff;
+  --sheet-bg: #202f36;
+  --sheet-text: #ffffff;
+  --sheet-close-bg: rgba(255, 255, 255, 0.1);
+}
+[data-theme="navy"] {
+  --bg-page: #0b1329;
+  --bg-page-gradient: radial-gradient(ellipse at 50% 0%, #172554 0%, #0b1329 80%);
+  --text-page: #f8fafc;
+  --bg-card: linear-gradient(165deg, #ffffff 0%, #f1f5f9 100%);
+  --text-card: #0f172a;
+  --text-card-muted: #64748b;
+  --bg-card-border: rgba(255, 255, 255, 0.7);
+  --ui-surface: rgba(255, 255, 255, 0.07);
+  --ui-border: rgba(255, 255, 255, 0.12);
+  --text-muted: #94a3b8;
+  --accent: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.3);
+  --accent-btn-bg: linear-gradient(135deg, #38bdf8, #0284c7);
+  --accent-btn-text: #0f172a;
+  --sheet-bg: #f8fafc;
+  --sheet-text: #0f172a;
+  --sheet-close-bg: rgba(15, 23, 42, 0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", sans-serif;
+  background: var(--bg-page);
+  color: var(--text-page);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* プレビュー切り替えコントローラー（画面最上部固定） */
+.preview-control-bar {
+  width: 100%;
+  max-width: 520px;
+  background: #111418;
+  border-bottom: 2px solid #282f3c;
+  padding: 12px 16px;
+  z-index: 200;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+.preview-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #60a5fa;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.preview-theme-select {
+  background: #21252d;
+  color: #d1d5db;
+  border: 1px solid #3b4252;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.preview-pills {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.preview-pill {
+  flex: 1;
+  min-width: 90px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #212630;
+  border: 1px solid #333a48;
+  color: #c9d1d9;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.preview-pill.active {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
+}
+.preview-desc {
+  font-size: 11.5px;
+  color: #9ba3af;
+  margin-top: 8px;
+  line-height: 1.45;
+  background: #181b22;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border-left: 3px solid #3b82f6;
+}
+
+/* スマホ枠モックアップ */
+#app {
+  width: 100%;
+  max-width: 480px;
+  min-height: calc(100vh - 120px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 30px;
+}
+
+/* ヘッダー */
+.header {
+  padding: 12px 20px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.title-wrap .eyebrow { font-size: 11px; font-weight: 700; color: var(--accent); }
+.title-wrap .title { font-size: 20px; font-weight: 800; color: var(--text-page); }
+.header-actions { display: flex; align-items: center; gap: 8px; }
+
+.filter-toggle {
+  min-height: 34px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+.filter-toggle.pulse-glow {
+  animation: pulseGlow 2s infinite;
+}
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(212, 167, 89, 0.6); border-color: var(--accent); }
+  70% { box-shadow: 0 0 0 10px rgba(212, 167, 89, 0); border-color: var(--accent); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 167, 89, 0); }
+}
+
+.settings-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--ui-surface); border: 1px solid var(--ui-border);
+  color: var(--text-page); display: flex; align-items: center; justify-content: center;
+}
+
+/* セグメント */
+.segments {
+  display: flex;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 3px;
+  margin: 0 20px 8px;
+  gap: 4px;
+}
+.segment {
+  flex: 1; text-align: center; padding: 7px 4px; font-size: 12.5px;
+  font-weight: 600; border-radius: 9px; cursor: pointer; color: var(--text-muted);
+}
+.segment.active { background: var(--text-page); color: var(--bg-page); font-weight: 700; }
+
+/* 案2: インライン提案チップ（カード上） */
+.inline-nudge-pill {
+  margin: 4px 20px 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(212, 167, 89, 0.16), rgba(212, 167, 89, 0.06));
+  border: 1px solid rgba(212, 167, 89, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.inline-nudge-pill:hover {
+  background: rgba(212, 167, 89, 0.22);
+}
+.inline-nudge-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-page);
+  font-weight: 600;
+}
+.inline-nudge-btn {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.25);
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(212, 167, 89, 0.4);
+}
+
+/* 案4: クイック絞り込みボタン群（カード上） */
+.quick-filter-row {
+  margin: 4px 20px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.quick-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.quick-chip {
+  padding: 5px 12px;
+  border-radius: 16px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.quick-chip:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--accent);
+}
+.quick-chip.accent {
+  background: rgba(212, 167, 89, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 出題カード */
+.card-area {
+  margin: 6px 20px 14px;
+  background: var(--bg-card);
+  color: var(--text-card);
+  border-radius: 24px;
+  padding: 24px 20px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.3);
+  position: relative;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.word-head { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+.word-pos { font-size: 12px; color: var(--text-card-muted); font-weight: 700; }
+.word-sub { font-size: 14px; color: var(--text-card-muted); margin-top: 8px; }
+
+/* 案1: 一定問題解いたときのアドバイス・ナッジカード */
+.nudge-card-banner {
+  margin: 0 20px 14px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18), rgba(30, 58, 138, 0.28));
+  border: 1px solid rgba(96, 165, 250, 0.4);
+  border-radius: 16px;
+  padding: 14px 16px;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  animation: slideInDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nudge-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.nudge-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #93c5fd;
+}
+.nudge-card-close {
+  background: none; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; padding: 0 4px;
+}
+.nudge-card-body {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #e2e8f0;
+  margin-bottom: 12px;
+}
+.nudge-card-actions {
+  display: flex;
+  gap: 8px;
+}
+.nudge-btn-primary {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.35);
+}
+.nudge-btn-secondary {
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 選択肢ボタン */
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 20px 16px;
+}
+.choice-btn {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  color: var(--text-page);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* トップシート（プレビュー用） */
+.sheet-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  opacity: 0; pointer-events: none; transition: opacity 0.3s; z-index: 99;
+}
+.sheet-overlay.open { opacity: 1; pointer-events: auto; }
+/* 各テーマごとのトップシート背景色とボーダー調整 */
+:root, [data-theme="ink"] {
+  --top-sheet-bg: #1f1a16;
+  --top-sheet-border: rgba(212, 167, 89, 0.35);
+}
+[data-theme="duolingo"] {
+  --top-sheet-bg: #202f36;
+  --top-sheet-border: #2c3c45;
+}
+[data-theme="navy"] {
+  --top-sheet-bg: #111a2e;
+  --top-sheet-border: rgba(56, 189, 248, 0.3);
+}
+
+.top-sheet {
+  position: absolute; top: 0; left: 0; right: 0;
+  background: var(--top-sheet-bg); color: var(--text-page);
+  border-bottom: 2px solid var(--top-sheet-border);
+  border-radius: 0 0 24px 24px; padding: 20px;
+  transform: translateY(-100%); transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 100; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.top-sheet.open { transform: translateY(0); }
+.top-sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.top-sheet-close {
+  background: var(--sheet-close-bg); border: none; border-radius: 50%;
+  width: 32px; height: 32px; color: var(--sheet-text); font-size: 16px; cursor: pointer;
+}
+.sheet-btn {
+  width: 100%; padding: 12px; border-radius: 14px;
+  background: var(--accent-btn-bg); color: var(--accent-btn-text);
+  border: none; font-weight: 700; margin-top: 14px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+
+<div class="preview-control-bar">
+  <div class="preview-title">
+    <span>💡 絞り込み促進 UI パターン比較</span>
+    <select class="preview-theme-select" onchange="setTheme(this.value)">
+      <option value="ink">和モダン</option>
+      <option value="duolingo">Duolingo</option>
+      <option value="navy">ネイビー</option>
+    </select>
+  </div>
+  <div class="preview-pills">
+    <button class="preview-pill active" onclick="switchPattern('card')">案1: ナッジカード</button>
+    <button class="preview-pill" onclick="switchPattern('chip')">案2: インライン提案</button>
+    <button class="preview-pill" onclick="switchPattern('pulse')">案3: パルス光</button>
+    <button class="preview-pill" onclick="switchPattern('quick')">案4: クイック絞り込み</button>
+    <button class="preview-pill" onclick="switchPattern('none')">OFF (素の状態)</button>
+  </div>
+  <div class="preview-desc" id="pattern-desc">
+    【案1: アドバイスカード】出題対象が300問以上あるときに、5問ほど解いたタイミングでカード下に出現。学習効率の理由を伝え、ワンタップで絞り込みを開かせます。
+  </div>
+</div>
+
+<div id="app">
+  <div class="header">
+    <div class="title-wrap">
+      <div class="eyebrow">TOEIC Drill</div>
+      <h1 class="title">単語ドリル</h1>
+    </div>
+    <div class="header-actions">
+      <button class="filter-toggle" id="filter-btn" onclick="openFilterSheet()">
+        絞り込み <span style="font-size:9px;">▼</span>
+      </button>
+      <button class="settings-btn">⚙️</button>
+    </div>
+  </div>
+
+  <div class="segments">
+    <div class="segment active">単語ドリル</div>
+    <div class="segment">文法ドリル (Part 5)</div>
+  </div>
+  <div class="segments">
+    <div class="segment active">英→日</div>
+    <div class="segment">日→英</div>
+    <div class="segment">カード</div>
+    <div class="segment">タイプ</div>
+  </div>
+
+  <!-- 案2: インライン提案チップ（カード上） -->
+  <div class="inline-nudge-pill" id="area-chip" style="display:none;" onclick="openFilterSheet()">
+    <div class="inline-nudge-left">
+      <span>📦</span>
+      <span>現在 <b>1,450問</b> を全問出題中</span>
+    </div>
+    <span class="inline-nudge-btn">範囲を絞る ▾</span>
+  </div>
+
+  <!-- 案4: クイック絞り込みボタン群（カード上） -->
+  <div class="quick-filter-row" id="area-quick" style="display:none;">
+    <span class="quick-filter-label">⚡ おすすめ:</span>
+    <button class="quick-chip accent" onclick="quickApply('日々の単語')">日々の単語</button>
+    <button class="quick-chip" onclick="quickApply('苦手のみ')">苦手のみ</button>
+    <button class="quick-chip" onclick="quickApply('名詞')">名詞だけ</button>
+    <button class="quick-chip" onclick="openFilterSheet()">詳しく ▾</button>
+  </div>
+
+  <!-- 出題カード -->
+  <div class="card-area">
+    <div class="word-head">accommodate</div>
+    <div class="word-pos">[動詞] TOEIC頻出</div>
+    <div class="word-sub">The hotel can accommodate up to 500 guests.</div>
+  </div>
+
+  <!-- 案1: 一定問題解いたときのアドバイス・ナッジカード -->
+  <div class="nudge-card-banner" id="area-card">
+    <div class="nudge-card-header">
+      <div class="nudge-card-title">
+        <span>🎯</span>
+        <span>範囲を絞って集中しませんか？</span>
+      </div>
+      <button class="nudge-card-close" onclick="closeNudgeCard()" title="閉じる">✕</button>
+    </div>
+    <div class="nudge-card-body">
+      全問（1,450問）を解き続けるより、<b>100問ほどに絞って繰り返し周回する</b>のが定着への一番のおすすめです！「日々の単語」や「苦手＋未出題」などに絞ってみませんか？
+    </div>
+    <div class="nudge-card-actions">
+      <button class="nudge-btn-primary" onclick="openFilterSheet()">🎯 絞り込みを設定する</button>
+      <button class="nudge-btn-secondary" onclick="closeNudgeCard()">このまま解く</button>
+    </div>
+  </div>
+
+  <!-- 選択肢 -->
+  <div class="choices">
+    <button class="choice-btn">1. 〜を収容する・対応する</button>
+    <button class="choice-btn">2. 〜を推薦する・勧める</button>
+    <button class="choice-btn">3. 〜を承認する・許可する</button>
+    <button class="choice-btn">4. 〜を延期する</button>
+  </div>
+
+  <!-- オーバーレイ＆トップシート -->
+  <div class="sheet-overlay" id="overlay" onclick="closeFilterSheet()"></div>
+  <div class="top-sheet" id="top-sheet">
+    <div class="top-sheet-header">
+      <h3 style="margin:0;">絞り込み・出題設定</h3>
+      <button class="top-sheet-close" onclick="closeFilterSheet()">✕</button>
+    </div>
+    <p style="font-size:13px; opacity:0.8; margin-bottom:12px;">出題範囲や品詞、苦手絞り込みをここで設定できます。</p>
+    <div style="background:rgba(0,0,0,0.06); padding:12px; border-radius:12px; font-size:13px; line-height:1.6;">
+      ・<b>学習対象:</b> 単語ドリル / 文法ドリル<br>
+      ・<b>出題モード:</b> 英日 / 日英 / カード / タイプ<br>
+      ・<b>習熟度:</b> 苦手＋未出題（★新デフォルト）
+    </div>
+    <button class="sheet-btn" onclick="closeFilterSheet()">この条件で解く</button>
+  </div>
+</div>
+
+<script>
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+}
+
+const descs = {
+  card: '【案1: アドバイスカード】未絞り込みで5問ほど解いたタイミングでカード下に出現。「なぜ絞り込むと良いか」を明確に伝え、ワンタップで絞り込みを開かせます。✕を押せばその回は邪魔しません。',
+  chip: '【案2: インライン提案チップ】カードのすぐ上に「全1,450問を出題中 [範囲を絞る▾]」と常時コンパクトに表示。回答を妨げず、母数の大きさに気づかせます。',
+  pulse: '【案3: パルス光】右上の「絞り込み」ボタンがふわふわと呼吸するように光り、視覚的に注意を引きます。画面内のスペースを消費しません。',
+  quick: '【案4: クイック絞り込み】カードの上に「日々の単語」「苦手のみ」などの頻出ショートカットボタンを直接並べ、シートを開く手間すら省いて即座に絞り込ませます。',
+  none: '【OFF】何もナッジを出さない通常状態です。'
+};
+
+function switchPattern(pattern) {
+  document.querySelectorAll('.preview-pill').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('pattern-desc').innerText = descs[pattern];
+
+  document.getElementById('area-card').style.display = pattern === 'card' ? 'block' : 'none';
+  document.getElementById('area-chip').style.display = pattern === 'chip' ? 'flex' : 'none';
+  document.getElementById('area-quick').style.display = pattern === 'quick' ? 'flex' : 'none';
+
+  const filterBtn = document.getElementById('filter-btn');
+  if (pattern === 'pulse') filterBtn.classList.add('pulse-glow');
+  else filterBtn.classList.remove('pulse-glow');
+}
+
+function openFilterSheet() {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('top-sheet').classList.add('open');
+}
+function closeFilterSheet() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('top-sheet').classList.remove('open');
+}
+function closeNudgeCard() {
+  document.getElementById('area-card').style.display = 'none';
+}
+function quickApply(type) {
+  alert('「' + type + '」に絞り込みました！');
+}
+</script>
+</body>
+</html>

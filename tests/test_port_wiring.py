@@ -39,7 +39,8 @@ def test_backup_format_6_is_wired_and_drive_is_untouched():
     assert "toeic_daily_activity_v1" not in block
     # Drive 同期が作るファイルは従来どおり（版 5・日別記録なし）
     assert HTML.count("buildBackup({ forDrive: true })") == 2
-    assert "format: forDrive ? 5 : BACKUP_FORMAT" in HTML
+    assert "format: forDrive ? BACKUP_FORMAT_DRIVE : BACKUP_FORMAT" in HTML
+    assert "const BACKUP_FORMAT_DRIVE = 5;" in HTML
 
 
 def test_review_module_is_wired():
@@ -52,11 +53,22 @@ def test_review_page_is_wired():
     assert 'data-page="review"' in HTML
     assert 'id="review-page"' in HTML
     home = (ROOT / "home.js").read_text(encoding="utf-8")
-    assert "const APP_PAGES = ['home', 'practice', 'review', 'settings'];" in home
+    assert "const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings'];" in home
     assert "function renderReviewPage()" in home
-    # ナビは「ホーム / 演習 / 復習 / 設定」の順
+    # ナビは「ホーム / 演習 / 復習 / 集中 / 設定」の順
     nav = HTML[HTML.index('class="top-page-tabs"'):]
-    assert nav.index('data-page="practice"') < nav.index('data-page="review"') < nav.index('data-page="settings"')
+    assert nav.index('data-page="practice"') < nav.index('data-page="review"') < nav.index('data-page="timer"') < nav.index('data-page="settings"')
+
+
+def test_pomodoro_is_wired():
+    assert '<script src="src/pomodoro.js"></script>' in HTML
+    assert '<script src="js/pomodoro.js"></script>' in HTML
+    assert 'data-page="timer"' in HTML
+    assert 'id="timer-page"' in HTML
+    assert "function renderTimerPage()" in HTML
+    assert "function syncPomoMiniPill()" in HTML
+    assert "'src/pomodoro.js'" in SW
+    assert "'js/pomodoro.js'" in SW
 
 
 def test_home_js_survives_missing_src_scripts():

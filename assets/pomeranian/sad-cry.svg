@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes pom-cry-stream { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(1.08); } }
+    @keyframes pom-sob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+    .streams { transform-origin: 100px 90px; animation: pom-cry-stream 0.45s ease-in-out infinite; }
+    .sob-body { animation: pom-sob 0.55s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) {
+      .streams, .sob-body { animation: none; }
+    }
+  </style>
+  <g class="sob-body">
+    <!-- Seated Body & Chest -->
+    <path d="M62 128 C54 150, 56 176, 72 178 C84 178, 88 164, 92 154 L108 154 C112 164, 116 178, 128 178 C144 176, 146 150, 138 128 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M50 114 C42 128, 50 146, 66 150 C84 158, 116 158, 134 150 C150 146, 158 128, 150 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M64 116 L100 146 L136 116 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M72 116 L100 138 L128 116 Z" fill="#58CC02"/>
+    <!-- Head & Drooping Ears -->
+    <path d="M54 70 C30 68, 22 82, 36 92 L50 86 C36 102, 42 118, 58 122 C76 130, 124 130, 142 122 C158 118, 164 102, 150 86 L164 92 C178 82, 170 68, 146 70 C136 42, 64 42, 54 70 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Closed Crying Eyes & Sobbing Mouth -->
+    <path d="M66 78 Q78 86 88 78" fill="none" stroke="#3B232E" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M112 78 Q122 86 134 78" fill="none" stroke="#3B232E" stroke-width="5.5" stroke-linecap="round"/>
+    <ellipse cx="100" cy="86" rx="6.5" ry="4.5" fill="#3B232E"/>
+    <path d="M88 104 C88 94, 112 94, 112 104 Z" fill="#FF6B8B" stroke="#3B232E" stroke-width="4.5" stroke-linejoin="round"/>
+  </g>
+  <!-- Waterfall Tear Streams -->
+  <g class="streams">
+    <path d="M72 82 C44 86, 32 128, 30 174 H48 C50 136, 58 100, 74 90 Z" fill="#29B6F6" stroke="#0288D1" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M128 82 C156 86, 168 128, 170 174 H152 C150 136, 142 100, 126 90 Z" fill="#29B6F6" stroke="#0288D1" stroke-width="3" stroke-linejoin="round"/>
+  </g>
+  <!-- Paws Rubbing Eyes -->
+  <circle cx="72" cy="96" r="11" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+  <circle cx="128" cy="96" r="11" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

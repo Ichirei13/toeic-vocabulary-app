@@ -106,7 +106,7 @@ def test_ui_functions_execution_for_all_books():
     html = read_app_source()
     grammar_js = GRAMMAR_JS.read_text(encoding="utf-8")
 
-    func_match = re.search(r"function getBookBadge\(.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)
+    func_match = re.search(r"const GRAMMAR_BOOKS = \{.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)
     assert func_match is not None, "Could not find UI functions in index.html"
     func_code = func_match.group(0)
 
