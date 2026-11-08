@@ -10,9 +10,11 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
-const TEST_PAGE = `<!doctype html>
+// extraHead: テーマのテスト用に、アプリの本物の CSS を足したページも作る
+const testPage = (extraHead = '') => `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+${extraHead}
 <link rel="stylesheet" href="/css/graph.css">
 <style>html,body{margin:0;height:100%;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}#host{position:fixed;inset:0}</style>
 </head><body><div id="host"></div>
@@ -60,9 +62,10 @@ const COUNT_SCRIPT = `
 let browser, base;
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://local').pathname;
-  if (pathname === '/__graph_test.html') {
+  if (pathname === '/__graph_test.html' || pathname === '/__graph_theme_test.html') {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.end(TEST_PAGE);
+    const extra = pathname === '/__graph_theme_test.html' ? '<link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/theme-ios.css">' : '';
+    return res.end(testPage(extra));
   }
   const file = path.resolve(root, '.' + pathname);
   if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return res.writeHead(404).end();
@@ -85,7 +88,8 @@ async function open(t, opts = {}) {
   page.on('pageerror', e => errors.push(e));
   t.after(() => assert.deepEqual(errors.map(String), [], 'ページで例外が出た'));
   await page.addInitScript(COUNT_SCRIPT);
-  await page.goto(base + '/__graph_test.html');
+  if (opts.init) await page.addInitScript(opts.init);
+  await page.goto(base + (opts.path || '/__graph_test.html'));
   return page;
 }
 
@@ -597,6 +601,185 @@ test('性能（CPU 4 倍スロットル、記録用）', async t => {
     console.log(`  [perf 4x] ${vp.width}x${vp.height} full=${r.full.toFixed(2)}ms mid=${r.mid.toFixed(2)}ms near=${r.near.toFixed(2)}ms`);
     assert.ok(r.full < 200);
   }
+});
+
+// アプリの本物のテーマの一覧と、暗い / 明るいの分類（css/app.css の --bg-page で決めた）。
+// テーマを足したら、ここと css/graph.css の両方を直す（下のテストで CSS の一覧と照合するので、足し忘れると落ちる）
+const APP_THEMES = { ink: 'dark', duolingo: 'dark', navy: 'dark', forest: 'dark', nordic: 'dark', quizlet: 'dark', light: 'light', ios: 'light' };
+const lum = ([r, g, b]) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+test('アプリの全テーマで、グラフの背景が暗いテーマでは暗く、明るいテーマでは明るい（本物の app.css・theme-ios.css）', async t => {
+  const found = new Set();
+  for (const f of ['css/app.css', 'css/theme-ios.css']) {
+    for (const m of fs.readFileSync(path.join(root, f), 'utf8').matchAll(/\[data-theme="([^"]+)"\]/g)) found.add(m[1]);
+  }
+  assert.deepEqual([...found].sort(), Object.keys(APP_THEMES).sort(), 'CSS のテーマ一覧とテストの一覧が食い違う');
+  const page = await open(t, { path: '/__graph_theme_test.html' });
+  await mountAndWait(page);
+  const corner = [5, await page.evaluate(() => innerHeight - 5)];
+  const results = {};
+  for (const [id, kind] of Object.entries(APP_THEMES)) {
+    const f = await frames(page);
+    await page.evaluate(id => document.documentElement.setAttribute('data-theme', id), id);
+    await nextFrame(page, f); // MutationObserver -> 色の読み直し -> 1 回描く
+    const px = await page.evaluate(([x, y]) => window.__px(x, y), corner);
+    results[id] = lum(px).toFixed(2);
+    if (kind === 'dark') assert.ok(lum(px) < 0.25, `${id} は暗いはず: ${px}`);
+    else assert.ok(lum(px) > 0.6, `${id} は明るいはず: ${px}`);
+  }
+  // ios は端末の設定に従う
+  const f = await frames(page);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await nextFrame(page, f);
+  const px = await page.evaluate(([x, y]) => window.__px(x, y), corner);
+  assert.ok(lum(px) < 0.25, `ios（端末ダーク）は暗いはず: ${px}`);
+  console.log('  [themes] luminance ' + JSON.stringify(results) + ' ios-dark=' + lum(px).toFixed(2));
+});
+
+// addEventListener / removeEventListener とオブザーバーを、ビューとは別に数える（Review Focus 3）
+const SPY_SCRIPT = `
+  window.__spy = { on: false, list: [], obs: new Set() };
+  (function () {
+    var add = EventTarget.prototype.addEventListener, rem = EventTarget.prototype.removeEventListener;
+    var cap = function (o) { return typeof o === 'boolean' ? o : !!(o && o.capture); };
+    EventTarget.prototype.addEventListener = function (type, fn, o) {
+      var S = window.__spy, self = this, c = cap(o);
+      if (S.on && !S.list.some(function (e) { return e.t === self && e.type === type && e.fn === fn && e.cap === c; })) S.list.push({ t: self, type: type, fn: fn, cap: c });
+      return add.call(this, type, fn, o);
+    };
+    EventTarget.prototype.removeEventListener = function (type, fn, o) {
+      var S = window.__spy, self = this, c = cap(o);
+      if (S.on) S.list = S.list.filter(function (e) { return !(e.t === self && e.type === type && e.fn === fn && e.cap === c); });
+      return rem.call(this, type, fn, o);
+    };
+    ['MutationObserver', 'ResizeObserver'].forEach(function (name) {
+      var Base = window[name];
+      window[name] = class extends Base {
+        observe() { if (window.__spy.on) window.__spy.obs.add(this); return super.observe.apply(this, arguments); }
+        disconnect() { window.__spy.obs.delete(this); return super.disconnect(); }
+      };
+    });
+  })();
+`;
+
+test('リスナーとオブザーバーを別に数えても、destroy ですべて外れ、_debug.listeners と一致する', async t => {
+  const page = await open(t, { init: SPY_SCRIPT });
+  const r = await page.evaluate(() => {
+    const S = window.__spy;
+    S.on = true;
+    window.__mount();
+    const mounted = { spy: S.list.length + S.obs.size, debug: GraphView._debug.listeners, types: S.list.map(e => e.type).sort(), obs: S.obs.size };
+    GraphView.destroy();
+    const after = { list: S.list.map(e => e.type), obs: S.obs.size, debug: GraphView._debug.listeners };
+    S.on = false;
+    return { mounted, after };
+  });
+  assert.equal(r.mounted.debug, r.mounted.spy, JSON.stringify(r.mounted));
+  assert.equal(r.mounted.obs, 2, 'MutationObserver と ResizeObserver');
+  for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'wheel', 'keydown', 'visibilitychange', 'change', 'click']) {
+    assert.ok(r.mounted.types.includes(type), 'リスナーがない: ' + type);
+  }
+  assert.deepEqual(r.after, { list: [], obs: 0, debug: 0 });
+});
+
+test('mount の途中で失敗しても（getContext が null・壊れたグラフ）、リスナーも DOM も残さず例外を投げ直す', async t => {
+  const page = await open(t, { init: SPY_SCRIPT });
+  const r = await page.evaluate(() => {
+    const S = window.__spy, host = document.getElementById('host'), out = {};
+    const check = () => ({ debug: GraphView._debug.listeners, spy: S.list.length + S.obs.size, children: host.children.length, pending: GraphView._debug.pending });
+    S.on = true;
+    const orig = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = () => null;
+    try { window.__mount(); out.ctxThrew = false; } catch (e) { out.ctxThrew = true; }
+    HTMLCanvasElement.prototype.getContext = orig;
+    out.afterCtx = check();
+    const deps = window.__deps();
+    deps.graph = Object.assign({}, GRAMMAR_GRAPH, { qids: undefined });
+    try { GraphView.mount(host, deps); out.graphThrew = false; } catch (e) { out.graphThrew = true; }
+    out.afterGraph = check();
+    // isDue が例外を出しても computeMastery が握りつぶすので、mount は成功する
+    const deps2 = window.__deps();
+    window.__weak = { 1: { due: 0 } };
+    deps2.isDue = () => { throw new Error('boom'); };
+    GraphView.mount(host, deps2);
+    out.isDueMounted = { canvases: host.querySelectorAll('canvas').length, listeners: GraphView._debug.listeners > 0 };
+    GraphView.destroy();
+    out.final = check();
+    S.on = false;
+    return out;
+  });
+  const clean = { debug: 0, spy: 0, children: 0, pending: false };
+  assert.equal(r.ctxThrew, true);
+  assert.deepEqual(r.afterCtx, clean);
+  assert.equal(r.graphThrew, true);
+  assert.deepEqual(r.afterGraph, clean);
+  assert.deepEqual(r.isDueMounted, { canvases: 1, listeners: true });
+  assert.deepEqual(r.final, clean);
+  // 失敗の後でも普通に mount できる
+  await mountAndWait(page);
+});
+
+test('ピンチの片方の指を離して残りの指を動かすと、カメラは飛ばずにパンし、タップにもならない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const r = await page.evaluate(() => {
+    const cv = document.querySelector('#host canvas');
+    const rc = cv.getBoundingClientRect();
+    const cx = rc.left + rc.width / 2, cy = rc.top + rc.height / 2;
+    const ev = (type, id, x, y) => cv.dispatchEvent(new PointerEvent(type, {
+      pointerId: id, pointerType: 'touch', isPrimary: id === 11, clientX: x, clientY: y, bubbles: true, cancelable: true, buttons: type === 'pointerup' ? 0 : 1,
+    }));
+    const cam = () => GraphView._debug.camera();
+    ev('pointerdown', 11, cx - 30, cy);
+    ev('pointerdown', 12, cx + 30, cy);
+    ev('pointermove', 11, cx - 60, cy);
+    ev('pointermove', 12, cx + 60, cy);
+    ev('pointerup', 11, cx - 60, cy);
+    const c1 = cam();
+    ev('pointermove', 12, cx + 65, cy + 3);
+    const c2 = cam();
+    ev('pointermove', 12, cx + 66, cy + 3); // 合計の移動は小さいが、ピンチの後なのでタップにはしない
+    ev('pointerup', 12, cx + 66, cy + 3);
+    const c3 = cam();
+    const s = document.querySelector('#host .graph-sheet');
+    return { c1, c2, c3, open: !s.hidden, tap: GraphView._debug.lastTap };
+  });
+  assert.ok(Math.abs(r.c2.x - r.c1.x - 5) < 1e-6 && Math.abs(r.c2.y - r.c1.y - 3) < 1e-6, '離した直後の移動が飛んだ: ' + JSON.stringify(r));
+  assert.equal(r.c2.scale, r.c1.scale);
+  assert.ok(Math.abs(r.c3.x - r.c2.x - 1) < 1e-6);
+  assert.equal(r.open, false);
+  assert.equal(r.tap, -1);
+});
+
+test('開いているシートのノードが refresh で無効になったら、シートを閉じる', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+  await page.mouse.click(x, y);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  // 記録が変わっただけなら開いたまま
+  await page.evaluate(() => GraphView.refresh());
+  assert.equal(await sheetOpen(page), true);
+  await page.evaluate(() => {
+    const orig = StudyCore.buildDetail;
+    StudyCore.buildDetail = () => null;
+    try { GraphView.refresh(); } finally { StudyCore.buildDetail = orig; }
+  });
+  assert.equal(await sheetOpen(page), false);
+});
+
+test('シートを開いた直後の互換 click（覆いの上で pointerdown がない click）では閉じない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+  await page.mouse.click(x, y);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  await page.evaluate(() => document.querySelector('#host .graph-sheet-backdrop').dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 187, clientY: 120 })));
+  assert.equal(await sheetOpen(page), true, 'pointerdown なしの click で閉じた');
+  await page.mouse.click(187, 120); // 本当に覆いを押したら閉じる
+  assert.equal(await sheetOpen(page), false);
 });
 
 test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async t => {

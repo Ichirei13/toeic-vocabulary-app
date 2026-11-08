@@ -1,8 +1,8 @@
 /* 文法グラフの画面（js/graph-view.js）。.graph-view は GraphView.mount が container の中に作る要素。
    Canvas の色はここの CSS 変数を、マウント時とテーマ変更時にだけ読む（描画のたびには読まない）。
    変数は Canvas の fillStyle にそのまま渡すので、単色（グラデーション不可）にすること。
-   テーマ: 既定はライト。端末のダーク（prefers-color-scheme）と、暗いテーマ（ink・duolingo・dark）はダーク。
-   data-theme="light" は端末がダークでもライト。アプリの変数（--bg-page・--correct・--wrong）があれば使う。 */
+   テーマ: 既定はライト。端末のダーク（prefers-color-scheme）と、アプリの暗いテーマ（ink・duolingo・navy・forest・
+   nordic・quizlet）はダーク。light は端末がダークでもライト。ios は端末に従う。背景はテーマの --bg-page に合わせる。 */
 
 .graph-view {
   /* ライト */
@@ -56,9 +56,13 @@
   }
 }
 
-:root[data-theme="dark"] .graph-view,
+/* アプリの暗いテーマ（css/app.css の --bg-page が暗いもの）。テーマを足したら tests/graph-view.test.js の一覧も直す */
 [data-theme="ink"] .graph-view,
-[data-theme="duolingo"] .graph-view {
+[data-theme="duolingo"] .graph-view,
+[data-theme="navy"] .graph-view,
+[data-theme="forest"] .graph-view,
+[data-theme="nordic"] .graph-view,
+[data-theme="quizlet"] .graph-view {
   --graph-bg: #121418;
   --graph-unseen: #5d646d;
   --graph-due: #ff5a5f;
@@ -82,7 +86,7 @@
   --graph-shadow: 0 -6px 28px rgba(0, 0, 0, 0.5);
 }
 
-:root[data-theme="light"] .graph-view {
+[data-theme="light"] .graph-view {
   --graph-bg: #f6f7f9;
   --graph-unseen: #b8bec7;
   --graph-due: #e5484d;
@@ -111,6 +115,11 @@
 @media (prefers-color-scheme: dark) {
   [data-theme="ios"] .graph-view { --graph-bg: var(--bg-page, #000000); --graph-surface: #1c1c1e; --graph-chip-on-bg: var(--accent, #0a84ff); --graph-chip-on-text: #ffffff; }
 }
+[data-theme="light"] .graph-view { --graph-bg: var(--bg-page, #e8e4dc); --graph-good: var(--correct, #34c759); --graph-chip-on-bg: var(--accent, #b45309); }
+[data-theme="navy"] .graph-view { --graph-bg: var(--bg-page, #0b1120); --graph-chip-on-bg: var(--accent, #38bdf8); --graph-chip-on-text: #0b1120; }
+[data-theme="forest"] .graph-view { --graph-bg: var(--bg-page, #0a1713); --graph-chip-on-bg: var(--accent, #eab308); --graph-chip-on-text: #0a1713; }
+[data-theme="nordic"] .graph-view { --graph-bg: var(--bg-page, #121214); --graph-chip-on-bg: var(--accent, #818cf8); --graph-chip-on-text: #121214; }
+[data-theme="quizlet"] .graph-view { --graph-bg: var(--bg-page, #0a092d); --graph-surface: var(--bg-card, #1f1d47); --graph-chip-on-bg: var(--accent, #4255ff); --graph-chip-on-text: #ffffff; }
 [data-theme="ink"] .graph-view { --graph-bg: var(--bg-page, #181512); --graph-good: var(--correct, #3d7a63); --graph-surface: #231e19; --graph-chip-on-bg: var(--accent, #d4a759); }
 [data-theme="duolingo"] .graph-view { --graph-bg: var(--bg-page, #131f24); --graph-good: var(--correct, #58cc02); --graph-surface: var(--bg-card, #202f36); --graph-chip-on-bg: var(--accent, #58cc02); --graph-chip-on-text: #ffffff; }
 

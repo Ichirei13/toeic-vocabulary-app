@@ -133,6 +133,7 @@
     let mask = null, maskKey = '';
     let colors = null;
     let sheetIndex = -1;
+    let backdropArmed = false; // 開いた後に覆いで pointerdown があったか
     const pointers = new Map(); // pointerId -> { x, y }
     let gesture = null;         // { moved, pinched, lastDist, lastMid }
     const subs = [];
@@ -171,6 +172,9 @@
         '</header>' +
         '<div class="graph-sheet-body"></div>' +
       '</section>';
+    // ここから先で例外が出たら（getContext が null、グラフが壊れているなど）、登録済みのリスナー・オブザーバーを
+    // すべて外し、DOM も消してから投げ直す（失敗した mount が何も残さない）
+    try {
     container.appendChild(rootEl);
     const filterEl = rootEl.querySelector('.graph-filter');
     const stage = rootEl.querySelector('.graph-stage');
@@ -182,6 +186,7 @@
     const sheetTitle = sheet.querySelector('.graph-sheet-title');
     const sheetBody = sheet.querySelector('.graph-sheet-body');
     const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('GraphView: canvas 2D コンテキストを取得できない');
 
     // ---- 色（マウント時とテーマ変更時だけ読む） ----
     function readColors() {
@@ -472,6 +477,7 @@
       sheetIndex = i;
       debug.lastTap = i;
       sheetBody.scrollTop = 0;
+      backdropArmed = false;
       backdrop.hidden = false;
       sheet.hidden = false;
       try { sheet.focus({ preventScroll: true }); } catch (e) { /* 古いブラウザ */ }
@@ -592,7 +598,10 @@
     on(canvas, 'wheel', onWheel, { passive: false });
     on(filterEl, 'click', onFilterClick);
     on(zoomEl, 'click', onZoomClick);
-    on(backdrop, 'click', closeSheet);
+    // 覆いは「開いた後に覆いの上で押された」ときだけ閉じる。シートを開いたタップの後に iOS が送る互換の click
+    // （覆いの上に届くことがある）では閉じない。タイマーを使わずに済む。
+    on(backdrop, 'pointerdown', () => { backdropArmed = true; });
+    on(backdrop, 'click', () => { const armed = backdropArmed; backdropArmed = false; if (armed) closeSheet(); });
     on(sheet, 'click', onSheetClick);
     on(document, 'keydown', onKeyDown);
     on(document, 'visibilitychange', onVisibility);
@@ -625,7 +634,7 @@
       refresh() {
         if (!alive) return;
         recompute();
-        if (sheetIndex >= 0) renderSheet(sheetIndex);
+        if (sheetIndex >= 0 && !renderSheet(sheetIndex)) closeSheet(); // ノードが無効になったら閉じる
         requestDraw();
       },
       destroy() {
@@ -662,6 +671,15 @@
       },
       forceDraw() { draw(); return debug.lastFrameMs; },
     };
+    } catch (err) {
+      alive = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      debug.pending = false;
+      while (subs.length) subs.pop()();
+      rootEl.remove();
+      throw err;
+    }
   }
 
   function mount(container, deps) {
