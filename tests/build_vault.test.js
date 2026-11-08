@@ -17,12 +17,14 @@ test('loadVault: 問題・概念・Trap をミニ Vault から読む', async () 
   const kin1 = v.questions.find(q => q.practiceId === 1001);
   assert.ok(kin1, '金の 1 問目 (practice_id 1001)');
   assert.strictEqual(kin1.book, '金の文法');
+  assert.strictEqual(kin1.chapter, 1, 'front matter の chapter を数値で持つ');
   assert.strictEqual(kin1.text, "The ------- of a new digital marketing strategy is on the agenda for this afternoon's meeting.");
   assert.deepStrictEqual(kin1.conceptIds, ['SVOC（文の骨格）', '名詞の役割（主語・目的語・補語）']);
   assert.deepStrictEqual(kin1.trapIds, []);
 
   const top = v.questions.find(q => q.practiceId === 2257);
   assert.strictEqual(top.book, 'トップレベル英語');
+  assert.strictEqual(top.chapter, 10);
   assert.deepStrictEqual(top.trapIds, ['Trap_08_分子修飾の能動(-ing)と受動(-ed)の識別'], '同じ Trap への重複リンクは 1 件にまとめる');
 
   const svoc = v.concepts.find(c => c.id === 'SVOC（文の骨格）');
@@ -187,4 +189,87 @@ test('matchQuestions: 本文が仮の文字列の問題は、問題数が等し�
   const r3 = await matchQuestions(app, reversed);
   assert.ok(![...r3.via.values()].includes('order'));
   assert.ok(r3.unmatched.includes(2003));
+});
+
+// ---- 並び順（order）の段階: 章の自己検証・ID 一致の保護・しきい値 ----
+
+// 本 polaris2 の n 問。placeholders に含む番号（0 始まり）は Vault の本文が仮の文字列。
+// swap=[i,j] は、アプリ側の i 番目と j 番目の本文を入れ替える（並び順とのずれを作る）。
+function orderedBook({ n, placeholders = [], swap = null, chapterOf = i => 1 + Math.floor(i / 5) }) {
+  const vault = [];
+  const app = [];
+  for (let i = 0; i < n; i++) {
+    const text = `Unique sentence number ${i} for the ordered book ------- here.`;
+    vault.push({ ...vq(3001 + i, '英文法ポラリス2', placeholders.includes(i) ? `Polaris Question ${i}` : text), chapter: chapterOf(i) });
+    app.push({ id: 2001 + i, b: 'polaris2', ch: chapterOf(i), q: text });
+  }
+  if (swap) { const t = app[swap[0]].q; app[swap[0]].q = app[swap[1]].q; app[swap[1]].q = t; }
+  return { vault, app };
+}
+
+test('order: 章がすべて一致していれば並び順で結ぶ', async () => {
+  const { matchQuestions } = await lib('match.mjs');
+  const { vault, app } = orderedBook({ n: 14, placeholders: [10, 11, 12, 13] });
+  const r = await matchQuestions(app, vault);
+  assert.deepStrictEqual(r.unmatched, []);
+  assert.strictEqual(r.via.get(2011), 'order');
+  assert.strictEqual(r.byApp.get(2014), vault[13]);
+});
+
+test('order: 結ぶ組の章が 1 組でも食い違えば、その本には並び順を使わず黙って結ばない', async () => {
+  const { matchQuestions } = await lib('match.mjs');
+  const { vault, app } = orderedBook({ n: 14, placeholders: [10, 11, 12, 13] });
+  app[12].ch = 99; // 並び順で結ぶと Vault の章 (1 + floor(12/5) = 3) と食い違う
+  const r = await matchQuestions(app, vault);
+  assert.ok(![...r.via.values()].includes('order'), 'order は 1 組も使わない');
+  assert.deepStrictEqual(r.unmatched, [2011, 2012, 2013, 2014]);
+  assert.strictEqual(r.byApp.get(2001), vault[0], '本文で結べた分は残る');
+});
+
+test('order: 章が不明(null)の組は章では確かめられないので通す', async () => {
+  const { matchQuestions } = await lib('match.mjs');
+  const { vault, app } = orderedBook({ n: 14, placeholders: [10, 11, 12, 13] });
+  vault[12].chapter = null;
+  const r = await matchQuestions(app, vault);
+  assert.strictEqual(r.via.get(2013), 'order');
+});
+
+test('order: ID 一致で結んだ組は上書きしない', async () => {
+  const { matchQuestions } = await lib('match.mjs');
+  // 20 問。Vault の practice_id は 1〜18, 20, 25。アプリの 20 番は ID で practice_id 20（順位 18）に結ばれるが、
+  // 並び順では 19 番目（順位 19 = practice_id 25）にあたる。アプリの 19 番は本文で practice_id 25 に結ばれる。
+  const pids = [...Array.from({ length: 18 }, (_, i) => i + 1), 20, 25];
+  const vault = pids.map(p => ({ ...vq(p, '世界一わかりやすい英文法', `Distinct sentence ${p} for the id test ------- here.`), chapter: null }));
+  const app = Array.from({ length: 20 }, (_, i) => ({ id: i + 1, b: 'sekai', q: `Distinct sentence ${pids[i]} for the id test ------- here.` }));
+  app[18].q = vault[19].text; // アプリ 19 番 → 本文で practice_id 25
+  app[19].q = 'completely different words that appear nowhere in the vault';
+  const r = await matchQuestions(app, vault);
+  assert.strictEqual(r.via.get(20), 'id');
+  assert.strictEqual(r.byApp.get(20), vault[18], 'ID 一致の組は並び順で奪われない');
+  assert.strictEqual(r.byApp.get(19), vault[19]);
+  assert.strictEqual(new Set(r.byApp.values()).size, r.byApp.size);
+});
+
+test('order: 順位の一致率が 8 割なら使わない（9 割以上なら使う）', async () => {
+  const { matchQuestions } = await lib('match.mjs');
+  // 14 問のうち 10 問が本文で結べる。入れ替え 1 組 = 2 問がずれるので 8/10 = 80%
+  const bad = orderedBook({ n: 14, placeholders: [10, 11, 12, 13], swap: [1, 2] });
+  const r = await matchQuestions(bad.app, bad.vault);
+  assert.ok(![...r.via.values()].includes('order'));
+  assert.deepStrictEqual(r.unmatched, [2011, 2012, 2013, 2014]);
+  // 20 問のうち 18 問が本文で結べ、すべて順位どおり（18/18）なら使う
+  const good = orderedBook({ n: 20, placeholders: [18, 19] });
+  const r2 = await matchQuestions(good.app, good.vault);
+  assert.strictEqual(r2.via.get(2019), 'order');
+});
+
+test('order: 本文で結べた組が 5 組に満たなければ使わない', async () => {
+  const { matchQuestions } = await lib('match.mjs');
+  const few = orderedBook({ n: 10, placeholders: [4, 5, 6, 7, 8, 9] }); // 本文で結べるのは 4 問
+  const r = await matchQuestions(few.app, few.vault);
+  assert.ok(![...r.via.values()].includes('order'));
+  assert.deepStrictEqual(r.unmatched, [2005, 2006, 2007, 2008, 2009, 2010]);
+  const enough = orderedBook({ n: 10, placeholders: [5, 6, 7, 8, 9] }); // ちょうど 5 問
+  const r2 = await matchQuestions(enough.app, enough.vault);
+  assert.strictEqual(r2.via.get(2010), 'order');
 });

@@ -3,7 +3,8 @@
 //       → ③ 正規化した本文の包含（同じ本。Vault 側の OCR 由来の前置き・末尾のごみ、続きの行の違いを許す）。
 //       → ④ 並び順（本の問題数がアプリと Vault で等しく、本文で結べた組が並び順と一致しているときだけ。
 //          Vault の本文が「Polaris Question 4」のような仮の文字列で本文が使えない問題を拾う。
-//          その本の全問を順位で結ぶ（同文の重複の取り違えも直る）。via は 'order'）。
+//          その本の全問を順位で結ぶ（同文の重複の取り違えも直る）。via は 'order'。
+//          アプリの章 ch と Vault の章 chapter が 1 組でも食い違えば使わない）。
 // 同じ本文が複数あるときは、同じ本の未使用の Vault 問題を practice_id 順に割り当てる。
 
 // アプリの本コード → Vault の本名
@@ -102,10 +103,15 @@ export function matchQuestions(appQuestions, vaultQuestions) {
     }
   }
 
-  // ④ 並び順。本ごとに、アプリと Vault の問題数が等しく、本文で結べた組の 9 割以上が同じ順位
+  // ④ 並び順。本ごとに、アプリと Vault の問題数が等しく、結べた組の 9 割以上（かつ 5 組以上）が同じ順位
   //    （アプリの id 順で何番目 = Vault の practice_id 順で何番目）のときだけ、その本の全問を順位で結ぶ。
   //    同文の重複を本文で取り違えた組も、順位で結び直す（ずれが後ろの問題に波及しないように）。
+  //    ・ID 一致で結べた組は上書きしない。
+  //    ・自己検証: 順位で結ぶ組のうち、アプリの章（ch）と Vault の章（chapter）が両方わかっていて食い違うものが
+  //      1 組でもあれば、その本には並び順を使わない（本文で結べた分だけ残し、残りは未対応にして検証を失敗させる）。
+  //      どちらかの章がわからない組は章では確かめられない（通す）。
   const reassigned = new Set();
+  const chapterOf = v => (v.chapter === undefined || v.chapter === null ? null : Number(v.chapter));
   for (const key of new Set(appQuestions.map(q => bookKey(q.b)))) {
     const app = appQuestions.filter(q => bookKey(q.b) === key).sort((a, b) => a.id - b.id);
     const vs = vaultQuestions.filter(v => bookKey(v.book) === key).sort((a, b) => a.practiceId - b.practiceId);
@@ -117,12 +123,22 @@ export function matchQuestions(appQuestions, vaultQuestions) {
       if (v) { known++; if (v === vs[i]) agree++; }
     });
     if (known < 5 || agree < 0.9 * known) continue;
+    const plan = [];
+    let refuse = false;
     app.forEach((q, i) => {
-      if (byApp.get(q.id) === vs[i]) return;
-      byApp.set(q.id, vs[i]);
+      if (via.get(q.id) === 'id' || byApp.get(q.id) === vs[i]) return;
+      const holder = app.find(o => o !== q && via.get(o.id) === 'id' && byApp.get(o.id) === vs[i]);
+      const ca = q.ch === undefined || q.ch === null ? null : Number(q.ch);
+      const cv = chapterOf(vs[i]);
+      if (holder || (ca !== null && cv !== null && ca !== cv)) refuse = true;
+      plan.push([q, vs[i]]);
+    });
+    if (refuse) continue;
+    for (const [q, v] of plan) {
+      byApp.set(q.id, v);
       via.set(q.id, 'order');
       reassigned.add(q.id);
-    });
+    }
   }
   const stillUnmatched = unmatched.filter(id => !reassigned.has(id));
   return { byApp, via, unmatched: stillUnmatched };

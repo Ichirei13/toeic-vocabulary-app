@@ -83,9 +83,11 @@ export async function loadVault(vaultDir) {
       const { data, body } = parseFrontMatter(await readFile(file, 'utf8'));
       const practiceId = Number(data.practice_id);
       if (!Number.isInteger(practiceId)) continue;
+      const chapter = Number.isInteger(Number(data.chapter)) && data.chapter !== '' ? Number(data.chapter) : null;
       questions.push({
         practiceId,
         book: data.book || bookDir,
+        chapter,
         text: questionText(body),
         conceptIds: linkTargets(body, '00_Concepts'),
         trapIds: linkTargets(body, '04_Traps'),

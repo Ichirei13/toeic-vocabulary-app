@@ -41,6 +41,25 @@ async function main() {
   }
   console.log(`  ${'合計'.padEnd(9)} ${String(app.length).padStart(4)} 問 : ${tot.id} / ${tot.text} / ${tot.order} / ${tot.none}`);
 
+  // 並び順（order）で結んだ組は本文では裏づけられないので、章番号（アプリの ch と Vault の chapter）で確かめる
+  const chap = { ok: 0, unknown: 0, bad: [] };
+  const appById = new Map(app.map(q => [q.id, q]));
+  for (const [id, v] of byApp) {
+    if (via.get(id) !== 'order') continue;
+    const ch = appById.get(id).ch;
+    if (ch == null || v.chapter == null) chap.unknown++;
+    else if (Number(ch) === v.chapter) chap.ok++;
+    else chap.bad.push(id);
+  }
+  if (chap.ok + chap.unknown + chap.bad.length) {
+    console.log('');
+    console.log(`並び順で結んだ組の章の確認: 一致 ${chap.ok} / 章が不明 ${chap.unknown} / 不一致 ${chap.bad.length}`);
+    if (chap.bad.length) {
+      console.log('  章が食い違う id: ' + chap.bad.join(', '));
+      process.exitCode = 1;
+    }
+  }
+
   // Vault 側の参照整合: 問題ノートが指す概念・Trap が実在するか
   const conceptIds = new Set(vault.concepts.map(c => c.id));
   const trapIds = new Set(vault.traps.map(t => t.id));
