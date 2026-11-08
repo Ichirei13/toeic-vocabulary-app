@@ -1,0 +1,364 @@
+/* 文法グラフの画面（js/graph-view.js）。.graph-view は GraphView.mount が container の中に作る要素。
+   Canvas の色はここの CSS 変数を、マウント時とテーマ変更時にだけ読む（描画のたびには読まない）。
+   変数は Canvas の fillStyle にそのまま渡すので、単色（グラデーション不可）にすること。
+   テーマ: 既定はライト。端末のダーク（prefers-color-scheme）と、アプリの暗いテーマ（ink・duolingo・navy・forest・
+   nordic・quizlet）はダーク。light は端末がダークでもライト。ios は端末に従う。背景はテーマの --bg-page に合わせる。 */
+
+.graph-view {
+  /* ライト */
+  --graph-bg: #f6f7f9;
+  --graph-unseen: #b8bec7;
+  --graph-due: #e5484d;
+  --graph-weak: #e5484d;
+  --graph-few: #7cc4f0;
+  --graph-mid: #f2c94c;
+  --graph-good: #34c759;
+  --graph-edge: rgba(60, 60, 67, 0.2);
+  --graph-concept-edge: rgba(88, 86, 214, 0.45);
+  --graph-trap-edge: #e8890c;
+  --graph-trap-line: rgba(232, 137, 12, 0.5);  /* Trap のエッジ（破線）。リングより薄く */
+  --graph-label: #1c1c1e;
+  --graph-label-muted: rgba(60, 60, 67, 0.65);
+  --graph-label-halo: var(--graph-bg);
+  --graph-ring: #3a3a3c;
+  --graph-due-ring: #9f1d22;
+  --graph-surface: #ffffff;
+  --graph-chip-bg: rgba(120, 120, 128, 0.12);
+  --graph-chip-on-bg: #1c1c1e;
+  --graph-chip-on-text: #ffffff;
+  --graph-border: rgba(60, 60, 67, 0.16);
+  --graph-shadow: 0 -6px 28px rgba(0, 0, 0, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  .graph-view {
+    --graph-bg: #121418;
+    --graph-unseen: #5d646d;
+    --graph-due: #ff5a5f;
+    --graph-weak: #ff5a5f;
+    --graph-few: #5ab8f0;
+    --graph-mid: #f5cf57;
+    --graph-good: #3ccf6e;
+    --graph-edge: rgba(235, 235, 245, 0.16);
+    --graph-concept-edge: rgba(160, 158, 255, 0.55);
+    --graph-trap-edge: #ffa53d;
+    --graph-trap-line: rgba(255, 165, 61, 0.45);
+    --graph-label: #f2f2f7;
+    --graph-label-muted: rgba(235, 235, 245, 0.62);
+    --graph-ring: #d1d1d6;
+    --graph-due-ring: #ffb3b5;
+    --graph-surface: #1c1f24;
+    --graph-chip-bg: rgba(118, 118, 128, 0.24);
+    --graph-chip-on-bg: #f2f2f7;
+    --graph-chip-on-text: #121418;
+    --graph-border: rgba(84, 84, 88, 0.6);
+    --graph-shadow: 0 -6px 28px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* アプリの暗いテーマ（css/app.css の --bg-page が暗いもの）。テーマを足したら tests/graph-view.test.js の一覧も直す */
+[data-theme="ink"] .graph-view,
+[data-theme="duolingo"] .graph-view,
+[data-theme="navy"] .graph-view,
+[data-theme="forest"] .graph-view,
+[data-theme="nordic"] .graph-view,
+[data-theme="quizlet"] .graph-view {
+  --graph-bg: #121418;
+  --graph-unseen: #5d646d;
+  --graph-due: #ff5a5f;
+  --graph-weak: #ff5a5f;
+  --graph-few: #5ab8f0;
+  --graph-mid: #f5cf57;
+  --graph-good: #3ccf6e;
+  --graph-edge: rgba(235, 235, 245, 0.16);
+  --graph-concept-edge: rgba(160, 158, 255, 0.55);
+  --graph-trap-edge: #ffa53d;
+  --graph-trap-line: rgba(255, 165, 61, 0.45);
+  --graph-label: #f2f2f7;
+  --graph-label-muted: rgba(235, 235, 245, 0.62);
+  --graph-ring: #d1d1d6;
+  --graph-due-ring: #ffb3b5;
+  --graph-surface: #1c1f24;
+  --graph-chip-bg: rgba(118, 118, 128, 0.24);
+  --graph-chip-on-bg: #f2f2f7;
+  --graph-chip-on-text: #121418;
+  --graph-border: rgba(84, 84, 88, 0.6);
+  --graph-shadow: 0 -6px 28px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .graph-view {
+  --graph-bg: #f6f7f9;
+  --graph-unseen: #b8bec7;
+  --graph-due: #e5484d;
+  --graph-weak: #e5484d;
+  --graph-few: #7cc4f0;
+  --graph-mid: #f2c94c;
+  --graph-good: #34c759;
+  --graph-edge: rgba(60, 60, 67, 0.2);
+  --graph-concept-edge: rgba(88, 86, 214, 0.45);
+  --graph-trap-edge: #e8890c;
+  --graph-trap-line: rgba(232, 137, 12, 0.5);  /* Trap のエッジ（破線）。リングより薄く */
+  --graph-label: #1c1c1e;
+  --graph-label-muted: rgba(60, 60, 67, 0.65);
+  --graph-ring: #3a3a3c;
+  --graph-due-ring: #9f1d22;
+  --graph-surface: #ffffff;
+  --graph-chip-bg: rgba(120, 120, 128, 0.12);
+  --graph-chip-on-bg: #1c1c1e;
+  --graph-chip-on-text: #ffffff;
+  --graph-border: rgba(60, 60, 67, 0.16);
+  --graph-shadow: 0 -6px 28px rgba(0, 0, 0, 0.16);
+}
+
+/* アプリのテーマの色に寄せる（変数が無いページでは括弧内の値） */
+[data-theme="ios"] .graph-view { --graph-bg: var(--bg-page, #f2f2f7); --graph-good: var(--correct, #34c759); --graph-chip-on-bg: var(--accent, #007aff); }
+@media (prefers-color-scheme: dark) {
+  [data-theme="ios"] .graph-view { --graph-bg: var(--bg-page, #000000); --graph-surface: #1c1c1e; --graph-chip-on-bg: var(--accent, #0a84ff); --graph-chip-on-text: #ffffff; }
+}
+[data-theme="light"] .graph-view { --graph-bg: var(--bg-page, #e8e4dc); --graph-good: var(--correct, #34c759); --graph-chip-on-bg: var(--accent, #b45309); }
+[data-theme="navy"] .graph-view { --graph-bg: var(--bg-page, #0b1120); --graph-chip-on-bg: var(--accent, #38bdf8); --graph-chip-on-text: #0b1120; }
+[data-theme="forest"] .graph-view { --graph-bg: var(--bg-page, #0a1713); --graph-chip-on-bg: var(--accent, #eab308); --graph-chip-on-text: #0a1713; }
+[data-theme="nordic"] .graph-view { --graph-bg: var(--bg-page, #121214); --graph-chip-on-bg: var(--accent, #818cf8); --graph-chip-on-text: #121214; }
+[data-theme="quizlet"] .graph-view { --graph-bg: var(--bg-page, #0a092d); --graph-surface: var(--bg-card, #1f1d47); --graph-chip-on-bg: var(--accent, #4255ff); --graph-chip-on-text: #ffffff; }
+[data-theme="ink"] .graph-view { --graph-bg: var(--bg-page, #181512); --graph-good: var(--correct, #3d7a63); --graph-surface: #231e19; --graph-chip-on-bg: var(--accent, #d4a759); }
+[data-theme="duolingo"] .graph-view { --graph-bg: var(--bg-page, #131f24); --graph-good: var(--correct, #58cc02); --graph-surface: var(--bg-card, #202f36); --graph-chip-on-bg: var(--accent, #58cc02); --graph-chip-on-text: #ffffff; }
+
+/* ---- 配置 ---- */
+.graph-view {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--graph-bg);
+  color: var(--graph-label);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.graph-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 6px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--graph-border);
+}
+.graph-chips {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  /* 狭い画面では横にスクロールする。右端を薄くして続きがあることを示す */
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+  padding-right: 10px;
+}
+.graph-chips::-webkit-scrollbar { display: none; }
+.graph-chip,
+.graph-weak-toggle {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--graph-chip-bg);
+  color: var(--graph-label);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.graph-chip[aria-pressed="true"] {
+  background: var(--graph-chip-on-bg);
+  color: var(--graph-chip-on-text);
+  font-weight: 600;
+}
+.graph-weak-toggle {
+  border: 1.5px solid var(--graph-weak);
+  background: transparent;
+  color: var(--graph-weak);
+  font-weight: 600;
+}
+.graph-weak-toggle[aria-pressed="true"] {
+  background: var(--graph-weak);
+  color: #ffffff;
+}
+.graph-chip:focus-visible,
+.graph-weak-toggle:focus-visible,
+.graph-zoom button:focus-visible,
+.graph-sheet-close:focus-visible {
+  outline: 2px solid var(--graph-concept-edge);
+  outline-offset: 2px;
+}
+
+.graph-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+.graph-canvas:active { cursor: grabbing; }
+
+.graph-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.graph-zoom button {
+  min-width: 40px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--graph-border);
+  border-radius: 10px;
+  background: var(--graph-surface);
+  color: var(--graph-label);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.graph-zoom button[data-zoom="fit"] { font-size: 11px; }
+
+/* ---- 詳細シート（このビュー専用の軽いシート） ---- */
+.graph-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  z-index: 2;
+}
+.graph-sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  max-height: 72%;
+  margin: 0 auto;
+  max-width: 640px;
+  background: var(--graph-surface);
+  color: var(--graph-label);
+  border-radius: 18px 18px 0 0;
+  box-shadow: var(--graph-shadow);
+  outline: none;
+}
+.graph-sheet[hidden],
+.graph-sheet-backdrop[hidden] { display: none; }
+.graph-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 12px 10px 18px;
+  border-bottom: 1px solid var(--graph-border);
+  flex: 0 0 auto;
+}
+.graph-sheet-titles { flex: 1 1 auto; min-width: 0; }
+.graph-sheet-kind {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--graph-label-muted);
+  margin-bottom: 2px;
+}
+.graph-sheet-title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.graph-sheet-close {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--graph-chip-bg);
+  color: var(--graph-label);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.graph-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 18px calc(18px + env(safe-area-inset-bottom, 0px));
+  font-size: 14px;
+  line-height: 1.6;
+}
+.graph-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.graph-stats > div {
+  background: var(--graph-chip-bg);
+  border-radius: 10px;
+  padding: 6px 8px;
+  text-align: center;
+}
+.graph-stats dt { font-size: 11px; color: var(--graph-label-muted); }
+.graph-stats dd { margin: 0; font-weight: 700; font-size: 15px; }
+.graph-desc { margin: 0 0 10px; }
+.graph-advice {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--graph-trap-edge);
+  background: var(--graph-chip-bg);
+  border-radius: 0 8px 8px 0;
+}
+.graph-advice-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--graph-trap-edge);
+}
+.graph-qs-head { margin: 4px 0 6px; font-size: 13px; color: var(--graph-label-muted); font-weight: 600; }
+.graph-qs { list-style: none; margin: 0; padding: 0; }
+.graph-q {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--graph-border);
+  font-size: 13px;
+}
+.graph-q-status {
+  flex: 0 0 auto;
+  min-width: 4.2em;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--graph-chip-bg);
+  color: var(--graph-label-muted);
+}
+.graph-q-weak .graph-q-status { background: var(--graph-weak); color: #ffffff; }
+.graph-q-wrong .graph-q-status { color: var(--graph-weak); }
+.graph-q-correct .graph-q-status { color: var(--graph-good); }
+.graph-q-no { flex: 0 0 auto; color: var(--graph-label-muted); font-variant-numeric: tabular-nums; }
+.graph-q-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.graph-more { margin: 8px 0 0; color: var(--graph-label-muted); font-size: 12px; }

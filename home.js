@@ -490,8 +490,9 @@ const WEAK_FILTER_LABELS = {
   due: '要復習のみ',
 };
 
-const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings'];
+const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings', 'graph'];
 let currentAppPage = 'home'; // APP_PAGES のどれか
+let appPageShown = false;    // 最初の switchAppPage が済んだか（#graph で開いたとき、戻る先を復習にするため）
 let homeCategory = 'vocab';  // ホーム画面上の切り替えスイッチ ('vocab' | 'grammar')
 let pendingFilterJumpToPractice = false;
 
@@ -1009,6 +1010,15 @@ function renderReviewPage() {
         : '苦手を正解して、間隔をあけた復習を最後まで終えると「克服」になります。'}</p>
       ${block('vocab', '単語', `モード：${MODE_LABELS[state.mode || 'e2j']}`)}
       ${block('grammar', '文法', '全 4 冊')}
+      <section class="review-block" aria-label="文法グラフ">
+        <div class="review-block-head">
+          <h3>🕸 文法グラフ</h3>
+        </div>
+        <p class="review-graph-desc">概念・ひっかけ・ルール・問題のつながりと、苦手を色で見る</p>
+        <div class="review-block-actions">
+          <button type="button" class="home-weak-btn" data-home-action="open-graph">グラフを開く</button>
+        </div>
+      </section>
     </div>`;
 }
 
@@ -1342,15 +1352,147 @@ function setWeakStreakFromChip(streak) {
   renderSettingsPage();
 }
 
+// ==================== 文法グラフ（開いたときだけ読み込む） ====================
+// グラフ用のファイル（約 190KB）は起動時には読まない。初めて開いたときに、下の順番で 1 つずつ差し込む
+// （後のファイルが前のファイルの定義を使うため）。sw.js の ASSETS と upload.py の FILES には入れてあり、
+// index.html には書かない。グラフは記録（state）を読むだけで、保存はしない。
+const GRAPH_STYLE = 'css/graph.css';
+const GRAPH_SCRIPTS = [
+  'data/grammar_graph.js',
+  'src/mastery.js',
+  'src/graph-filter.js',
+  'src/graph-geometry.js',
+  'src/graph-detail.js',
+  'js/graph-view.js',
+];
+let graphAssetsPromise = null; // 読み込み中・読み込み済みの Promise（失敗したら捨てて、次に開いたときにやり直す）
+let graphOpenToken = 0;        // 開くたびに増やす。読み込みを待つ間に画面を離れたら、古い番号のマウントは捨てる
+let graphReturnPage = 'review';
+
+// 1 ファイルを差し込んで、読み終わるまで待つ。同じファイルの要素がすでにあれば足さない。
+// 失敗した要素は消す（残すと、次の再試行で「もうある」と見なしてしまう）
+function insertGraphAsset(url) {
+  const isStyle = url.endsWith('.css');
+  const attr = isStyle ? 'href' : 'src';
+  return new Promise((resolve, reject) => {
+    let el = document.querySelector(`${isStyle ? 'link' : 'script'}[${attr}="${url}"]`);
+    if (el && el.dataset.graphAsset === 'loaded') return resolve();
+    const fresh = !el;
+    if (fresh) {
+      el = document.createElement(isStyle ? 'link' : 'script');
+      if (isStyle) el.rel = 'stylesheet';
+      else el.async = false;
+    }
+    el.addEventListener('load', () => { el.dataset.graphAsset = 'loaded'; resolve(); }, { once: true });
+    el.addEventListener('error', () => { el.remove(); reject(new Error('読み込めませんでした: ' + url)); }, { once: true });
+    if (fresh) {
+      el.setAttribute(attr, url);
+      (isStyle ? document.head : document.body).appendChild(el);
+    }
+  });
+}
+
+function loadGraphAssets() {
+  if (graphAssetsPromise) return graphAssetsPromise;
+  const p = (async () => {
+    for (const url of [GRAPH_STYLE, ...GRAPH_SCRIPTS]) await insertGraphAsset(url);
+  })();
+  graphAssetsPromise = p;
+  p.catch(() => { if (graphAssetsPromise === p) graphAssetsPromise = null; });
+  return p;
+}
+
+function openGraphPage() {
+  switchAppPage('graph');
+}
+
+// #graph-page を（なければ）作る。起動時には作らない
+function ensureGraphPage() {
+  let el = document.getElementById('graph-page');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'graph-page';
+  el.className = 'app-page-view';
+  el.setAttribute('aria-label', '文法グラフ');
+  el.innerHTML = `
+    <div class="graph-page-head">
+      <button type="button" class="graph-page-back">← 戻る</button>
+      <h2 class="graph-page-title">文法グラフ</h2>
+    </div>
+    <div class="graph-page-body">
+      <div class="graph-host"></div>
+      <p class="graph-page-loading" role="status" hidden>グラフを読み込んでいます…</p>
+      <div class="graph-page-error" role="alert" hidden>
+        <p class="graph-page-error-text"></p>
+        <button type="button" class="home-weak-btn solve graph-page-retry">再試行</button>
+      </div>
+    </div>`;
+  el.querySelector('.graph-page-back').addEventListener('click', () => switchAppPage(graphReturnPage));
+  el.querySelector('.graph-page-retry').addEventListener('click', () => { if (currentAppPage === 'graph') showGraphPage(); });
+  const views = document.querySelectorAll('#app > .app-page-view');
+  const last = views[views.length - 1];
+  if (last) last.after(el);
+  else document.getElementById('app').appendChild(el);
+  return el;
+}
+
+function leaveGraphPage() {
+  graphOpenToken++;
+  if (typeof GraphView !== 'undefined' && typeof GraphView.destroy === 'function') GraphView.destroy();
+}
+
+// 読み込み中 → 読み込み → マウント。失敗したら理由と「再試行」
+async function showGraphPage() {
+  const pageEl = ensureGraphPage();
+  const token = ++graphOpenToken;
+  const host = pageEl.querySelector('.graph-host');
+  const loading = pageEl.querySelector('.graph-page-loading');
+  const error = pageEl.querySelector('.graph-page-error');
+  const showError = message => {
+    loading.hidden = true;
+    error.querySelector('.graph-page-error-text').textContent = message;
+    error.hidden = false;
+  };
+  error.hidden = true;
+  if (typeof GraphView === 'undefined') loading.hidden = false;
+  try {
+    await loadGraphAssets();
+  } catch (e) {
+    if (token === graphOpenToken && currentAppPage === 'graph') showError('グラフの読み込みに失敗しました（オフラインで未取得の可能性があります）');
+    return;
+  }
+  if (token !== graphOpenToken || currentAppPage !== 'graph') return; // 待っている間に別のページへ移った
+  loading.hidden = true;
+  try {
+    GraphView.mount(host, {
+      graph: GRAMMAR_GRAPH,
+      getStats: () => state.grammarStats,
+      getWeak: () => state.grammarWeakData,
+      getQuestion: id => GRAMMAR_BY_ID.get(id),
+      isDue,
+    });
+  } catch (e) {
+    showError('グラフを表示できませんでした。');
+  }
+}
+
 // 3ページの切り替え関数
 function switchAppPage(page, options = {}) {
   if (!APP_PAGES.includes(page)) page = 'home';
+  // すでにグラフの画面でマウント済みなら、同じタブをもう一度押しても作り直さない（カメラを保つ）
+  const graphAlreadyShown = page === 'graph' && currentAppPage === 'graph' && !!document.querySelector('#graph-page canvas');
+  // グラフの画面を離れるときは、真っ先に片付ける（リスナー・Canvas・読み込み待ちのマウントを残さない）
+  if (page !== 'graph') leaveGraphPage();
+  else if (currentAppPage !== 'graph') graphReturnPage = appPageShown ? currentAppPage : 'review';
+  if (page === 'graph') ensureGraphPage();
+  appPageShown = true;
   currentAppPage = page;
   const appEl = document.getElementById('app');
   if (appEl) {
     appEl.classList.toggle('page-home', page === 'home');
     appEl.classList.toggle('page-review', page === 'review');
     appEl.classList.toggle('page-timer', page === 'timer');
+    appEl.classList.toggle('page-graph', page === 'graph');
   }
 
   // シートが開いていれば閉じる（オプションで維持指定がない場合）
@@ -1385,6 +1527,8 @@ function switchAppPage(page, options = {}) {
     renderSettingsPage();
   } else if (page === 'practice') {
     checkFilterNudge();
+  } else if (page === 'graph') {
+    if (!graphAlreadyShown) showGraphPage();
   }
 
   if (typeof syncPomoMiniPill === 'function') syncPomoMiniPill();
@@ -1713,6 +1857,17 @@ function initHomeAndPages() {
     };
   }
 
+  // クラウド同期・復元で記録を読み込み直したとき、グラフの画面が開いていれば色だけ更新する
+  // （同期の処理そのものは変えず、読み込み直しの関数にかぶせる）
+  const origReloadRecords = window.reloadRecordsFromStorage;
+  if (typeof origReloadRecords === 'function') {
+    window.reloadRecordsFromStorage = function () {
+      const res = origReloadRecords.apply(this, arguments);
+      if (currentAppPage === 'graph' && typeof GraphView !== 'undefined' && typeof GraphView.refresh === 'function') GraphView.refresh();
+      return res;
+    };
+  }
+
   updateFooterPaceDisplay();
 
   // 絞り込みシートの「この条件で解く」ボタンが押されたときだけ演習ページへ遷移し、✕や背景タップではホームに留まる
@@ -1751,6 +1906,14 @@ function initHomeAndPages() {
     brandEl.addEventListener('click', () => {
       pendingFilterJumpToPractice = false;
       switchAppPage('home');
+    });
+  }
+
+  // PC のサイドバー下部の「同期」: 設定画面の「今すぐ同期」と同じ呼び出し（二重実行・未連携時のログインは js/gdrive.js 側が扱う）
+  const syncBtnEl = document.querySelector('.top-sync-btn');
+  if (syncBtnEl) {
+    syncBtnEl.addEventListener('click', () => {
+      if (typeof saveToGoogleDrive === 'function') saveToGoogleDrive({ interactive: true });
     });
   }
 
@@ -1816,6 +1979,7 @@ function initHomeAndPages() {
       const kind = btn.dataset.kind || homeCategory;
       if (btn.dataset.homeAction === 'solve-weak') startWeakDrillFromHome(kind);
       else if (btn.dataset.homeAction === 'view-weak-list') openWeakListFromHome(kind);
+      else if (btn.dataset.homeAction === 'open-graph') openGraphPage();
     });
   }
 
