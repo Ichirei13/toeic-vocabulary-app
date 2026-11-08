@@ -16,7 +16,9 @@ const cut = s => {
 };
 const bookOf = q => q.b || 'sekai';
 
-export function buildModel({ app, byApp, concepts, traps }) {
+// options.collapseSingleRuleQuestions（既定 false）: true のとき、問題が 1 つだけのルールはノードを作らず、
+// その問題を章に直接つなぐ（ポラリス2 のように 1 問 1 ルールの本で、ルール層が図を重くするのを避ける案）。
+export function buildModel({ app, byApp, concepts, traps }, { collapseSingleRuleQuestions = false } = {}) {
   const id = [], kind = [], label = [], qid = [];
   const edges = [];
   const text = {};
@@ -46,12 +48,11 @@ export function buildModel({ app, byApp, concepts, traps }) {
   // 階層（本 → 章 → ルール）。問題の並び順（アプリの順）で最初に出た順にノードを作る。
   // 種類ごとにまとめるため、先に階層だけ作り、概念・Trap、問題の順に足す。
   const sekaiTitles = new Map(); // 'ch' → Map(th_title → 連番)
-  const parentOf = new Map();    // 問題 id → ルールノードの添字
+  // 先に各問題のルール（鍵とラベル）を決める。1 問だけのルールを畳むかどうかの判断に問題数が要る。
+  const ruleOf = new Map();       // 問題 id → { ruleId, ruleLabel }
+  const ruleCount = new Map();    // ルール id → 問題数
   for (const q of app) {
     const b = bookOf(q);
-    const bi = getNode('book:' + b, BOOK, GRAMMAR_BOOK_LABELS[b] || b);
-    const ci = getNode(`ch:${b}:${q.ch}`, CHAPTER, String(q.ch_title ?? ''));
-    addEdge(bi, ci, PARENT);
     let ruleId, ruleLabel;
     if (q.rule) {
       ruleId = `rule:${b}:${q.ch}:${q.rule.number}`;
@@ -63,6 +64,20 @@ export function buildModel({ app, byApp, concepts, traps }) {
       if (!titles.has(q.th_title)) titles.set(q.th_title, titles.size + 1);
       ruleId = `rule:${b}:${q.ch}:${titles.get(q.th_title)}`;
       ruleLabel = cut(q.th_title);
+    }
+    ruleOf.set(q.id, { ruleId, ruleLabel });
+    ruleCount.set(ruleId, (ruleCount.get(ruleId) || 0) + 1);
+  }
+  const parentOf = new Map();    // 問題 id → 親ノード（ルール、畳んだときは章）の添字
+  for (const q of app) {
+    const b = bookOf(q);
+    const bi = getNode('book:' + b, BOOK, GRAMMAR_BOOK_LABELS[b] || b);
+    const ci = getNode(`ch:${b}:${q.ch}`, CHAPTER, String(q.ch_title ?? ''));
+    addEdge(bi, ci, PARENT);
+    const { ruleId, ruleLabel } = ruleOf.get(q.id);
+    if (collapseSingleRuleQuestions && ruleCount.get(ruleId) === 1) {
+      parentOf.set(q.id, ci);
+      continue;
     }
     const ri = getNode(ruleId, RULE, ruleLabel);
     addEdge(ci, ri, PARENT);

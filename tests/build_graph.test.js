@@ -262,3 +262,233 @@ test('encodeGraph: qids と members / memberStart', async () => {
   assert.deepStrictEqual(g.members.slice(g.memberStart[qi], g.memberStart[qi + 1]), [g.qids.indexOf(3)], '序数 = qids の添字');
   for (let i = 0; i < n; i++) if (g.kind[i] === qk) assert.strictEqual(g.memberStart[i + 1] - g.memberStart[i], 1, g.id[i]);
 });
+
+// ---- ルール層の畳み込み（collapseSingleRuleQuestions）
+test('モデル: collapseSingleRuleQuestions=false（既定）は従来どおり全ルールのノードを作る', async () => {
+  const { buildModel } = await lib('model.mjs');
+  const base = buildModel(buildInput());
+  const off = buildModel(buildInput(), { collapseSingleRuleQuestions: false });
+  assert.deepStrictEqual(off, base);
+  assert.ok(idx(base, 'rule:kin:2:8') >= 0, '1 問だけのルールにもノードがある');
+});
+
+test('モデル: collapseSingleRuleQuestions=true は 1 問だけのルールを作らず、問題を章に直接つなぐ', async () => {
+  const { buildModel } = await lib('model.mjs');
+  const { encodeGraph } = await lib('encode.mjs');
+  const m = buildModel(buildInput(), { collapseSingleRuleQuestions: true });
+  const has = (a, b, t) => m.edges.some(e => e[0] === idx(m, a) && e[1] === idx(m, b) && e[2] === t);
+  // 1 問だけのルール: kin 2章のルール 7（q3）・ルール 8（q4）、sekai の 2 つ目（q12）、toplevel 各章（q20, q21）
+  for (const rid of ['rule:kin:2:7', 'rule:kin:2:8', 'rule:sekai:1:2', 'rule:toplevel:1:1', 'rule:toplevel:2:1']) {
+    assert.ok(idx(m, rid) < 0, rid + ' は作らない');
+  }
+  assert.ok(has('ch:kin:2', 'q:3', 0) && has('ch:kin:2', 'q:4', 0));
+  assert.ok(has('ch:sekai:1', 'q:12', 0));
+  assert.ok(has('ch:toplevel:1', 'q:20', 0) && has('ch:toplevel:2', 'q:21', 0));
+  // 2 問以上のルールは残る
+  assert.ok(idx(m, 'rule:kin:1:7') >= 0 && idx(m, 'rule:sekai:1:1') >= 0);
+  assert.ok(has('rule:kin:1:7', 'q:1', 0) && has('rule:sekai:1:1', 'q:10', 0));
+  // 問題の親は常に 1 つ、問題ノード数・概念エッジは変わらない
+  const qk = m.kinds.indexOf('question');
+  const qs = m.id.map((_, i) => i).filter(i => m.kind[i] === qk);
+  assert.strictEqual(qs.length, 9);
+  for (const i of qs) assert.strictEqual(m.edges.filter(e => e[1] === i && e[2] === 0).length, 1, m.id[i]);
+  assert.strictEqual(m.edges.filter(e => e[2] === 1).length, 9);
+  assert.deepStrictEqual([...m.unmatchedQids].sort((a, b) => a - b), [4, 12]);
+  // 不変条件: members は本 > 章で過不足なく、question は自分だけ
+  const n = m.id.length;
+  const src = encodeGraph(m, new Array(n).fill(0), new Array(n).fill(0));
+  const g = evalGraph(src);
+  const memberQids = id => {
+    const i = g.id.indexOf(id);
+    return g.members.slice(g.memberStart[i], g.memberStart[i + 1]).map(o => g.qids[o]).sort((a, b) => a - b);
+  };
+  assert.deepStrictEqual(memberQids('book:kin'), [1, 2, 3, 4]);
+  assert.deepStrictEqual(memberQids('ch:kin:2'), [3, 4]);
+  assert.deepStrictEqual(memberQids('ch:sekai:1'), [10, 11, 12]);
+  assert.deepStrictEqual(memberQids('q:12'), [12]);
+});
+
+// ---- 配置（d3-force が要る）
+const HAS_D3 = fs.existsSync(path.resolve(__dirname, '..', 'tools', 'node_modules', 'd3-force', 'package.json'));
+if (!HAS_D3) console.log('# SKIP: tools/node_modules に d3-force がないため、配置のテストを飛ばします（cd tools && npm ci で入ります）');
+const d3test = (name, fn) => (HAS_D3 ? test(name, fn) : test(name, { skip: 'tools/node_modules/d3-force がありません' }, fn));
+
+d3test('layout: 同じ入力から同じ座標（2 回）、整数で有限', async () => {
+  const { layout } = await lib('layout.mjs');
+  const m = await model();
+  const a = layout(m);
+  const b = layout(await model());
+  assert.deepStrictEqual(a, b);
+  assert.strictEqual(a.x.length, m.id.length);
+  assert.strictEqual(a.y.length, m.id.length);
+  for (const v of [...a.x, ...a.y]) assert.ok(Number.isFinite(v) && Number.isInteger(v), String(v));
+});
+
+d3test('layout: 2 つのノードが同じ座標にならない（衝突半径が効く）', async () => {
+  const { layout } = await lib('layout.mjs');
+  const m = await model();
+  const { x, y } = layout(m);
+  const seen = new Map();
+  for (let i = 0; i < x.length; i++) {
+    const key = x[i] + ',' + y[i];
+    assert.ok(!seen.has(key), `${m.id[seen.get(key)]} と ${m.id[i]} が同じ座標 ${key}`);
+    seen.set(key, i);
+  }
+});
+
+d3test('layout: config の seed を変えると座標が変わる（種が効いている）', async () => {
+  const { layout } = await lib('layout.mjs');
+  const { LAYOUT } = await lib('layout-config.mjs');
+  const m = await model();
+  const a = layout(m);
+  const b = layout(m, { ...LAYOUT, seed: LAYOUT.seed + 1 });
+  assert.notDeepStrictEqual(a, b);
+});
+
+d3test('layout + encode: 生成される文字列が 2 回で一致する', async () => {
+  const { layout } = await lib('layout.mjs');
+  const { encodeGraph } = await lib('encode.mjs');
+  const run = async () => { const m = await model(); const { x, y } = layout(m); return encodeGraph(m, x, y); };
+  assert.strictEqual(await run(), await run());
+});
+
+d3test('layout: collapse 版でも動く', async () => {
+  const { layout } = await lib('layout.mjs');
+  const { buildModel } = await lib('model.mjs');
+  const m = buildModel(buildInput(), { collapseSingleRuleQuestions: true });
+  const { x, y } = layout(m);
+  assert.strictEqual(x.length, m.id.length);
+});
+
+// ---- 生成コマンド（純粋関数の部分）
+test('build: 未対応の問題・dangling があれば problems に出る', async () => {
+  const { assemble } = await import(path.resolve(__dirname, '..', 'tools', 'build_grammar_graph.mjs'));
+  assert.strictEqual(typeof assemble, 'function');
+  const input = buildInput();
+  const fake = { questions: [], concepts: CONCEPTS, traps: TRAPS };
+  const { problems } = assemble(input.app, fake, { byApp: input.byApp, unmatched: [12] }, {});
+  assert.ok(problems.some(p => /12/.test(p)), '未対応 12 を報告');
+  const ok = assemble(input.app, fake, { byApp: input.byApp, unmatched: [] }, {});
+  assert.deepStrictEqual(ok.problems, []);
+  input.byApp.set(3, V(3, ['幽霊概念']));
+  const dang = assemble(input.app, fake, { byApp: input.byApp, unmatched: [] }, {});
+  assert.ok(dang.problems.some(p => /幽霊概念/.test(p)));
+});
+
+// ---- 生成物の契約（実データ。Vault は不要）
+function loadArtifact() {
+  const root = path.resolve(__dirname, '..');
+  const ctx = {};
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(root, 'data', 'grammar_graph.js'), 'utf8') + '\n;this.__G = GRAMMAR_GRAPH;', ctx);
+  const ctx2 = {};
+  vm.createContext(ctx2);
+  vm.runInContext(fs.readFileSync(path.join(root, 'data', 'grammar.js'), 'utf8') + '\n;this.__R = RAW_GRAMMAR;', ctx2);
+  return { g: JSON.parse(JSON.stringify(ctx.__G)), raw: ctx2.__R };
+}
+
+test('生成物: version 3、列の長さが揃い、座標は整数、kinds の範囲', () => {
+  const { g } = loadArtifact();
+  assert.strictEqual(g.version, 3);
+  assert.deepStrictEqual(g.kinds, ['book', 'chapter', 'rule', 'concept', 'trap', 'question']);
+  const n = g.id.length;
+  for (const col of ['kind', 'label', 'x', 'y', 'qid']) assert.strictEqual(g[col].length, n, col);
+  assert.ok(g.x.every(Number.isInteger) && g.y.every(Number.isInteger));
+  assert.ok(g.kind.every(k => Number.isInteger(k) && k >= 0 && k < g.kinds.length));
+  assert.strictEqual(new Set(g.id).size, n, 'id は一意');
+});
+
+test('生成物: qids が RAW_GRAMMAR の全問と過不足なく一致', () => {
+  const { g, raw } = loadArtifact();
+  assert.strictEqual(raw.length, 983);
+  assert.strictEqual(g.qids.length, 983);
+  assert.strictEqual(new Set(g.qids).size, 983);
+  assert.deepStrictEqual([...g.qids].sort((a, b) => a - b), Array.from(raw, q => q.id).sort((a, b) => a - b));
+  const qk = g.kinds.indexOf('question');
+  g.id.forEach((id, i) => {
+    if (g.kind[i] === qk) assert.strictEqual(id, 'q:' + g.qid[i]);
+    else assert.strictEqual(g.qid[i], 0);
+  });
+});
+
+test('生成物: ノード数（book 4・chapter 51・concept 13・trap 12・question 983）', () => {
+  const { g } = loadArtifact();
+  const count = k => g.kind.filter(v => v === g.kinds.indexOf(k)).length;
+  assert.strictEqual(count('book'), 4);
+  assert.strictEqual(count('chapter'), 51);
+  assert.strictEqual(count('concept'), 13);
+  assert.strictEqual(count('trap'), 12);
+  assert.strictEqual(count('question'), 983);
+});
+
+test('生成物: 全エッジの端点が存在し、種類と向きが正しい', () => {
+  const { g } = loadArtifact();
+  const n = g.id.length;
+  assert.strictEqual(g.edges.length % 3, 0);
+  const K = g.kinds;
+  const parents = new Array(n).fill(0);
+  for (let e = 0; e < g.edges.length; e += 3) {
+    const a = g.edges[e], b = g.edges[e + 1], t = g.edges[e + 2];
+    assert.ok(Number.isInteger(a) && a >= 0 && a < n && Number.isInteger(b) && b >= 0 && b < n, 'endpoint ' + e);
+    assert.ok([0, 1, 2].includes(t));
+    if (t === 0) {
+      parents[b]++;
+      const ka = K[g.kind[a]], kb = K[g.kind[b]];
+      assert.ok(
+        (ka === 'book' && kb === 'chapter') || (ka === 'chapter' && (kb === 'rule' || kb === 'question')) || (ka === 'rule' && kb === 'question'),
+        `親子の種類 ${g.id[a]} -> ${g.id[b]}`);
+    } else {
+      assert.strictEqual(K[g.kind[a]], 'question');
+      assert.strictEqual(K[g.kind[b]], t === 1 ? 'concept' : 'trap');
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    assert.strictEqual(parents[i], g.kind[i] === 0 || g.kind[i] === 3 || g.kind[i] === 4 ? 0 : 1, g.id[i] + ' の親の数');
+  }
+});
+
+test('生成物: members / memberStart の整合', () => {
+  const { g } = loadArtifact();
+  const n = g.id.length;
+  assert.strictEqual(g.memberStart.length, n + 1);
+  assert.strictEqual(g.memberStart[0], 0);
+  assert.strictEqual(g.memberStart[n], g.members.length);
+  const slice = i => g.members.slice(g.memberStart[i], g.memberStart[i + 1]);
+  for (let i = 0; i < n; i++) {
+    assert.ok(g.memberStart[i + 1] >= g.memberStart[i]);
+    const s = slice(i);
+    assert.strictEqual(new Set(s).size, s.length, g.id[i]);
+    assert.ok(s.every(o => Number.isInteger(o) && o >= 0 && o < g.qids.length));
+  }
+  const qk = g.kinds.indexOf('question');
+  const bk = g.kinds.indexOf('book');
+  let total = 0;
+  const kids = Array.from({ length: n }, () => []);
+  for (let e = 0; e < g.edges.length; e += 3) if (g.edges[e + 2] === 0) kids[g.edges[e]].push(g.edges[e + 1]);
+  for (let i = 0; i < n; i++) {
+    if (g.kind[i] === qk) assert.deepStrictEqual(slice(i), [g.qids.indexOf(g.qid[i])], g.id[i] + ' は自分だけ');
+    else if (kids[i].length && g.kind[i] !== bk) {
+      // 章・ルール: 子の members の和集合
+      const u = new Set();
+      for (const c of kids[i]) for (const o of slice(c)) u.add(o);
+      assert.deepStrictEqual([...slice(i)].sort((a, b) => a - b), [...u].sort((a, b) => a - b), g.id[i]);
+    }
+    if (g.kind[i] === bk) total += slice(i).length;
+  }
+  assert.strictEqual(total, 983, '4 冊で全問を過不足なく分け合う');
+  // 概念・Trap の members = その概念へリンクした問題
+  const linked = new Map();
+  for (let e = 0; e < g.edges.length; e += 3) if (g.edges[e + 2] !== 0) {
+    if (!linked.has(g.edges[e + 1])) linked.set(g.edges[e + 1], new Set());
+    linked.get(g.edges[e + 1]).add(g.qids.indexOf(g.qid[g.edges[e]]));
+  }
+  for (let i = 0; i < n; i++) if (g.kind[i] === 3 || g.kind[i] === 4) {
+    assert.deepStrictEqual([...slice(i)].sort((a, b) => a - b), [...(linked.get(i) || [])].sort((a, b) => a - b), g.id[i]);
+  }
+});
+
+test('生成物: 概念・Trap にだけ text があり、座標は有限の範囲に収まる', () => {
+  const { g } = loadArtifact();
+  for (const key of Object.keys(g.text)) assert.ok([3, 4].includes(g.kind[Number(key)]), g.id[Number(key)]);
+  assert.ok(Math.max(...g.x.map(Math.abs)) < 20000 && Math.max(...g.y.map(Math.abs)) < 20000);
+});
