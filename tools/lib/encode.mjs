@@ -1,5 +1,5 @@
 // モデル + 座標 → data/grammar_graph.js の JS ソース（列ごとの配列）。
-// members: 各ノード配下の問題の序数（qids の添字）。本・章・ルール・概念・Trap が対象で、問題ノード自身の配下は空。
+// members: 各ノード配下の問題の序数（qids の添字）。本・章・ルール・概念・Trap が対象で、問題ノード自身は自分の序数だけを持つ（理解度の集計を全ノード同じ経路で行うため）。
 
 export function encodeGraph(model, xs, ys) {
   const n = model.id.length;
@@ -25,6 +25,7 @@ export function encodeGraph(model, xs, ys) {
   }
   const memo = new Map();
   const questionsUnder = i => {
+    if (ordinal.has(i)) return [ordinal.get(i)]; // 問題ノード: 自分だけ（概念・Trap のエッジは辿らない）
     if (memo.has(i)) return memo.get(i);
     const set = new Set();
     for (const c of children[i]) {
@@ -39,7 +40,7 @@ export function encodeGraph(model, xs, ys) {
   const memberStart = [0];
   const members = [];
   for (let i = 0; i < n; i++) {
-    if (model.kind[i] !== qk) for (const o of questionsUnder(i)) members.push(o);
+    for (const o of questionsUnder(i)) members.push(o);
     memberStart.push(members.length);
   }
 

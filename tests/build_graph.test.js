@@ -253,5 +253,12 @@ test('encodeGraph: qids と members / memberStart', async () => {
   assert.deepStrictEqual(memberQids('ch:kin:1'), [1, 2]);
   assert.deepStrictEqual(memberQids('rule:kin:2:7'), [3]);
   assert.deepStrictEqual(memberQids('rule:sekai:1:1'), [10, 11]);
-  assert.deepStrictEqual(memberQids('q:1'), [], '問題ノード自身の配下は空');
+  assert.deepStrictEqual(memberQids('q:1'), [1], '問題ノードは自分の序数だけを持つ');
+  // 概念・Trap にリンクした問題でも、同じ概念の他の問題を拾わない
+  assert.deepStrictEqual(memberQids('q:2'), [2]);
+  assert.deepStrictEqual(memberQids('q:11'), [11]);
+  assert.deepStrictEqual(memberQids('q:12'), [12], '未対応の問題も自分自身');
+  const qi = g.id.indexOf('q:3');
+  assert.deepStrictEqual(g.members.slice(g.memberStart[qi], g.memberStart[qi + 1]), [g.qids.indexOf(3)], '序数 = qids の添字');
+  for (let i = 0; i < n; i++) if (g.kind[i] === qk) assert.strictEqual(g.memberStart[i + 1] - g.memberStart[i], 1, g.id[i]);
 });
