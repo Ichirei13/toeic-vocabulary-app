@@ -11,3 +11,5 @@ __pycache__/
 
 # 古い index.html などのバックアップ置き場（手元だけ）
 archive/
+
+tools/node_modules/
