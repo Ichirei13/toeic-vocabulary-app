@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Floating Zzz Bubbles -->
+  <g class="zzz" transform="translate(152 44) translate(0 -6) scale(1.08) translate(-152 -44)" fill="#1CB0F6" font-family="Nunito, sans-serif" font-weight="900">
+    <text x="132" y="62" font-size="22">z</text>
+    <text x="148" y="44" font-size="28">Z</text>
+    <text x="168" y="26" font-size="20">z</text>
+  </g>
+  <g class="sleep-body" transform="translate(100 160) scale(1 1.04) translate(-100 -160)">
+    <!-- Curled Sleeping Fluffy Ball -->
+    <path d="M36 138 C32 104, 62 84, 104 86 C146 86, 170 110, 164 142 C158 168, 42 168, 36 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Bandana Peeking Out -->
+    <path d="M68 134 L96 156 L124 134 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M75 134 L96 150 L117 134 Z" fill="#58CC02"/>
+    <!-- Sleeping Head & Ears -->
+    <path d="M48 92 L42 56 C42 46, 56 44, 70 60 C84 54, 104 54, 118 60 C132 44, 146 46, 146 56 L140 92 C154 104, 152 128, 134 136 C116 144, 72 144, 54 136 C36 128, 34 104, 48 92 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Peaceful Closed Eyes -->
+    <path d="M64 98 Q74 106 84 98" fill="none" stroke="#3B232E" stroke-width="5.5" stroke-linecap="round"/>
+    <path d="M104 98 Q114 106 124 98" fill="none" stroke="#3B232E" stroke-width="5.5" stroke-linecap="round"/>
+    <ellipse cx="94" cy="108" rx="6.5" ry="4.5" fill="#3B232E"/>
+    <!-- Fluffy Tail Curled in Front -->
+    <path d="M126 148 C148 134, 172 142, 162 162 C152 174, 120 168, 126 148 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+  </g>
+</svg>

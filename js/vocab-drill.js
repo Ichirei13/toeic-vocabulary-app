@@ -23,7 +23,7 @@ function posTagHtml(word, showPos) {
 function tipHtml(word, hidden) {
   const tip = typeof WORD_TIPS !== 'undefined' && WORD_TIPS[word.w];
   if (!tip) return '';
-  return `<div class="tip-box" id="tip-box"${hidden ? ' hidden' : ''}><span class="tip-label">💡 豆知識</span>${escapeHtml(tip)}</div>`;
+  return `<div class="tip-box" id="tip-box"${hidden ? ' hidden' : ''}><span class="tip-label">${pomeranianImage('status-idea', 'tip-mascot', 20)} 豆知識</span>${escapeHtml(tip)}</div>`;
 }
 
 function revealPos() {
@@ -69,7 +69,7 @@ function renderCurrent() {
   }
 
   if (!review && state.currentIndex >= state.pool.length) {
-    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('vocab') : ''}</div>`;
+    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.score} / ${state.answeredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.score, state.answeredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('vocab') : ''}</div>`;
     choicesDiv.innerHTML = '';
     updateFooter();
     return;
@@ -147,6 +147,7 @@ function renderCurrent() {
         ${posTagHtml(word, false)}
         <div class="meaning-display">${word.m}</div>
         <div class="type-input-container">
+          ${pomeranianImage('vocab-type', 'type-mascot', 36)}
           <input type="text" id="type-input" class="type-input" placeholder="英語で入力" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
           <button class="type-check-btn" id="type-check-btn">答え合わせ</button>
         </div>

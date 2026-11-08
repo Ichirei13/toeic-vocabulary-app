@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-soundwave { 0%, 100% { transform: scaleY(0.7); opacity: 0.5; } 50% { transform: scaleY(1.2); opacity: 1; } }
-    .wave { transform-origin: 100px 84px; animation: pom-soundwave 0.6s ease-in-out infinite; }
+    .wave { transform-origin: 100px 84px; animation: pom-soundwave 0.6s ease-in-out 9; }
     @media (prefers-reduced-motion: reduce) {
       .wave { animation: none; }
     }

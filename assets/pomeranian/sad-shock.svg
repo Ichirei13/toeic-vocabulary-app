@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-gloom { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
-    .gloom-lines { animation: pom-gloom 0.6s ease-in-out infinite; }
+    .gloom-lines { animation: pom-gloom 0.6s ease-in-out 9; }
     @media (prefers-reduced-motion: reduce) {
       .gloom-lines { animation: none; }
     }

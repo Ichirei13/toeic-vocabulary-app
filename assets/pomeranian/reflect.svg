@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-tilt { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(-11deg); } }
     @keyframes pom-paw { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-    .tilt-head { transform-origin: 100px 92px; animation: pom-tilt 2s ease-in-out infinite; }
-    .chin-paw { animation: pom-paw 2s ease-in-out infinite; }
+    .tilt-head { transform-origin: 100px 92px; animation: pom-tilt 2s ease-in-out 3; }
+    .chin-paw { animation: pom-paw 2s ease-in-out 3; }
     @media (prefers-reduced-motion: reduce) {
       .tilt-head, .chin-paw { animation: none; }
     }

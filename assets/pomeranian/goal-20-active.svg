@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-lift { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-8px) rotate(-6deg); } }
-    .dumbbell { transform-origin: 140px 104px; animation: pom-lift 0.75s ease-in-out infinite; }
+    .dumbbell { transform-origin: 140px 104px; animation: pom-lift 0.75s ease-in-out 7; }
     @media (prefers-reduced-motion: reduce) {
       .dumbbell { animation: none; }
     }

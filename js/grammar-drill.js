@@ -225,7 +225,7 @@ function renderCurrentGrammar() {
   }
 
   if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
-    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}</div>`;
+    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.grammarScore, state.grammarAnsweredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}</div>`;
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
     updateFooter();
@@ -414,7 +414,7 @@ function weakRuleHtml(ex) {
 function renderGrammarWeakList() {
   const container = document.getElementById('weak-list-content');
   const items = Object.keys(state.grammarWeakData)
-    .map(id => ({ key: id, entry: state.grammarWeakData[id], ex: RAW_GRAMMAR.find(g => g.id === Number(id)) }))
+    .map(id => ({ key: id, entry: state.grammarWeakData[id], ex: GRAMMAR_BY_ID.get(Number(id)) }))
     .filter(x => x.ex);
   document.getElementById('sheet-title').innerText = `苦手リスト（${items.length}）`;
   if (items.length === 0) {

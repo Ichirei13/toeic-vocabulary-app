@@ -530,6 +530,24 @@ function updatePomoLiveDOM() {
   const badgeEl = document.getElementById('pomo-mode-badge');
   if (badgeEl) badgeEl.textContent = `${pomoPhaseLabel()} · ${pomoPhaseBadgeText()}`;
 
+  const pomoMascotImg = document.getElementById('pomo-mascot-img');
+  const pomoMascotText = document.getElementById('pomo-mascot-text');
+  if (pomoMascotImg && pomoMascotText) {
+    const pm = pomoState.mode === 'long'
+      ? { pose: 'status-sleep', text: '長い休憩中：ゆっくり休んでリフレッシュしましょう 💤' }
+      : pomoState.mode === 'short'
+        ? { pose: 'goal-5-casual', text: '短い休憩中：おつかれさま！飲み物でほっと一息 ☕' }
+        : pomoState.running
+          ? { pose: 'status-timer', text: '集中タイム進行中！自分のペースで解き進めましょう ⏱️' }
+          : { pose: 'pomo-tomato', text: 'ポモドーロ集中の準備OK！スタートで始めよう 🍅' };
+    if (setPomeranianPose(pomoMascotImg, pm.pose)) {
+      pomoMascotImg.classList.remove('pome-pop');
+      void pomoMascotImg.offsetWidth;
+      pomoMascotImg.classList.add('pome-pop');
+    }
+    pomoMascotText.textContent = pm.text;
+  }
+
   const ringEl = document.getElementById('pomo-ring-fg');
   if (ringEl) {
     const ratio = pomoState.total > 0 ? pomoState.remaining / pomoState.total : 0;
@@ -593,6 +611,19 @@ function renderTimerPage() {
       <!-- メインタイマーカード -->
       <section class="pomo-card" aria-label="カウントダウンタイマー">
         <div class="pomo-mode-badge" id="pomo-mode-badge">${pomoPhaseLabel()} · ${pomoPhaseBadgeText()}</div>
+        ${(() => {
+          const pm = pomoState.mode === 'long'
+            ? { pose: 'status-sleep', text: '長い休憩中：ゆっくり休んでリフレッシュしましょう 💤' }
+            : pomoState.mode === 'short'
+              ? { pose: 'goal-5-casual', text: '短い休憩中：おつかれさま！飲み物でほっと一息 ☕' }
+              : pomoState.running
+                ? { pose: 'status-timer', text: '集中タイム進行中！自分のペースで解き進めましょう ⏱️' }
+                : { pose: 'pomo-tomato', text: 'ポモドーロ集中の準備OK！スタートで始めよう 🍅' };
+          return `<div class="pomo-mascot-bar" id="pomo-mascot-bar">
+            ${pomeranianImage(pm.pose, 'pomo-mascot-img', 40, 'id="pomo-mascot-img"')}
+            <span id="pomo-mascot-text" class="pomo-mascot-text">${escapeHtml(pm.text)}</span>
+          </div>`;
+        })()}
 
         <div class="pomo-ring-wrap">
           <svg class="pomo-ring" width="220" height="220" viewBox="0 0 220 220" aria-hidden="true">

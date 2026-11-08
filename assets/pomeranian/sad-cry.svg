@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-cry-stream { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(1.08); } }
     @keyframes pom-sob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-    .streams { transform-origin: 100px 90px; animation: pom-cry-stream 0.45s ease-in-out infinite; }
-    .sob-body { animation: pom-sob 0.55s ease-in-out infinite; }
+    .streams { transform-origin: 100px 90px; animation: pom-cry-stream 0.45s ease-in-out 12; }
+    .sob-body { animation: pom-sob 0.55s ease-in-out 10; }
     @media (prefers-reduced-motion: reduce) {
       .streams, .sob-body { animation: none; }
     }

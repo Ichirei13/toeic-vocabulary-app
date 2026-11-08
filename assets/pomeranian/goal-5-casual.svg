@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-sprout { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(7deg); } }
-    .sprout { transform-origin: 100px 34px; animation: pom-sprout 1.4s ease-in-out infinite; }
+    .sprout { transform-origin: 100px 34px; animation: pom-sprout 1.4s ease-in-out 4; }
     @media (prefers-reduced-motion: reduce) {
       .sprout { animation: none; }
     }

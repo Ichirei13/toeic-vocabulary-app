@@ -122,17 +122,18 @@
 <body class="float-all">
   <div class="wrap">
     <div class="top-bar">
-      <h1>🐾 白ポメラニアン SVG＆アニメーション一覧（全39種）</h1>
+      <h1>🐾 白ポメラニアン SVG＆アニメーション一覧（全48種）</h1>
       <div class="controls">
         <button class="btn active" id="toggle-float" type="button">ふわふわ待機アニメ: ON</button>
+        <button class="btn" id="toggle-still" type="button">⏸ 静止画版（still/）表示: OFF</button>
         <button class="btn" id="trigger-all" type="button">🎉 全キャラ一斉ジャンプ</button>
       </div>
     </div>
     <p class="lead">
-      <code>ANIM</code> バッジ付きのSVGはファイル内部にCSSキーフレームが組み込まれており、<code>&lt;img&gt;</code> タグやインラインSVGで置くだけで自動的に動きます。また各カードをクリックするとDuolingo風のポップ演出をテストできます。
+      <code>ANIM</code> バッジ付きのSVGはファイル内部にCSSキーフレームが組み込まれており、<code>&lt;img&gt;</code> タグやインラインSVGで置くだけで自動的に動きます。「⏸ 静止画版（still/）表示」ボタンを押すと、アニメーションの一番かわいい見せ場（キメポーズ）で焼き込んだ静止画版（<code>still/*.svg</code>）に切り替えて比較できます。
     </p>
 
-    <h2>褒める・喜ぶ・お祝い系（12種）</h2>
+    <h2>褒める・喜ぶ・お祝い系（14種）</h2>
     <div class="grid">
       <div class="item">
         <img src="encourage.svg" alt="encourage">
@@ -201,10 +202,22 @@
         <div class="desc">王冠と金のトロフィーで完全制覇</div>
       </div>
       <div class="item">
+        <img src="master-cape.svg" alt="master-cape">
+        <div class="name">👑 990グランドマスター <span class="badge-anim">ANIM</span></div>
+        <div class="file">master-cape.svg</div>
+        <div class="desc">満点達成時のヒーローマント＆王冠</div>
+      </div>
+      <div class="item">
         <img src="streak.svg" alt="streak">
         <div class="name">🔥 ストリーク炎 <span class="badge-anim">ANIM</span></div>
         <div class="file">streak.svg</div>
         <div class="desc">メラメラ揺れる炎＋ガッツポーズ</div>
+      </div>
+      <div class="item">
+        <img src="speed-bolt.svg" alt="speed-bolt">
+        <div class="name">⚡ 爆速・瞬殺ダッシュ <span class="badge-anim">ANIM</span></div>
+        <div class="file">speed-bolt.svg</div>
+        <div class="desc">目標タイム以内の即答スピード疾走</div>
       </div>
     </div>
 
@@ -272,7 +285,7 @@
       </div>
     </div>
 
-    <h2>学習シーン・時間帯・ステータス（8種）</h2>
+    <h2>学習シーン・タイマー・クラウド・時間帯（10種）</h2>
     <div class="grid">
       <div class="item">
         <img src="neutral.svg" alt="neutral">
@@ -281,16 +294,22 @@
         <div class="desc">しっぽフリフリ＋手振り＋まばたき</div>
       </div>
       <div class="item">
-        <img src="status-listening.svg" alt="status-listening">
-        <div class="name">🎧 発音リスニング <span class="badge-anim">ANIM</span></div>
-        <div class="file">status-listening.svg</div>
-        <div class="desc">青いヘッドホンと動くサウンド波形</div>
+        <img src="pomo-tomato.svg" alt="pomo-tomato">
+        <div class="name">🍅 ポモドーロ集中 <span class="badge-anim">ANIM</span></div>
+        <div class="file">pomo-tomato.svg</div>
+        <div class="desc">赤いトマトタイマーを抱えた集中相棒</div>
       </div>
       <div class="item">
         <img src="status-timer.svg" alt="status-timer">
         <div class="name">⏱️ ストップウォッチ <span class="badge-anim">ANIM</span></div>
         <div class="file">status-timer.svg</div>
         <div class="desc">タイムアタックやスピード演習用</div>
+      </div>
+      <div class="item">
+        <img src="status-listening.svg" alt="status-listening">
+        <div class="name">🎧 発音リスニング <span class="badge-anim">ANIM</span></div>
+        <div class="file">status-listening.svg</div>
+        <div class="desc">青いヘッドホンと動くサウンド波形</div>
       </div>
       <div class="item">
         <img src="status-idea.svg" alt="status-idea">
@@ -303,6 +322,12 @@
         <div class="name">🔍 虫眼鏡で弱点分析 <span class="badge-anim">ANIM</span></div>
         <div class="file">status-search.svg</div>
         <div class="desc">虫眼鏡をのぞいて苦手項目を調査</div>
+      </div>
+      <div class="item">
+        <img src="cloud-sync.svg" alt="cloud-sync">
+        <div class="name">☁️ クラウド＆バックアップ <span class="badge-anim">ANIM</span></div>
+        <div class="file">cloud-sync.svg</div>
+        <div class="desc">雲の上で学習記録の宝箱を守るポーズ</div>
       </div>
       <div class="item">
         <img src="status-night.svg" alt="status-night">
@@ -318,9 +343,9 @@
       </div>
       <div class="item">
         <img src="app-icon.svg" alt="app-icon">
-        <div class="name">👑 アプリアイコン</div>
+        <div class="name">👑 アプリアイコン <span class="badge-anim">ANIM</span></div>
         <div class="file">app-icon.svg</div>
-        <div class="desc">PWAアイコン・ヘッダーバッジ用</div>
+        <div class="desc">王冠キラキラ＋カード揺れ・ヘッダーバッジ</div>
       </div>
     </div>
 
@@ -328,9 +353,9 @@
     <div class="grid">
       <div class="item">
         <img src="goal-calendar.svg" alt="goal-calendar">
-        <div class="name">📅 学習カレンダー案内</div>
+        <div class="name">📅 学習カレンダー案内 <span class="badge-anim">ANIM</span></div>
         <div class="file">goal-calendar.svg</div>
-        <div class="desc">目標＆学習カレンダー見出し用</div>
+        <div class="desc">指差し案内＋ターゲット発光アニメ</div>
       </div>
       <div class="item">
         <img src="goal-0-relaxed.svg" alt="goal-0-relaxed">
@@ -346,9 +371,9 @@
       </div>
       <div class="item">
         <img src="goal-target.svg" alt="goal-target">
-        <div class="name">🎯 1日10問（標準目標）</div>
+        <div class="name">🎯 1日10問（標準目標） <span class="badge-anim">ANIM</span></div>
         <div class="file">goal-target.svg</div>
-        <div class="desc">的当てターゲット（初期値10問）</div>
+        <div class="desc">的当てターゲット＋しっぽフリフリ</div>
       </div>
       <div class="item">
         <img src="goal-20-active.svg" alt="goal-20-active">
@@ -368,21 +393,21 @@
     <div class="grid">
       <div class="item">
         <img src="vocab-teppan.svg" alt="vocab-teppan">
-        <div class="name">📘 TEPPAN</div>
+        <div class="name">📘 TEPPAN <span class="badge-anim">ANIM</span></div>
         <div class="file">vocab-teppan.svg</div>
-        <div class="desc">頻出単語の青い鉄板ブック</div>
+        <div class="desc">青い鉄板ブック揺れ＋しっぽ＆まばたき</div>
       </div>
       <div class="item">
         <img src="vocab-daily.svg" alt="vocab-daily">
-        <div class="name">📗 日々の単語</div>
+        <div class="name">📗 日々の単語 <span class="badge-anim">ANIM</span></div>
         <div class="file">vocab-daily.svg</div>
-        <div class="desc">出会った言葉を記録する緑のノート</div>
+        <div class="desc">双葉ぴょこぴょこ＋緑のノート揺れ</div>
       </div>
       <div class="item">
         <img src="vocab-flashcards.svg" alt="vocab-flashcards">
-        <div class="name">🃏 すべての単語・カード</div>
+        <div class="name">🃏 すべての単語・カード <span class="badge-anim">ANIM</span></div>
         <div class="file">vocab-flashcards.svg</div>
-        <div class="desc">カラフルなフラッシュカード束</div>
+        <div class="desc">フラッシュカード束シャッフル揺れ</div>
       </div>
       <div class="item">
         <img src="vocab-type.svg" alt="vocab-type">
@@ -396,27 +421,27 @@
     <div class="grid">
       <div class="item">
         <img src="course-kin.svg" alt="course-kin">
-        <div class="name">👑 金の文法</div>
+        <div class="name">👑 金の文法 <span class="badge-anim">ANIM</span></div>
         <div class="file">course-kin.svg</div>
-        <div class="desc">王冠と輝く金の文法書</div>
+        <div class="desc">王冠と輝く金の文法書揺れ＋しっぽ</div>
       </div>
       <div class="item">
         <img src="course-sekaiichi.svg" alt="course-sekaiichi">
-        <div class="name">📖 世界一わかりやすい</div>
+        <div class="name">📖 世界一わかりやすい <span class="badge-anim">ANIM</span></div>
         <div class="file">course-sekaiichi.svg</div>
-        <div class="desc">丸メガネと開いたテキスト・電球</div>
+        <div class="desc">電球ピカピカ発光＋丸メガネうなずき</div>
       </div>
       <div class="item">
         <img src="course-polaris.svg" alt="course-polaris">
-        <div class="name">🧭 ポラリス2</div>
+        <div class="name">🧭 ポラリス2 <span class="badge-anim">ANIM</span></div>
         <div class="file">course-polaris.svg</div>
-        <div class="desc">探検帽とコンパス・北極星</div>
+        <div class="desc">コンパス針チクタク＋北極星きらめき</div>
       </div>
       <div class="item">
         <img src="course-toplevel.svg" alt="course-toplevel">
-        <div class="name">🎓 トップレベル英語</div>
+        <div class="name">🎓 トップレベル英語 <span class="badge-anim">ANIM</span></div>
         <div class="file">course-toplevel.svg</div>
-        <div class="desc">角帽と卒業証書スクロール</div>
+        <div class="desc">角帽タッセル揺れ＋卒業証書スクロール</div>
       </div>
     </div>
   </div>
@@ -426,6 +451,25 @@
       const active = document.body.classList.toggle('float-all');
       toggleBtn.classList.toggle('active', active);
       toggleBtn.textContent = `ふわふわ待機アニメ: ${active ? 'ON' : 'OFF'}`;
+    });
+    const stillBtn = document.getElementById('toggle-still');
+    let showingStill = false;
+    stillBtn.addEventListener('click', () => {
+      showingStill = !showingStill;
+      stillBtn.classList.toggle('active', showingStill);
+      stillBtn.textContent = `⏸ 静止画版（still/）表示: ${showingStill ? 'ON' : 'OFF'}`;
+      if (showingStill) {
+        document.body.classList.remove('float-all');
+        toggleBtn.classList.remove('active');
+        toggleBtn.textContent = 'ふわふわ待機アニメ: OFF';
+      }
+      document.querySelectorAll('.item').forEach(card => {
+        const img = card.querySelector('img');
+        const fileEl = card.querySelector('.file');
+        const base = img.getAttribute('alt') + '.svg';
+        img.src = showingStill ? `still/${base}` : base;
+        if (fileEl) fileEl.textContent = showingStill ? `still/${base}` : base;
+      });
     });
     function popCard(card) {
       card.classList.remove('pop');

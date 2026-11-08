@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-jump { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-10px); } }
     @keyframes pom-star { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.18) rotate(12deg); } }
-    .jumper { animation: pom-jump 0.65s cubic-bezier(0.28, 0.84, 0.42, 1) infinite; }
-    .confetti { transform-origin: 100px 50px; animation: pom-star 0.9s ease-in-out infinite; }
+    .jumper { animation: pom-jump 0.65s cubic-bezier(0.28, 0.84, 0.42, 1) 8; }
+    .confetti { transform-origin: 100px 50px; animation: pom-star 0.9s ease-in-out 6; }
     @media (prefers-reduced-motion: reduce) {
       .jumper, .confetti { animation: none; }
     }

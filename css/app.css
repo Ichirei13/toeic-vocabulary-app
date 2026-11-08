@@ -248,6 +248,8 @@
 }
 .duo-banner-icon img { width: 44px; height: 44px; display: block; }
 .pomeranian-picture { display: contents; }
+.tip-mascot { display: inline-block; vertical-align: -5px; margin-right: 2px; object-fit: contain; }
+.type-mascot { display: block; margin: 0 auto 6px; object-fit: contain; }
 .duo-banner-text { min-width: 0; overflow-wrap: anywhere; }
 .duo-banner-title {
   font-size: 14px;
@@ -530,7 +532,7 @@ body {
 }
 
 .filter-toggle.pulse-glow {
-  animation: filterBtnPulse 2.2s infinite ease-in-out;
+  animation: filterBtnPulse 2.2s ease-in-out 3; /* 気づいてもらうだけなので数回で止める（動き続けると電池を使う） */
   border-color: var(--accent) !important;
 }
 @keyframes filterBtnPulse {
@@ -1613,6 +1615,10 @@ body {
   align-items: center;
   padding: 12px 0;
   border-bottom: 1px solid rgba(0,0,0,0.08);
+  /* 画面の外の項目は、見えるまで描画とレイアウトを後回しにする。長い苦手リストを開くときの負担を減らす。
+     auto は一度描いた高さを覚えるので、スクロールの長さは大きくずれない。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
 }
 .weak-word {
   font-family: ui-monospace, SFMono-Regular, monospace;

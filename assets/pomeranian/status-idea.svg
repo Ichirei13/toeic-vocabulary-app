@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-bulb { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.12); filter: brightness(1.15); } }
-    .bulb { transform-origin: 100px 26px; animation: pom-bulb 0.85s ease-in-out infinite; }
+    .bulb { transform-origin: 100px 26px; animation: pom-bulb 0.85s ease-in-out 6; }
     @media (prefers-reduced-motion: reduce) {
       .bulb { animation: none; }
     }

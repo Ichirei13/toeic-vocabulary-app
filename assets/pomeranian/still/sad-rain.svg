@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Little Gray Raincloud Above -->
+  <g class="cloud" transform="translate(4 0)">
+    <path d="M68 54 C56 54, 50 42, 60 34 C62 22, 80 18, 90 26 C100 16, 122 20, 124 34 C136 36, 134 54, 120 54 Z" fill="#98A2B3" stroke="#4B4B4B" stroke-width="4.5" stroke-linejoin="round"/>
+  </g>
+  <g class="raindrops" transform="translate(0 6)">
+    <line x1="76" y1="62" x2="74" y2="72" stroke="#29B6F6" stroke-width="4" stroke-linecap="round"/>
+    <line x1="96" y1="66" x2="94" y2="76" stroke="#29B6F6" stroke-width="4" stroke-linecap="round"/>
+    <line x1="114" y1="62" x2="112" y2="72" stroke="#29B6F6" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <!-- Lying Flat Gloomy Pomeranian -->
+  <ellipse cx="104" cy="170" rx="74" ry="10" fill="#0D1519" opacity="0.5"/>
+  <!-- Back Body & Tail -->
+  <path d="M110 120 C142 116, 168 132, 166 158 L104 162 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M158 130 C176 120, 182 102, 168 96 C156 92, 148 112, 158 130 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5.5" stroke-linejoin="round"/>
+  <!-- Bandana on Back -->
+  <path d="M120 124 L144 136 L130 152 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="4.5" stroke-linejoin="round"/>
+  <!-- Low Head & Drooping Ears Resting on Paws -->
+  <path d="M44 118 C26 116, 20 128, 34 134 L46 132 C38 146, 46 162, 64 164 C84 168, 116 168, 132 162 C146 156, 148 138, 138 128 L150 130 C162 124, 156 112, 138 114 C124 90, 58 90, 44 118 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+  <!-- Gloomy Half-Lidded Eyes & Frown -->
+  <path d="M62 132 L78 128" stroke="#4B4B4B" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M118 132 L102 128" stroke="#4B4B4B" stroke-width="4.5" stroke-linecap="round"/>
+  <circle cx="72" cy="138" r="8" fill="#3B232E"/>
+  <circle cx="108" cy="138" r="8" fill="#3B232E"/>
+  <ellipse cx="90" cy="146" rx="6" ry="4" fill="#3B232E"/>
+  <path d="M82 156 Q90 150 98 156" fill="none" stroke="#3B232E" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- Front Paws Flat on Floor -->
+  <ellipse cx="46" cy="164" rx="14" ry="8" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+  <ellipse cx="126" cy="164" rx="14" ry="8" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="5"/>
+</svg>

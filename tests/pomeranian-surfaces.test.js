@@ -21,12 +21,14 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server.close(); });
 
-async function open(t, { width = 375, height = 812, theme = 'ink' } = {}) {
+// 案内役のポーズは時刻（夜は眠そう）で変わるので、既定は昼に固定する。
+async function open(t, { width = 375, height = 812, theme = 'ink', hour = 12 } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce', timezoneId: 'Asia/Tokyo' });
   t.after(() => context.close());
   await context.addInitScript(theme => localStorage.setItem('toeic_app_theme', theme), theme);
   const page = await context.newPage();
   page.setDefaultTimeout(3000);
+  await page.clock.setFixedTime(new Date(`2026-11-07T${String(hour).padStart(2, '0')}:00:00+09:00`));
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   t.after(() => assert.deepEqual(errors, []));
@@ -121,7 +123,7 @@ test('home guidance, real streak and goal achievement use distinct poses without
   });
   assert.match(await page.locator('.home-streak-badge').innerText(), /3日連続/);
   assert((await page.locator('.home-streak-badge img').getAttribute('src')).endsWith('streak.svg'));
-  assert((await page.locator('.home-goal-row img').getAttribute('src')).endsWith('celebrate.svg'));
+  assert((await page.locator('.home-goal-row img').getAttribute('src')).endsWith('praise-trophy.svg'));
   assert.match(await page.locator('.home-goal-row').innerText(), /目標\s*達成/);
   assert.match(await page.locator('.home-goal-row').innerText(), /10 \/ 10問/);
   await capture(page, 'pomeranian-home-achieved.png');
@@ -129,7 +131,7 @@ test('home guidance, real streak and goal achievement use distinct poses without
   assert(await page.getByRole('dialog', { name: '学習カレンダー' }).isVisible());
   await page.getByRole('dialog', { name: '学習カレンダー' }).getByRole('button', { name: '閉じる', exact: true }).click();
   await page.evaluate(() => { prefs.dailyGoal = 0; dailyActivity.days[localDateStr()].g = 0; renderHomePage(); });
-  assert.equal(await page.locator('.home-goal-row img[src$="celebrate.svg"]').count(), 0);
+  assert.equal(await page.locator('.home-goal-row img[src$="praise-trophy.svg"]').count(), 0);
 });
 
 test('completion and actual graduated results celebrate without inventing achievements', async t => {

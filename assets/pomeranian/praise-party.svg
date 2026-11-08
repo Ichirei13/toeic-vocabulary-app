@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-pop-confetti { 0%, 100% { transform: scale(0.9) translate(0, 0); opacity: 0.7; } 50% { transform: scale(1.12) translate(6px, -6px); opacity: 1; } }
-    .burst { transform-origin: 152px 92px; animation: pom-pop-confetti 0.7s ease-in-out infinite; }
+    .burst { transform-origin: 152px 92px; animation: pom-pop-confetti 0.7s ease-in-out 8; }
     @media (prefers-reduced-motion: reduce) {
       .burst { animation: none; }
     }

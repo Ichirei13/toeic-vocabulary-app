@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-soul { 0%, 100% { transform: translateY(0) rotate(-4deg); opacity: 0.9; } 50% { transform: translateY(-10px) rotate(6deg); opacity: 0.55; } }
-    .soul { transform-origin: 148px 64px; animation: pom-soul 2.2s ease-in-out infinite; }
+    .soul { transform-origin: 148px 64px; animation: pom-soul 2.2s ease-in-out 3; }
     @media (prefers-reduced-motion: reduce) {
       .soul { animation: none; }
     }

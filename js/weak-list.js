@@ -55,7 +55,7 @@ function renderWordWeakList() {
   const mode = state.weakListMode;
   const data = wordWeak(mode);
   const items = Object.keys(data)
-    .map(k => ({ key: k, entry: data[k], word: RAW_WORDS.find(x => x.w === k) }))
+    .map(k => ({ key: k, entry: data[k], word: WORD_BY_HEADWORD.get(k) }))
     .filter(x => x.word);
   document.getElementById('sheet-title').innerText = `苦手リスト ${MODE_LABELS[mode]}（${items.length}）`;
   // 苦手はモードごとに記録しているので、他のモードの記録も切り替えて見られるようにする

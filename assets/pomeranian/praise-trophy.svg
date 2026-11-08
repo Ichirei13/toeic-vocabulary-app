@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-shine { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.18); opacity: 0.55; } }
-    .shine { transform-origin: 152px 118px; animation: pom-shine 0.9s ease-in-out infinite; }
+    .shine { transform-origin: 152px 118px; animation: pom-shine 0.9s ease-in-out 6; }
     @media (prefers-reduced-motion: reduce) {
       .shine { animation: none; }
     }

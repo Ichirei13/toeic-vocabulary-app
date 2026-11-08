@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <g class="cloud-ride" transform="translate(0 -7)">
+    <!-- Head & Ears -->
+    <path d="M52 68 L46 30 C46 20, 60 18, 76 34 C90 28, 110 28, 124 34 C140 18, 154 20, 154 30 L148 68 C164 80, 164 104, 144 114 C126 124, 74 124, 56 114 C36 104, 36 80, 52 68 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M64 110 L100 138 L136 110 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M72 110 L100 130 L128 110 Z" fill="#58CC02"/>
+    <circle cx="78" cy="74" r="11" fill="#3B232E"/>
+    <circle cx="74" cy="70" r="4" fill="#FFFFFF"/>
+    <circle cx="122" cy="74" r="11" fill="#3B232E"/>
+    <circle cx="118" cy="70" r="4" fill="#FFFFFF"/>
+    <ellipse cx="100" cy="82" rx="7" ry="5" fill="#3B232E"/>
+    <path d="M88 90 Q100 104 112 90" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Golden Record Box -->
+    <rect x="122" y="96" width="38" height="30" rx="6" fill="#FFC800" stroke="#4B4B4B" stroke-width="4.5"/>
+    <line x1="122" y1="110" x2="160" y2="110" stroke="#4B4B4B" stroke-width="4"/>
+    <!-- Fluffy Cloud Base -->
+    <path d="M36 168 C20 168, 14 148, 30 138 C32 122, 54 116, 68 126 C82 112, 114 112, 128 126 C144 116, 168 122, 170 138 C186 148, 180 168, 164 168 Z" fill="#E0F2FE" stroke="#1CB0F6" stroke-width="5" stroke-linejoin="round"/>
+  </g>
+</svg>

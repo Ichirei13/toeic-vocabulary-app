@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Musical Notes -->
+  <g class="notes" transform="translate(100 42) translate(0 -6) scale(1.1) translate(-100 -42)">
+    <path d="M32 54 V34 L48 30 V50" stroke="#FF6B8B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="28" cy="54" r="5" fill="#FF6B8B"/>
+    <circle cx="44" cy="50" r="5" fill="#FF6B8B"/>
+    <path d="M164 46 V26 L178 22" stroke="#58CC02" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="160" cy="46" r="5" fill="#58CC02"/>
+  </g>
+  <g class="dancer" transform="translate(100 150) rotate(6) translate(0 -7) translate(-100 -150)">
+    <!-- Tail & Dancing Legs -->
+    <path d="M152 138 C176 132, 180 102, 162 88 C168 78, 156 68, 144 76 C140 96, 142 122, 152 138 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M64 130 C52 148, 48 168, 62 174 C74 176, 84 162, 90 152 L108 152 C116 164, 128 180, 140 174 C150 168, 142 146, 134 128 Z" fill="#F2F4F7" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Dancing Arms -->
+    <path d="M54 118 C32 106, 26 84, 38 74 C46 66, 58 82, 64 102 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M146 122 C166 116, 176 98, 166 86 C158 78, 144 90, 136 108 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Chest & Bandana -->
+    <path d="M50 114 C42 128, 50 146, 66 150 C84 158, 116 158, 134 150 C150 146, 158 128, 150 114 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M64 114 L100 144 L136 114 Z" fill="#FF9600" stroke="#4B4B4B" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M72 114 L100 136 L128 114 Z" fill="#58CC02"/>
+    <!-- Head & Ears -->
+    <path d="M52 72 L46 32 C46 22, 60 20, 76 38 C90 32, 110 32, 124 38 C140 20, 154 22, 154 32 L148 72 C164 84, 164 108, 144 118 C126 128, 74 128, 56 118 C36 108, 36 84, 52 72 Z" fill="#FFFFFF" stroke="#4B4B4B" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M66 78 Q78 66 90 78" fill="none" stroke="#3B232E" stroke-width="6" stroke-linecap="round"/>
+    <path d="M110 78 Q122 66 134 78" fill="none" stroke="#3B232E" stroke-width="6" stroke-linecap="round"/>
+    <ellipse cx="100" cy="86" rx="7" ry="5" fill="#3B232E"/>
+    <path d="M88 94 Q100 112 112 94" fill="#FF6B8B" stroke="#3B232E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

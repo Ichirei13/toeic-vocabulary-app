@@ -2,9 +2,9 @@
   <style>
     @keyframes pom-star-spin { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.2) rotate(12deg); } }
     @keyframes pom-excited { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-    .star-l { transform-origin: 76px 78px; animation: pom-star-spin 0.7s ease-in-out infinite; }
-    .star-r { transform-origin: 124px 78px; animation: pom-star-spin 0.7s ease-in-out infinite; }
-    .body-excited { animation: pom-excited 0.6s ease-in-out infinite; }
+    .star-l { transform-origin: 76px 78px; animation: pom-star-spin 0.7s ease-in-out 8; }
+    .star-r { transform-origin: 124px 78px; animation: pom-star-spin 0.7s ease-in-out 8; }
+    .body-excited { animation: pom-excited 0.6s ease-in-out 9; }
     @media (prefers-reduced-motion: reduce) {
       .star-l, .star-r, .body-excited { animation: none; }
     }

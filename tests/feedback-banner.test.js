@@ -77,7 +77,9 @@ async function feedback(page, correct) {
   assert(await page.locator(`#duo-banner.${correct ? 'correct' : 'wrong'}`).count(), '判定が一致しない');
   const mascot = page.locator('#duo-banner img');
   assert.equal(await mascot.count(), 1, 'ポメラニアンが表示されていない');
-  assert((await mascot.getAttribute('src')).endsWith(correct ? '/encourage.svg' : '/reflect.svg'));
+  // 回答後のポーズは持ち回り（praise-* / sad-*）。判定に合う系統であればよい
+  const pose = (await mascot.getAttribute('src')).replace(/^.*\/|\.svg$/g, '');
+  assert(correct ? /^(encourage|praise-.+)$/.test(pose) : /^(reflect|sad-.+)$/.test(pose), `判定に合わないポーズ: ${pose}`);
   await mascot.evaluate(img => img.decode());
 }
 

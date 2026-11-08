@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-sweat-drop { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
-    .sweat { animation: pom-sweat-drop 1.1s ease-in-out infinite; }
+    .sweat { animation: pom-sweat-drop 1.1s ease-in-out 5; }
     @media (prefers-reduced-motion: reduce) {
       .sweat { animation: none; }
     }
