@@ -299,3 +299,62 @@ test('苦手を入れた記録（本物の保存キー）で、その問題の�
     assert.ok(r > 150 && r - g > 60 && r - b > 60, `ノード ${i} が赤くない: ${px}`);
   }
 });
+
+// ノードの中心の 1 ピクセルの色を返す
+const nodePixel = (page, i) => page.evaluate(idx => {
+  const [x, y] = GraphView._debug.screenOf(idx);
+  const c = document.querySelector('#graph-page canvas');
+  const r = c.getBoundingClientRect(), dpr = c.width / r.width;
+  const d = c.getContext('2d').getImageData(Math.floor((x - r.left) * dpr), Math.floor((y - r.top) * dpr), 1, 1).data;
+  return [d[0], d[1], d[2]];
+}, i);
+
+test('記録が読み込み直されると（同期・復元と同じ reloadRecordsFromStorage）、開いているグラフの色が更新される', async t => {
+  const { page } = await open(t);
+  await openReviewCard(page);
+  await drawn(page);
+  const pick = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, e = G.edges;
+    for (let k = 0; k < e.length; k += 3) {
+      if (e[k + 2] !== 1) continue;
+      const q = e[k], concept = e[k + 1];
+      if (G.kind[q] === 5 && GRAMMAR_BY_ID.has(G.qid[q])) return { qid: G.qid[q], concept };
+    }
+    return null;
+  });
+  assert.ok(pick, '概念につながる問題がある前提');
+  const before = await nodePixel(page, pick.concept);
+  assert.ok(!(before[0] > 150 && before[0] - before[1] > 60), `最初から赤い: ${before}`);
+  // 同期（applyMergedRecordsToLocal）がやるのと同じく、保存を書き換えてから reloadRecordsFromStorage(false) を呼ぶ。
+  // 同期のコード（gdrive.js / backup-io.js）には触れず、アプリが実際に使う入口をそのまま呼ぶ
+  const frames0 = await page.evaluate(({ qid }) => {
+    localStorage.setItem('toeic_grammar_stats', JSON.stringify({ [qid]: { a: 2, c: 0 } }));
+    localStorage.setItem('toeic_weak_grammar', JSON.stringify({ [qid]: { streak: 0, added: Date.now() - 3600000, due: Date.now() + 86400000 } }));
+    const f = GraphView._debug.frames;
+    reloadRecordsFromStorage(false);
+    return f;
+  }, pick);
+  await waitFor(page, f0 => GraphView._debug.frames > f0 && !GraphView._debug.pending, frames0);
+  const after = await nodePixel(page, pick.concept);
+  assert.ok(after[0] > 150 && after[0] - after[1] > 60 && after[0] - after[2] > 60, `読み込み直しのあとも赤くない: ${after}`);
+});
+
+test('PC: グラフの画面で「グラフ」タブをもう一度押しても、作り直さず、カメラも変わらない', async t => {
+  const { page } = await open(t, { viewport: PC });
+  const tab = page.getByRole('tab', { name: 'グラフ', exact: true });
+  await tab.click();
+  await drawn(page);
+  await page.evaluate(() => GraphView._debug.focus(null, 3));
+  const cam0 = await page.evaluate(() => GraphView._debug.camera());
+  const fit = await page.evaluate(() => GraphView._debug.camera().fitScale);
+  assert.ok(cam0.scale > fit * 1.5, `ズームできていない: ${JSON.stringify(cam0)}`);
+  const marker = await page.evaluate(() => { const c = document.querySelector('#graph-page canvas'); c.dataset.mark = 'same'; return GraphView._debug.listeners; });
+  await tab.click();
+  await page.waitForTimeout(300);
+  const cam1 = await page.evaluate(() => GraphView._debug.camera());
+  assert.deepEqual(cam1, cam0, 'カメラが変わった');
+  assert.equal(await page.evaluate(() => document.querySelector('#graph-page canvas')?.dataset.mark), 'same', 'Canvas が作り直された');
+  assert.equal(await page.evaluate(() => GraphView._debug.listeners), marker, 'リスナー数が変わった');
+  assert.equal(await activePage(page), 'graph-page');
+  assert.equal(await tab.getAttribute('aria-selected'), 'true');
+});

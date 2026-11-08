@@ -1479,6 +1479,8 @@ async function showGraphPage() {
 // 3ページの切り替え関数
 function switchAppPage(page, options = {}) {
   if (!APP_PAGES.includes(page)) page = 'home';
+  // すでにグラフの画面でマウント済みなら、同じタブをもう一度押しても作り直さない（カメラを保つ）
+  const graphAlreadyShown = page === 'graph' && currentAppPage === 'graph' && !!document.querySelector('#graph-page canvas');
   // グラフの画面を離れるときは、真っ先に片付ける（リスナー・Canvas・読み込み待ちのマウントを残さない）
   if (page !== 'graph') leaveGraphPage();
   else if (currentAppPage !== 'graph') graphReturnPage = appPageShown ? currentAppPage : 'review';
@@ -1526,7 +1528,7 @@ function switchAppPage(page, options = {}) {
   } else if (page === 'practice') {
     checkFilterNudge();
   } else if (page === 'graph') {
-    showGraphPage();
+    if (!graphAlreadyShown) showGraphPage();
   }
 
   if (typeof syncPomoMiniPill === 'function') syncPomoMiniPill();
@@ -1851,6 +1853,17 @@ function initHomeAndPages() {
     window.closeSheet = function () {
       const res = origCloseSheet.apply(this, arguments);
       if (currentAppPage === 'review') renderReviewPage();
+      return res;
+    };
+  }
+
+  // クラウド同期・復元で記録を読み込み直したとき、グラフの画面が開いていれば色だけ更新する
+  // （同期の処理そのものは変えず、読み込み直しの関数にかぶせる）
+  const origReloadRecords = window.reloadRecordsFromStorage;
+  if (typeof origReloadRecords === 'function') {
+    window.reloadRecordsFromStorage = function () {
+      const res = origReloadRecords.apply(this, arguments);
+      if (currentAppPage === 'graph' && typeof GraphView !== 'undefined' && typeof GraphView.refresh === 'function') GraphView.refresh();
       return res;
     };
   }

@@ -89,6 +89,7 @@
       rate[i] = r;
       // 上から順に判定する（先に当たったものが勝つ）
       let s;
+      // 苦手登録があっても解答数 0 なら unseen（weak/due の件数には数える。設計書 §6 の判定順どおり）
       if (a === 0) s = UNSEEN;
       else if (d > 0) s = DUE;
       else if (w > 0 || (a >= minAnswers && r < weakBelow)) s = WEAK;

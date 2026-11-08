@@ -13,3 +13,6 @@ __pycache__/
 archive/
 
 tools/node_modules/
+
+# サブエージェント作業の中間記録（手元だけ）
+.superpowers/
