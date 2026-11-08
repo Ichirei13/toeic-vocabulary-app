@@ -48,14 +48,46 @@ function loadJSON(key, fallback) {
   }
 }
 
-// 保存したら、Google ドライブ連携が有効なら自動同期の予約もする（scheduleGoogleDriveAutoSync は gdrive.js にあり、後から読み込まれる）
+// 保存先の値がすでに同じなら書かない。書いても保存の結果は変わらないので、書かなくても失うものはない
+// （描画のたびに同じ設定や出題の続きを書き直していた分を省く）。書いたら true、同じで省いたら false を返す。
+// 保存できないときは localStorage の例外がそのまま出る（呼び出し側で扱う）
+function writeStorage(key, raw) {
+  if (localStorage.getItem(key) === raw) return false;
+  localStorage.setItem(key, raw);
+  return true;
+}
+
+// 「保存した」という通知の受け手。saveJSON が実際に書いたとき（値が変わったとき）に、キーを渡して呼ぶ。
+// 保存の側は、受け手が何をするか（同期など）を知らない。受け手は、読み込むファイルの側から onStorageSaved で登録する
+const storageSavedListeners = [];
+function onStorageSaved(listener) {
+  storageSavedListeners.push(listener);
+}
+
+// 「保存に失敗した」という通知の受け手。画面にお知らせを出す側が登録する（保存の側は画面を知らない）
+const saveFailureListeners = [];
+function onStorageSaveFailed(listener) {
+  saveFailureListeners.push(listener);
+}
+
+// 保存に失敗したことを受け手に伝える。saveJSON を通らず例外を握りつぶしている書き込みからも呼ぶ。
+// 受け手が例外を出しても、呼び出し側（保存や学習）は止めない
+function reportSaveFailure(key) {
+  saveFailureListeners.forEach(listener => {
+    try { listener(key); } catch (e) { /* 受け手の不具合で、ほかの受け手や学習を止めない */ }
+  });
+}
+
+// 値が変わっていなければ書かず、通知もしない。保存に失敗しても学習は続けられるので、例外は出さず、失敗の受け手に伝える。
+// 受け手が例外を出しても、保存は済んでいて、ほかの受け手にも届く
 function saveJSON(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-    if (typeof scheduleGoogleDriveAutoSync === 'function') {
-      scheduleGoogleDriveAutoSync(key);
-    }
+    if (!writeStorage(key, JSON.stringify(value))) return;
   } catch (e) {
-    // 保存できなくても学習は続けられるので無視する
+    reportSaveFailure(key); // 保存できなくても学習は続けられるが、記録が残っていないことは知らせる
+    return;
   }
+  storageSavedListeners.forEach(listener => {
+    try { listener(key); } catch (e) { /* 受け手の不具合で、保存や他の受け手を止めない */ }
+  });
 }

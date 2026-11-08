@@ -117,8 +117,8 @@ function loadDailyActivity() {
   } catch (e) {}
   const initial = { days };
   try {
-    localStorage.setItem(DAILY_ACTIVITY_KEY, JSON.stringify(initial));
-  } catch (e) {}
+    writeStorage(DAILY_ACTIVITY_KEY, JSON.stringify(initial));
+  } catch (e) { reportSaveFailure(DAILY_ACTIVITY_KEY); }
   return initial;
 }
 
@@ -178,8 +178,8 @@ function setDailyGoal(goal) {
 
 function saveDailyActivity() {
   try {
-    localStorage.setItem(DAILY_ACTIVITY_KEY, JSON.stringify(dailyActivity));
-  } catch (e) {}
+    writeStorage(DAILY_ACTIVITY_KEY, JSON.stringify(dailyActivity));
+  } catch (e) { reportSaveFailure(DAILY_ACTIVITY_KEY); }
 }
 
 function recordAnswerPaceAndActivity(kind, isCorrect) {
@@ -578,8 +578,8 @@ function saveBookSessionSnapshot() {
     };
   }
   try {
-    localStorage.setItem(BOOK_SESSIONS_KEY, JSON.stringify(bookSessions));
-  } catch (e) {}
+    writeStorage(BOOK_SESSIONS_KEY, JSON.stringify(bookSessions));
+  } catch (e) { reportSaveFailure(BOOK_SESSIONS_KEY); }
 }
 
 // 保存した続きを戻せたら true。条件（sig）が変わっていたり、問題が見つからなかったら false（settings.js の restoreSession と同じ判定）
@@ -1157,7 +1157,7 @@ function renderSettingsPage() {
               <div class="settings-menu-item-icon">${pomeranianImage('cloud-sync', 'settings-menu-mascot', 32)}</div>
               <div>
                 <div class="settings-menu-item-title">学習記録のバックアップ・復元</div>
-                <div class="settings-menu-item-subtitle">${(typeof isGoogleDriveLinked === 'function' && isGoogleDriveLinked()) ? '☁️ Google ドライブ自動同期中' : 'JSON書き出し・Google ドライブ自動同期'}</div>
+                <div class="settings-menu-item-subtitle">${(typeof isGoogleDriveLinked === 'function' && isGoogleDriveLinked()) ? '☁️ Google ドライブ連携中' : 'JSON書き出し・Google ドライブ同期'}</div>
               </div>
             </div>
             <span class="settings-menu-item-arrow">›</span>

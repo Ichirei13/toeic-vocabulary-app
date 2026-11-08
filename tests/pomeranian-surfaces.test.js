@@ -88,21 +88,37 @@ test('book tiles keep each color when selected and use the new vocabulary mascot
   assert.equal(new Set(colors.values()).size, 7, '教材の背景色を区別できない');
 });
 
-test('brand mascot stays beside a readable label and returns home on mobile', async t => {
+// ブランド（マスコット＋アプリ名）は、1000px 以上の横幅（左のサイドバー）にだけ出す。
+// それより狭い画面（スマホ・タブレット）は、下のタブにホームがあるので出さない（css/shell.css）。
+test('brand mascot is hidden on mobile, where the bottom tabs lead home', async t => {
   const { page } = await open(t, { width: 375 });
-  for (const width of [320, 375, 768, 1440]) {
+  for (const width of [320, 375, 768, 999]) {
+    await page.setViewportSize({ width, height: 812 });
+    assert.equal(await page.locator('.top-page-brand').isVisible(), false, `${width}px でブランドが出ている`);
+    assert(await page.getByRole('tab', { name: 'ホーム', exact: true }).isVisible(), `${width}px で下のタブのホームが見えない`);
+  }
+  await page.getByRole('tab', { name: '設定', exact: true }).click();
+  await page.getByRole('tab', { name: 'ホーム', exact: true }).click();
+  assert(await page.locator('#home-page').isVisible());
+});
+
+test('brand mascot stays beside a readable label in the desktop sidebar and returns home', async t => {
+  const { page } = await open(t, { width: 1440 });
+  for (const width of [1000, 1440]) {
     await page.setViewportSize({ width, height: 812 });
     const img = page.locator('.top-page-brand img');
     assert.equal(await img.count(), 1);
     await img.evaluate(img => img.decode());
+    assert(await page.locator('.top-page-brand').isVisible(), `${width}px でブランドが出ていない`);
     const layout = await page.locator('.top-page-brand').evaluate(el => {
       const label = [...el.querySelectorAll('span')].find(span => getComputedStyle(span).display !== 'none');
       const rect = el.getBoundingClientRect();
       const tabs = document.querySelector('.top-page-tabs').getBoundingClientRect();
       const icon = el.querySelector('img').getBoundingClientRect();
-      return { fullLabel: label.scrollWidth <= label.clientWidth + 1, brandRight: rect.right, tabsLeft: tabs.left, tabsRight: tabs.right, iconWidth: icon.width };
+      return { fullLabel: label.scrollWidth <= label.clientWidth + 1, brandBottom: rect.bottom, tabsTop: tabs.top, brandRight: rect.right, vw: innerWidth, iconWidth: icon.width };
     });
-    assert(layout.fullLabel && layout.brandRight <= layout.tabsLeft && layout.tabsRight <= width + 1 && layout.iconWidth >= 24, JSON.stringify(layout));
+    // サイドバーでは、ブランドがタブの上に縦に並ぶ
+    assert(layout.fullLabel && layout.brandBottom <= layout.tabsTop + 1 && layout.brandRight <= layout.vw && layout.iconWidth >= 24, JSON.stringify(layout));
   }
   await page.getByRole('tab', { name: '設定', exact: true }).click();
   await page.getByRole('button', { name: 'TOEIC Practice ホームへ', exact: true }).click();

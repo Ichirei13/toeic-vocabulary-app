@@ -586,7 +586,7 @@ test('sync_does_not_notify_other_tabs', () => withPage({}, async page => {
   assert.strictEqual(stamp, null); // 同期は「復元」ではないので、別のタブを読み込み直させない
 }));
 
-test('session_save_does_not_schedule_sync', () => withPage({}, async page => {
+test('record_save_does_not_schedule_sync', () => withPage({}, async page => {
   await stubDrive(page);
   const r = await page.evaluate(() => {
     localStorage.setItem(GDRIVE_AUTOSYNC_KEY, '1');
@@ -594,10 +594,10 @@ test('session_save_does_not_schedule_sync', () => withPage({}, async page => {
     saveJSON(SESSION_KEY, {});
     const afterSession = gdriveSyncTimer;
     saveJSON(WORD_STATS_KEY, {});
-    return { afterSession, afterStats: gdriveSyncTimer !== null };
+    return { afterSession, afterStats: gdriveSyncTimer };
   });
   assert.strictEqual(r.afterSession, null);
-  assert.strictEqual(r.afterStats, true);
+  assert.strictEqual(r.afterStats, null); // 自動同期は止めてあるので、記録の保存でも予約しない
 }));
 
 // ==================== 絞り込みの複数選択(範囲・品詞・文法の章) ====================
