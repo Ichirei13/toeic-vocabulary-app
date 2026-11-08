@@ -76,6 +76,12 @@
   --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6' cy='6' r='2.5'/%3E%3Ccircle cx='18' cy='8.5' r='2.5'/%3E%3Ccircle cx='9' cy='18' r='2.5'/%3E%3Cpath d='M8.5 6.4l7 1.7'/%3E%3Cpath d='M6.6 8.4l1.8 7.2'/%3E%3Cpath d='M16.3 10.4l-5.6 5.8'/%3E%3C/svg%3E");
 }
 
+/* Google ドライブとワンタップ同期のボタン（タブではない）。幅 1000px 以上のサイドバー下部にだけ出す（下の @media (min-width: 1000px)） */
+:root .top-sync-btn {
+  display: none;
+  --sync-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.8 8.6 4.8 4.8 0 0 1 17.5 18z'/%3E%3C/svg%3E");
+}
+
 /* === 文法グラフの画面（#graph-page は home.js が初めて開くときに作る）===
    グラフ本体の見た目は css/graph.css（開くときに読む）。ここは読み込み前から要る枠だけ:
    見出し行（戻る・題名）、グラフを置く場所（残りの高さいっぱい）、読み込み中と失敗の表示 */
@@ -290,6 +296,37 @@
   }
   :root .top-page-tab::before { width: 22px; height: 22px; }
   :root .top-page-tab[data-page="graph"] { display: inline-flex; }
+  /* 同期ボタン: タブと同じ寸法・文字で、サイドバーの一番下に置く（タブ列の外なので margin-top: auto で下へ寄せる） */
+  :root .top-sync-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex: none;
+    gap: 12px;
+    margin-top: auto;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  :root .top-sync-btn::before {
+    content: '';
+    width: 22px;
+    height: 22px;
+    background-color: currentColor;
+    -webkit-mask: var(--sync-icon) center / contain no-repeat;
+    mask: var(--sync-icon) center / contain no-repeat;
+  }
+  :root .top-sync-btn:hover { color: var(--text-page); }
+  :root .top-sync-btn:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
   /* 下のつまみは、タブバーを格納した後の戻し口。サイドバーは常に出すので要らない */
   :root .shell-grabber-bottom,
   :root .shell-grabber-footer { display: none !important; }

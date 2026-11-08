@@ -1896,6 +1896,14 @@ function initHomeAndPages() {
     });
   }
 
+  // PC のサイドバー下部の「同期」: 設定画面の「今すぐ同期」と同じ呼び出し（二重実行・未連携時のログインは js/gdrive.js 側が扱う）
+  const syncBtnEl = document.querySelector('.top-sync-btn');
+  if (syncBtnEl) {
+    syncBtnEl.addEventListener('click', () => {
+      if (typeof saveToGoogleDrive === 'function') saveToGoogleDrive({ interactive: true });
+    });
+  }
+
   // ホーム画面内のクリックイベント委譲
   const homeEl = document.getElementById('home-page');
   if (homeEl) {
