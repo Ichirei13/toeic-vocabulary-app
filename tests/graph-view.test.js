@@ -1,0 +1,649 @@
+// 文法グラフの画面（js/graph-view.js + css/graph.css）の検証。アプリ全体は起動せず、
+// グラフ用のファイルだけを読む最小のページ（メモリ上の /__graph_test.html）で確かめる。
+// 実行: NODE_PATH=$(npm root -g) node --test tests/graph-view.test.js
+// スクリーンショット: GRAPH_SHOTS=<出力先ディレクトリ> を付けると、最後のテストが画像を書き出す（リポジトリの外に出すこと）。
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
+const { chromium } = require('playwright');
+
+const root = path.resolve(__dirname, '..');
+const TEST_PAGE = `<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/css/graph.css">
+<style>html,body{margin:0;height:100%;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}#host{position:fixed;inset:0}</style>
+</head><body><div id="host"></div>
+<script src="/data/grammar_graph.js"></script>
+<script src="/src/mastery.js"></script>
+<script src="/src/graph-filter.js"></script>
+<script src="/src/graph-geometry.js"></script>
+<script src="/src/graph-detail.js"></script>
+<script src="/js/graph-view.js"></script>
+<script>
+  window.__stats = {};
+  window.__weak = {};
+  window.__getQ = null;
+  window.__deps = function () {
+    return {
+      graph: GRAMMAR_GRAPH,
+      getStats: function () { return window.__stats; },
+      getWeak: function () { return window.__weak; },
+      getQuestion: function (qid) { return window.__getQ ? window.__getQ(qid) : { q: 'Question number ' + qid + ' text' }; },
+      isDue: function (e) { return !!(e && typeof e.due === 'number' && e.due <= Date.now()); },
+    };
+  };
+  window.__mount = function () { GraphView.mount(document.getElementById('host'), window.__deps()); };
+  window.__px = function (x, y) {
+    var c = document.querySelector('#host canvas');
+    var r = c.getBoundingClientRect(), dpr = c.width / r.width;
+    // x, y はページ（ビューポート）の座標。screenOf と同じ
+    var d = c.getContext('2d').getImageData(Math.floor((x - r.left) * dpr), Math.floor((y - r.top) * dpr), 1, 1).data;
+    return [d[0], d[1], d[2]];
+  };
+</script>
+</body></html>`;
+
+// rAF とタイマーの呼び出しを、ページのスクリプトより前に包んで数える
+const COUNT_SCRIPT = `
+  window.__cnt = { raf: 0, timeout: 0, interval: 0 };
+  (function () {
+    var raf = window.requestAnimationFrame, st = window.setTimeout, si = window.setInterval;
+    window.requestAnimationFrame = function (f) { window.__cnt.raf++; return raf.call(window, f); };
+    window.setTimeout = function () { window.__cnt.timeout++; return st.apply(window, arguments); };
+    window.setInterval = function () { window.__cnt.interval++; return si.apply(window, arguments); };
+  })();
+`;
+
+let browser, base;
+const server = http.createServer((req, res) => {
+  const pathname = new URL(req.url, 'http://local').pathname;
+  if (pathname === '/__graph_test.html') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.end(TEST_PAGE);
+  }
+  const file = path.resolve(root, '.' + pathname);
+  if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return res.writeHead(404).end();
+  res.setHeader('Content-Type', { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' }[path.extname(file)] || 'application/octet-stream');
+  fs.createReadStream(file).pipe(res);
+});
+before(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+  browser = await chromium.launch();
+});
+after(async () => { await browser?.close(); server.close(); });
+
+async function open(t, opts = {}) {
+  const context = await browser.newContext({ viewport: opts.viewport || { width: 375, height: 812 }, colorScheme: opts.colorScheme || 'light' });
+  t.after(() => context.close());
+  const page = await context.newPage();
+  page.setDefaultTimeout(5000);
+  const errors = [];
+  page.on('pageerror', e => errors.push(e));
+  t.after(() => assert.deepEqual(errors.map(String), [], 'ページで例外が出た'));
+  await page.addInitScript(COUNT_SCRIPT);
+  await page.goto(base + '/__graph_test.html');
+  return page;
+}
+
+// ページ側のタイマーや rAF を使わずに、Node 側から条件を待つ
+async function waitFor(page, fn, arg, timeout = 3000) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    const v = await page.evaluate(fn, arg);
+    if (v) return v;
+    if (Date.now() > end) throw new Error('waitFor timeout: ' + fn.toString());
+    await new Promise(r => setTimeout(r, 15));
+  }
+}
+const frames = page => page.evaluate(() => GraphView._debug.frames);
+async function mountAndWait(page) {
+  await page.evaluate(() => window.__mount());
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+}
+// 新しいフレームが描かれるのを待つ（before = 待つ前のフレーム数）
+const nextFrame = (page, before) => waitFor(page, b => GraphView._debug.frames > b, before);
+const sheetOpen = page => page.evaluate(() => {
+  const s = document.querySelector('#host .graph-sheet');
+  return !!s && !s.hidden;
+});
+const isRed = ([r, g, b]) => r > 150 && r - g > 60 && r - b > 60;
+const isGrey = ([r, g, b]) => Math.max(r, g, b) - Math.min(r, g, b) < 24;
+
+// 概念と Trap の両方につながる問題を 1 問探す（概念・Trap のエッジは 問題 -> 概念/Trap）
+async function pickLinkedQuestion(page) {
+  return page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, e = G.edges, links = new Map();
+    for (let k = 0; k < e.length; k += 3) {
+      if (e[k + 2] === 0) continue;
+      const [a, b] = [e[k], e[k + 1]];
+      const q = G.kind[a] === 5 ? a : b, other = q === a ? b : a;
+      if (!links.has(q)) links.set(q, {});
+      links.get(q)[e[k + 2] === 1 ? 'concept' : 'trap'] = other;
+    }
+    for (const [q, l] of links) if (l.concept != null && l.trap != null) return { q, qid: G.qid[q], concept: l.concept, trap: l.trap };
+    return null;
+  });
+}
+
+test('マウントすると canvas が 1 枚でき、1 回だけ描かれ、その後 1 秒は rAF もタイマーも呼ばれない', async t => {
+  const page = await open(t);
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; window.__mount(); });
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+  await new Promise(r => setTimeout(r, 1100));
+  const r = await page.evaluate(() => ({
+    canvases: document.querySelectorAll('canvas').length,
+    frames: GraphView._debug.frames, cnt: window.__cnt, listeners: GraphView._debug.listeners,
+  }));
+  assert.equal(r.canvases, 1);
+  assert.equal(r.frames, 1);
+  assert.deepEqual(r.cnt, { raf: 1, timeout: 0, interval: 0 });
+  assert.ok(r.listeners > 0);
+});
+
+test('苦手（概念と Trap につながる問題 1 問）を渡すと、概念・Trap・その問題が赤く描かれる', async t => {
+  const page = await open(t);
+  const pick = await pickLinkedQuestion(page);
+  assert.ok(pick, '概念と Trap の両方につながる問題がある前提');
+  await page.evaluate(p => {
+    window.__stats = { [p.qid]: { a: 2, c: 0 } };
+    window.__weak = { [p.qid]: { streak: 0, due: Date.now() + 86400000 } };
+  }, pick);
+  await mountAndWait(page);
+  for (const i of [pick.concept, pick.trap]) {
+    const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), i);
+    const px = await page.evaluate(([x, y]) => window.__px(x, y), [x, y]);
+    assert.ok(isRed(px), `ノード ${i} が赤くない: ${px}`);
+  }
+  // 近景で問題そのものも赤い
+  const f = await frames(page);
+  await page.evaluate(q => GraphView._debug.focus(q, 9), pick.q);
+  await nextFrame(page, f);
+  assert.equal(await page.evaluate(() => GraphView._debug.lod), 2);
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), pick.q);
+  const px = await page.evaluate(([x, y]) => window.__px(x, y), [x, y]);
+  assert.ok(isRed(px), `問題ノードが赤くない: ${px}`);
+});
+
+test('記録が空（{}）や壊れた記録でも例外なく、描いたノードはすべて灰色', async t => {
+  const page = await open(t);
+  await page.evaluate(() => { window.__stats = { 1: null, 2: 'x', 3: { a: 'NaN' } }; window.__weak = {}; });
+  await mountAndWait(page);
+  const r = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, out = [];
+    for (let i = 0; i < G.id.length && out.length < 12; i++) {
+      if (G.kind[i] !== 1 && G.kind[i] !== 3) continue;
+      const [x, y] = GraphView._debug.screenOf(i);
+      if (x < 5 || y < 60 || x > innerWidth - 5 || y > innerHeight - 5) continue;
+      out.push({ i, px: window.__px(x, y) });
+    }
+    return { out, drawn: GraphView._debug.lastDrawnNodes, ms: GraphView._debug.lastFrameMs };
+  });
+  assert.ok(r.out.length >= 6);
+  for (const o of r.out) assert.ok(isGrey(o.px), `ノード ${o.i} が灰色でない: ${o.px}`);
+  assert.ok(r.drawn > 0);
+  assert.ok(Number.isFinite(r.ms));
+});
+
+test('ドラッグ 1 回の移動でパンし 1 回だけ描く。6px を超えて動かした指を離してもシートは開かない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  // ノードの真上から始めてドラッグする
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+  const cam0 = await page.evaluate(() => GraphView._debug.camera());
+  const f0 = await frames(page);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 40, y + 10);
+  await page.mouse.up();
+  await nextFrame(page, f0);
+  await new Promise(r => setTimeout(r, 150));
+  const cam1 = await page.evaluate(() => GraphView._debug.camera());
+  assert.equal(await frames(page), f0 + 1);
+  assert.ok(Math.abs(cam1.x - cam0.x - 40) < 0.01 && Math.abs(cam1.y - cam0.y - 10) < 0.01, JSON.stringify([cam0, cam1]));
+  assert.equal(await sheetOpen(page), false);
+  // 7px だけ動かしてもタップではない
+  await page.mouse.move(x + 40, y + 10);
+  await page.mouse.down();
+  await page.mouse.move(x + 47, y + 10);
+  await page.mouse.up();
+  await new Promise(r => setTimeout(r, 100));
+  assert.equal(await sheetOpen(page), false);
+});
+
+test('ホイールでズームすると LOD が上がり、近景で問題が描かれる', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const d0 = await page.evaluate(() => ({ lod: GraphView._debug.lod, kinds: GraphView._debug.drawnKinds.slice() }));
+  assert.equal(d0.lod, 0);
+  assert.equal(d0.kinds[2], 0, '遠景でルールを描いた');
+  assert.equal(d0.kinds[5], 0, '遠景で問題を描いた');
+  const seen = new Set([0]);
+  // 問題 q:1 の上でズームする（画面の中央は空き地のことがある）
+  const [qx, qy] = await page.evaluate(() => GraphView._debug.screenOf('q:1'));
+  await page.mouse.move(qx, qy);
+  for (let k = 0; k < 40 && !seen.has(2); k++) {
+    const f = await frames(page);
+    await page.mouse.wheel(0, -120);
+    await nextFrame(page, f);
+    seen.add(await page.evaluate(() => GraphView._debug.lod));
+  }
+  assert.ok(seen.has(1), '中景を通らなかった');
+  assert.ok(seen.has(2), '近景にならなかった');
+  const kinds = await page.evaluate(() => GraphView._debug.drawnKinds.slice());
+  assert.ok(kinds[5] > 0, '近景で問題が描かれていない');
+  // ズームの上限で止まる
+  const rel = await page.evaluate(() => { const c = GraphView._debug.camera(); return c.scale / c.fitScale; });
+  assert.ok(rel <= 14.0001);
+});
+
+test('ピンチ（2 本指の Pointer Events）でズームし、シートは開かない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const c0 = await page.evaluate(() => GraphView._debug.camera());
+  const f0 = await frames(page);
+  await page.evaluate(() => {
+    const cv = document.querySelector('#host canvas');
+    const r = cv.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const ev = (type, id, x, y) => cv.dispatchEvent(new PointerEvent(type, {
+      pointerId: id, pointerType: 'touch', isPrimary: id === 11, clientX: x, clientY: y, bubbles: true, cancelable: true, buttons: type === 'pointerup' ? 0 : 1,
+    }));
+    ev('pointerdown', 11, cx - 30, cy);
+    ev('pointerdown', 12, cx + 30, cy);
+    for (let k = 1; k <= 6; k++) { ev('pointermove', 11, cx - 30 - k * 10, cy); ev('pointermove', 12, cx + 30 + k * 10, cy); }
+    ev('pointerup', 11, cx - 90, cy);
+    ev('pointerup', 12, cx + 90, cy);
+  });
+  await nextFrame(page, f0);
+  const c1 = await page.evaluate(() => GraphView._debug.camera());
+  const ratio = c1.scale / c0.scale;
+  assert.ok(Math.abs(ratio - 3) < 0.01, 'ピンチの倍率: ' + ratio);
+  assert.equal(await sheetOpen(page), false);
+});
+
+test('ノードをタップするとシートが開く（概念は desc、Trap は advice、問題一覧）。Esc・外側タップ・閉じるボタンで閉じる', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+  let [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+  await page.mouse.click(x, y);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  let r = await page.evaluate(() => {
+    const s = document.querySelector('#host .graph-sheet');
+    return { text: s.textContent, html: s.innerHTML, items: s.querySelectorAll('.graph-q').length, tap: GraphView._debug.lastTap };
+  });
+  assert.equal(r.tap, ci);
+  assert.ok(r.text.includes('SVOC'), r.text.slice(0, 200));
+  assert.ok(r.text.includes('英語は『配置の言語』'), '概念の desc が出ていない');
+  assert.ok(!r.text.includes('**'), 'Markdown の ** がそのまま出ている');
+  assert.ok(r.items > 0, '問題一覧が空');
+  await page.keyboard.press('Escape');
+  assert.equal(await sheetOpen(page), false);
+
+  // Trap は advice
+  const ti = await page.evaluate(() => GRAMMAR_GRAPH.kind.indexOf(4));
+  [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ti);
+  await page.mouse.click(x, y);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  r = await page.evaluate(() => ({ text: document.querySelector('#host .graph-sheet').textContent, tap: GraphView._debug.lastTap }));
+  assert.equal(r.tap, ti);
+  const advice = await page.evaluate(i => GRAMMAR_GRAPH.text[i].advice, ti);
+  assert.ok(r.text.includes(advice.slice(0, 20)), 'Trap の advice が出ていない');
+  // 外側（背景の覆い）をタップすると閉じる
+  await page.mouse.click(187, 120);
+  assert.equal(await sheetOpen(page), false);
+  // 閉じるボタン
+  await page.mouse.click(x, y);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  await page.click('#host .graph-sheet-close');
+  assert.equal(await sheetOpen(page), false);
+});
+
+test('何もない場所のタップではシートが開かない。重なったら中心が近い方、隠れたノードは当たらない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  // 何もない場所（当たり判定が -1 の点）を探してタップ
+  const empty = await page.evaluate(() => {
+    const c = document.querySelector('#host canvas').getBoundingClientRect();
+    for (let y = c.top + 10; y < c.bottom; y += 10) for (let x = c.left + 10; x < c.right; x += 10) if (GraphView._debug.hitAt(x, y) === -1) return [x, y];
+    return null;
+  });
+  assert.ok(empty);
+  await page.mouse.click(empty[0], empty[1]);
+  await new Promise(r => setTimeout(r, 80));
+  assert.equal(await sheetOpen(page), false);
+
+  // 重なり: 近景で、互いに近い 2 つの描画中ノードの間の、片方寄りの点をタップする
+  await page.evaluate(() => GraphView._debug.focus('q:1', 10));
+  await waitFor(page, () => GraphView._debug.lod === 2);
+  await new Promise(r => setTimeout(r, 50));
+  const pair = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, d = GraphView._debug, vis = [];
+    const c = document.querySelector('#host canvas').getBoundingClientRect();
+    for (let i = 0; i < G.id.length; i++) {
+      if (!d.isVisible(i)) continue;
+      const [x, y] = d.screenOf(i);
+      if (x > c.left + 30 && x < c.right - 30 && y > c.top + 30 && y < c.bottom - 30) vis.push([i, x, y]);
+    }
+    let best = null;
+    for (let a = 0; a < vis.length; a++) for (let b = a + 1; b < vis.length; b++) {
+      const dist = Math.hypot(vis[a][1] - vis[b][1], vis[a][2] - vis[b][2]);
+      if (dist > 4 && dist < 22 && (!best || dist < best.dist)) best = { a: vis[a], b: vis[b], dist };
+    }
+    return best;
+  });
+  assert.ok(pair, '近いノードの組が見つからない');
+  const px = pair.a[1] + (pair.b[1] - pair.a[1]) * 0.3, py = pair.a[2] + (pair.b[2] - pair.a[2]) * 0.3;
+  await page.mouse.click(px, py);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  assert.equal(await page.evaluate(() => GraphView._debug.lastTap), pair.a[0]);
+  await page.keyboard.press('Escape');
+
+  // LOD で隠れたノード: 全体表示に戻し、ルールの真上をタップしてもそのルールは開かない
+  await page.evaluate(() => GraphView._debug.focus(null, 1));
+  await waitFor(page, () => GraphView._debug.lod === 0);
+  const rule = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, d = GraphView._debug;
+    const c = document.querySelector('#host canvas').getBoundingClientRect();
+    for (let i = 0; i < G.id.length; i++) {
+      if (G.kind[i] !== 2) continue;
+      const [x, y] = d.screenOf(i);
+      if (x > c.left + 20 && x < c.right - 20 && y > c.top + 20 && y < c.bottom - 20) return { i, x, y };
+    }
+    return null;
+  });
+  assert.equal(await page.evaluate(r => GraphView._debug.hitAt(r.x, r.y) === r.i, rule), false);
+  await page.mouse.click(rule.x, rule.y);
+  await new Promise(r => setTimeout(r, 80));
+  const tapped = await page.evaluate(() => GraphView._debug.lastTap);
+  assert.notEqual(tapped, rule.i);
+  if (await sheetOpen(page)) {
+    assert.equal(await page.evaluate(i => GraphView._debug.isVisible(i), tapped), true);
+    await page.keyboard.press('Escape');
+  }
+
+  // 本の絞り込みで隠れたノード: 「金」にして、世界一の章の真上をタップしても開かない
+  await page.click('#host .graph-chip[data-book="kin"]');
+  await waitFor(page, () => GraphView._debug.book === 'kin');
+  const sek = await page.evaluate(() => {
+    const i = GraphView._debug.indexOf('ch:sekai:1');
+    const [x, y] = GraphView._debug.screenOf(i);
+    return { i, x, y, vis: GraphView._debug.isVisible(i) };
+  });
+  assert.equal(sek.vis, false);
+  await page.evaluate(() => { GraphView._debug.lastTap = -1; });
+  await page.mouse.click(sek.x, sek.y);
+  await new Promise(r => setTimeout(r, 80));
+  assert.notEqual(await page.evaluate(() => GraphView._debug.lastTap), sek.i);
+});
+
+test('絞り込み（本・苦手のみ）で描くノード数が変わり、aria-pressed が付く', async t => {
+  const page = await open(t);
+  const pick = await pickLinkedQuestion(page);
+  await page.evaluate(p => {
+    window.__stats = { [p.qid]: { a: 2, c: 0 } };
+    window.__weak = { [p.qid]: { streak: 0, due: Date.now() + 86400000 } };
+  }, pick);
+  await mountAndWait(page);
+  const all = await page.evaluate(() => GraphView._debug.lastDrawnNodes);
+  let f = await frames(page);
+  await page.click('#host .graph-chip[data-book="kin"]');
+  await nextFrame(page, f);
+  const kin = await page.evaluate(() => ({
+    n: GraphView._debug.lastDrawnNodes,
+    pressed: [...document.querySelectorAll('#host .graph-chip[data-book]')].map(b => b.dataset.book + ':' + b.getAttribute('aria-pressed')),
+  }));
+  assert.ok(kin.n > 0 && kin.n < all, `all=${all} kin=${kin.n}`);
+  assert.ok(kin.pressed.includes('kin:true') && kin.pressed.includes('all:false'), kin.pressed.join());
+  f = await frames(page);
+  await page.click('#host .graph-chip[data-book="all"]');
+  await nextFrame(page, f);
+  assert.equal(await page.evaluate(() => GraphView._debug.lastDrawnNodes), all);
+  f = await frames(page);
+  await page.click('#host .graph-weak-toggle');
+  await nextFrame(page, f);
+  const weak = await page.evaluate(() => ({ n: GraphView._debug.lastDrawnNodes, p: document.querySelector('#host .graph-weak-toggle').getAttribute('aria-pressed') }));
+  assert.equal(weak.p, 'true');
+  // 遠景の苦手のみ: その問題につながる 本・章・概念・Trap（ルールと問題は遠景では描かない）
+  assert.ok(weak.n >= 3 && weak.n < 10, 'weakOnly n=' + weak.n);
+});
+
+test('refresh() は記録を読み直して色を変え、再描画を 1 回だけ要求する', async t => {
+  const page = await open(t);
+  const pick = await pickLinkedQuestion(page);
+  await mountAndWait(page);
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), pick.concept);
+  assert.ok(isGrey(await page.evaluate(([x, y]) => window.__px(x, y), [x, y])));
+  await page.evaluate(p => {
+    window.__stats = { [p.qid]: { a: 2, c: 0 } };
+    window.__weak = { [p.qid]: { streak: 0, due: Date.now() + 86400000 } };
+    window.__cnt.raf = 0;
+    GraphView.refresh(); GraphView.refresh();
+  }, pick);
+  await waitFor(page, () => GraphView._debug.frames === 2);
+  assert.equal(await page.evaluate(() => window.__cnt.raf), 1);
+  assert.ok(isRed(await page.evaluate(([x, y]) => window.__px(x, y), [x, y])));
+});
+
+test('destroy: canvas・シート・リスナーが消え、2 回呼んでも落ちない。mount/destroy を 5 回繰り返してもリスナーは増えない', async t => {
+  const page = await open(t);
+  const r = await page.evaluate(async () => {
+    const host = document.getElementById('host');
+    const counts = [];
+    for (let k = 0; k < 5; k++) {
+      window.__mount();
+      counts.push(GraphView._debug.listeners);
+      GraphView.destroy();
+      counts.push(GraphView._debug.listeners);
+    }
+    GraphView.destroy();
+    // mount 中にもう一度 mount すると、前のものを壊してから作る
+    window.__mount();
+    window.__mount();
+    const twice = { canvases: document.querySelectorAll('canvas').length, listeners: GraphView._debug.listeners };
+    GraphView.destroy();
+    return { counts, twice, children: host.children.length, canvases: document.querySelectorAll('canvas').length, pending: GraphView._debug.pending, listeners: GraphView._debug.listeners };
+  });
+  const mounted = r.counts.filter((_, i) => i % 2 === 0), destroyed = r.counts.filter((_, i) => i % 2 === 1);
+  assert.ok(mounted.every(n => n === mounted[0] && n > 0), r.counts.join());
+  assert.ok(destroyed.every(n => n === 0), r.counts.join());
+  assert.equal(r.twice.canvases, 1);
+  assert.equal(r.twice.listeners, mounted[0]);
+  assert.equal(r.children, 0);
+  assert.equal(r.canvases, 0);
+  assert.equal(r.pending, false);
+  assert.equal(r.listeners, 0);
+});
+
+test('入力の直後（描画の保留中）に destroy しても、そのフレームは描かれない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const f = await frames(page);
+  const pending = await page.evaluate(() => {
+    const cv = document.querySelector('#host canvas');
+    cv.dispatchEvent(new WheelEvent('wheel', { deltaY: -200, clientX: 100, clientY: 300, bubbles: true, cancelable: true }));
+    const p = GraphView._debug.pending;
+    GraphView.destroy();
+    return { p, after: GraphView._debug.pending };
+  });
+  assert.equal(pending.p, true);
+  assert.equal(pending.after, false);
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(await frames(page), f);
+});
+
+test('document.hidden のあいだは rAF を要求せず、見えるようになったら 1 回描く', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const f = await frames(page);
+  const r = await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.__cnt.raf = 0;
+    const cv = document.querySelector('#host canvas');
+    cv.dispatchEvent(new WheelEvent('wheel', { deltaY: -200, clientX: 100, clientY: 300, bubbles: true, cancelable: true }));
+    GraphView.refresh();
+    return { raf: window.__cnt.raf, pending: GraphView._debug.pending };
+  });
+  assert.deepEqual(r, { raf: 0, pending: false });
+  await new Promise(r => setTimeout(r, 100));
+  assert.equal(await frames(page), f);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await nextFrame(page, f);
+  await new Promise(r => setTimeout(r, 100));
+  assert.equal(await frames(page), f + 1);
+  assert.equal(await page.evaluate(() => window.__cnt.raf), 1);
+});
+
+test('テーマ（data-theme・端末のダークモード）を切り替えると色を読み直す', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const corner = [5, await page.evaluate(() => innerHeight - 5)];
+  const bg0 = await page.evaluate(([x, y]) => window.__px(x, y), corner);
+  let f = await frames(page);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'duolingo'));
+  await nextFrame(page, f);
+  const bg1 = await page.evaluate(([x, y]) => window.__px(x, y), corner);
+  assert.notDeepEqual(bg1, bg0);
+  assert.ok(bg1[0] + bg1[1] + bg1[2] < bg0[0] + bg0[1] + bg0[2], `ダークで背景が暗くならない ${bg0} -> ${bg1}`);
+  // 端末のダークモード（data-theme なし）
+  f = await frames(page);
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+  await nextFrame(page, f);
+  assert.deepEqual(await page.evaluate(([x, y]) => window.__px(x, y), corner), bg0);
+  f = await frames(page);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await nextFrame(page, f);
+  const bg2 = await page.evaluate(([x, y]) => window.__px(x, y), corner);
+  assert.ok(bg2[0] + bg2[1] + bg2[2] < bg0[0] + bg0[1] + bg0[2], `端末のダークで背景が暗くならない ${bg0} -> ${bg2}`);
+});
+
+test('XSS: 問題文やルール名に HTML が入っていても実行も挿入もされない', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    const bad = '<img src=x onerror="window.__xss=1"><b>x</b>';
+    window.__getQ = () => ({ q: bad, rule: { title: bad } });
+  });
+  await mountAndWait(page);
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('ch:sekai:1'));
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+  await page.mouse.click(x, y);
+  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
+  await new Promise(r => setTimeout(r, 100));
+  const r = await page.evaluate(() => {
+    const s = document.querySelector('#host .graph-sheet');
+    return { imgs: s.querySelectorAll('img, b').length, xss: window.__xss, text: s.textContent.includes('<img src=x') };
+  });
+  assert.deepEqual(r, { imgs: 0, xss: undefined, text: true });
+});
+
+test('性能: 全体表示の 1 フレームの描画時間（375×812・1280×800）、パン中に長いタスクがない', async t => {
+  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+    const page = await open(t, { viewport: vp });
+    await page.evaluate(() => {
+      window.__long = [];
+      try { new PerformanceObserver(l => { for (const e of l.getEntries()) window.__long.push(e.duration); }).observe({ type: 'longtask', buffered: false }); } catch (e) { window.__long = null; }
+    });
+    await mountAndWait(page);
+    // performance.now は 0.1ms に丸められ、Canvas の命令は遅れて実行されるので、40 回描いて getImageData で
+    // 描画を確定させた合計を回数で割る
+    const ms = await page.evaluate(() => {
+      const c = document.querySelector('#host canvas').getContext('2d');
+      const run = k => { const t = performance.now(); for (let j = 0; j < k; j++) GraphView._debug.forceDraw(); c.getImageData(0, 0, 1, 1); return (performance.now() - t) / k; };
+      run(5);
+      const a = [run(40), run(40), run(40)].sort((x, y) => x - y);
+      return { median: a[1], max: a[2] };
+    });
+    // パンの連続
+    await page.mouse.move(vp.width / 2, vp.height / 2);
+    await page.mouse.down();
+    for (let k = 0; k < 30; k++) await page.mouse.move(vp.width / 2 + k * 5, vp.height / 2 + k * 3);
+    await page.mouse.up();
+    await new Promise(r => setTimeout(r, 100));
+    const long = await page.evaluate(() => window.__long);
+    console.log(`  [perf] ${vp.width}x${vp.height} forced full-view frame median=${ms.median.toFixed(2)}ms max=${ms.max.toFixed(2)}ms longtasks=${JSON.stringify(long)}`);
+    assert.ok(ms.median < 50, 'frame ' + ms.median);
+    if (long) assert.equal(long.length, 0, 'long tasks: ' + long);
+  }
+});
+
+test('性能（CPU 4 倍スロットル、記録用）', async t => {
+  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+    const page = await open(t, { viewport: vp });
+    await mountAndWait(page);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const r = await page.evaluate(() => {
+      const c = document.querySelector('#host canvas').getContext('2d');
+      const run = () => { const t = performance.now(); for (let j = 0; j < 20; j++) GraphView._debug.forceDraw(); c.getImageData(0, 0, 1, 1); return (performance.now() - t) / 20; };
+      const full = run();
+      GraphView._debug.focus('q:1', 3);
+      const mid = run();
+      GraphView._debug.focus('q:1', 7);
+      const near = run();
+      return { full, mid, near };
+    });
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    console.log(`  [perf 4x] ${vp.width}x${vp.height} full=${r.full.toFixed(2)}ms mid=${r.mid.toFixed(2)}ms near=${r.near.toFixed(2)}ms`);
+    assert.ok(r.full < 200);
+  }
+});
+
+test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async t => {
+  const dir = process.env.GRAPH_SHOTS;
+  if (!dir) return t.skip('GRAPH_SHOTS なし');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const vp of [{ width: 375, height: 812, tag: '375' }, { width: 1280, height: 800, tag: '1280' }]) {
+    for (const scheme of ['light', 'dark']) {
+      const page = await open(t, { viewport: vp, colorScheme: scheme });
+      // 合成の記録: いくつかの問題に解答・苦手を付ける
+      await page.evaluate(() => {
+        const G = GRAMMAR_GRAPH, stats = {}, weak = {};
+        for (let o = 0; o < G.qids.length; o++) {
+          const qid = G.qids[o];
+          if (o % 3 === 0) stats[qid] = { a: 4, c: 4 };
+          else if (o % 5 === 0) stats[qid] = { a: 3, c: 2 };
+          else if (o % 7 === 0) stats[qid] = { a: 1, c: 1 };
+          if (o % 23 === 0) { stats[qid] = { a: 3, c: 0 }; weak[qid] = { streak: 0, due: Date.now() + (o % 46 === 0 ? -1 : 1) * 86400000 }; }
+        }
+        window.__stats = stats; window.__weak = weak;
+      });
+      await mountAndWait(page);
+      const shot = async name => {
+        await new Promise(r => setTimeout(r, 60));
+        await page.screenshot({ path: path.join(dir, `${vp.tag}-${scheme}-${name}.png`) });
+      };
+      await shot('fit');
+      if (scheme === 'dark') {
+        await page.click('#host .graph-weak-toggle');
+        await shot('weakonly');
+        continue;
+      }
+      await page.evaluate(() => GraphView._debug.focus('ch:kin:1', 2.4));
+      await shot('mid');
+      await page.evaluate(() => GraphView._debug.focus('q:1', 6));
+      await shot('near');
+      await page.evaluate(() => GraphView._debug.focus(null, 1));
+      await new Promise(r => setTimeout(r, 60));
+      const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+      const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+      await page.mouse.click(x, y);
+      await shot('sheet');
+      await page.evaluate(() => { const b = document.querySelector('#host .graph-sheet-body'); b.scrollTop = b.scrollHeight; });
+      await shot('sheet-scrolled');
+      await page.keyboard.press('Escape');
+      await page.click('#host .graph-chip[data-book="polaris2"]');
+      await shot('polaris2');
+    }
+  }
+});
