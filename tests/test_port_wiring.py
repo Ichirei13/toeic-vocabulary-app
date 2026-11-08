@@ -53,7 +53,8 @@ def test_review_page_is_wired():
     assert 'data-page="review"' in HTML
     assert 'id="review-page"' in HTML
     home = (ROOT / "home.js").read_text(encoding="utf-8")
-    assert "const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings'];" in home
+    # 'graph' は文法グラフの画面（スマホ幅ではタブを出さず、復習ページのカードから開く）
+    assert "const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings', 'graph'];" in home
     assert "function renderReviewPage()" in home
     # ナビは「ホーム / 演習 / 復習 / 集中 / 設定」の順
     nav = HTML[HTML.index('class="top-page-tabs"'):]

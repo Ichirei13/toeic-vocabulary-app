@@ -70,6 +70,66 @@
   --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6'/%3E%3C/svg%3E");
 }
 
+/* 文法グラフのタブ（ノードを線で結んだ形）。スマホ幅では出さない（入口は復習ページのカード）。幅 1000px 以上で出す */
+:root .top-page-tab[data-page="graph"] {
+  display: none;
+  --tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6' cy='6' r='2.5'/%3E%3Ccircle cx='18' cy='8.5' r='2.5'/%3E%3Ccircle cx='9' cy='18' r='2.5'/%3E%3Cpath d='M8.5 6.4l7 1.7'/%3E%3Cpath d='M6.6 8.4l1.8 7.2'/%3E%3Cpath d='M16.3 10.4l-5.6 5.8'/%3E%3C/svg%3E");
+}
+
+/* Google ドライブとワンタップ同期のボタン（タブではない）。幅 1000px 以上のサイドバー下部にだけ出す（下の @media (min-width: 1000px)） */
+:root .top-sync-btn {
+  display: none;
+  --sync-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.8 8.6 4.8 4.8 0 0 1 17.5 18z'/%3E%3C/svg%3E");
+}
+
+/* === 文法グラフの画面（#graph-page は home.js が初めて開くときに作る）===
+   グラフ本体の見た目は css/graph.css（開くときに読む）。ここは読み込み前から要る枠だけ:
+   見出し行（戻る・題名）、グラフを置く場所（残りの高さいっぱい）、読み込み中と失敗の表示 */
+:root .review-graph-desc { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); } /* 復習ページのカードの説明 */
+:root #graph-page { padding: 6px 12px 8px; gap: 8px; }
+:root .graph-page-head { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-height: 40px; }
+:root .graph-page-back {
+  border: 1px solid var(--ui-border);
+  border-radius: 999px;
+  background: var(--ui-surface);
+  color: var(--text-page);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+:root .graph-page-title { margin: 0; font-size: 17px; font-weight: 800; color: var(--text-page); }
+:root .graph-page-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--ui-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+:root .graph-host { position: absolute; inset: 0; }
+:root .graph-host > .graph-view { position: absolute; inset: 0; height: auto; }
+:root .graph-page-loading,
+:root .graph-page-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+:root .graph-page-error p { margin: 0; color: var(--text-page); }
+:root .graph-page-loading[hidden],
+:root .graph-page-error[hidden] { display: none; }
+
 /* === スワイプで格納（js/shell-chrome.js が .nav-stowed / .top-stowed を付け外しする） === */
 /* 指で動かすので、バーと見出し行ではブラウザの縦スクロールを止める（この範囲はもともとスクロールしない） */
 :root .top-page-nav,
@@ -235,6 +295,38 @@
     font-size: 15px;
   }
   :root .top-page-tab::before { width: 22px; height: 22px; }
+  :root .top-page-tab[data-page="graph"] { display: inline-flex; }
+  /* 同期ボタン: タブと同じ寸法・文字で、サイドバーの一番下に置く（タブ列の外なので margin-top: auto で下へ寄せる） */
+  :root .top-sync-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex: none;
+    gap: 12px;
+    margin-top: auto;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  :root .top-sync-btn::before {
+    content: '';
+    width: 22px;
+    height: 22px;
+    background-color: currentColor;
+    -webkit-mask: var(--sync-icon) center / contain no-repeat;
+    mask: var(--sync-icon) center / contain no-repeat;
+  }
+  :root .top-sync-btn:hover { color: var(--text-page); }
+  :root .top-sync-btn:focus-visible { outline: 2px solid currentColor; outline-offset: -2px; }
   /* 下のつまみは、タブバーを格納した後の戻し口。サイドバーは常に出すので要らない */
   :root .shell-grabber-bottom,
   :root .shell-grabber-footer { display: none !important; }
@@ -246,6 +338,8 @@
   :root #timer-page { max-width: 640px; }
   :root #settings-page { max-width: 640px; }
   :root #home-page { max-width: 1080px; }
+  /* グラフは広いほど見やすいので、列の幅いっぱい（上下左右に少し余白） */
+  :root #graph-page { max-width: none; justify-self: stretch; padding: 12px 16px; }
 
   /* --- 右の絞り込みパネル（既存の #filter-drawer = .top-sheet）---
      上から降りる動きをやめ、本文の右の列に置く。出すかどうかは、#app.filter-panel-open（js/wide-layout.js）か、

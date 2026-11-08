@@ -11,3 +11,8 @@ __pycache__/
 
 # 古い index.html などのバックアップ置き場（手元だけ）
 archive/
+
+tools/node_modules/
+
+# サブエージェント作業の中間記録（手元だけ）
+.superpowers/

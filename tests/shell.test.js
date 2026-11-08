@@ -82,7 +82,7 @@ test('wide_ios_shows_a_left_sidebar_instead_of_the_tab_bar', () => withPage(IOS,
     const r = t.getBoundingClientRect();
     return { left: Math.round(r.left), top: Math.round(r.top) };
   }));
-  assert.strictEqual(tabs.length, 5);
+  assert.strictEqual(tabs.length, 6); // 幅 1000px 以上では「グラフ」タブも出る
   assert(tabs.every(t => t.left === tabs[0].left), 'タブが縦に並んでいない');
   assert(tabs.every((t, i) => i === 0 || t.top > tabs[i - 1].top), 'タブが上から順に並んでいない');
   assert.strictEqual(await style(page, '#app', 'paddingBottom'), '0px', '下のタブバー用の余白が残っている');
@@ -300,7 +300,8 @@ forThemes('narrow_has_a_floating_bottom_tab_bar_with_icons', async page => {
     return { alpha: m.length === 4 ? m[3] : 1, border: parseFloat(cs.borderTopWidth) };
   });
   assert(look.alpha >= 0.5, `バーの背景が透けすぎて、本文に埋もれる: alpha=${look.alpha}`);
-  const icons = await page.evaluate(() => [...document.querySelectorAll('.top-page-tab')].map(t => (getComputedStyle(t, '::before').webkitMaskImage || '').includes('svg')));
+  // 「グラフ」タブ（幅 1000px 未満では display:none）は数えない。下のバーは 5 タブのまま
+  const icons = await page.evaluate(() => [...document.querySelectorAll('.top-page-tab')].filter(t => t.offsetParent !== null).map(t => (getComputedStyle(t, '::before').webkitMaskImage || '').includes('svg')));
   assert.deepStrictEqual(icons, [true, true, true, true, true], 'タブのアイコンが出ていない');
 }, NARROW);
 
