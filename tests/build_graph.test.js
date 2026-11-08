@@ -51,9 +51,11 @@ function buildInput(overrides = {}) {
   return { app, byApp, concepts: CONCEPTS, traps: TRAPS, ...overrides };
 }
 
-async function model(overrides) {
+// 既定は 1 問だけのルールを畳む。以下の model() は「全ルールをノードにする」経路（keep）で作る。
+const KEEP = { collapseSingleRuleQuestions: false };
+async function model(overrides, options = KEEP) {
   const { buildModel } = await lib('model.mjs');
-  return buildModel(buildInput(overrides));
+  return buildModel(buildInput(overrides), options);
 }
 const idx = (m, id) => m.id.indexOf(id);
 
@@ -168,7 +170,7 @@ test('モデル: 存在しない概念・Trap へのリンクは dangling に報
   const input = buildInput();
   input.byApp.set(3, V(3, ['B概念', '幽霊概念'], ['Trap_99_幽霊']));
   const { buildModel } = await lib('model.mjs');
-  const m = buildModel(input);
+  const m = buildModel(input, KEEP);
   assert.deepStrictEqual([...m.dangling].sort(), ['00_Concepts/幽霊概念', '04_Traps/Trap_99_幽霊']);
   assert.ok(idx(m, 'con:幽霊概念') < 0);
   const clean = await model();
@@ -264,18 +266,31 @@ test('encodeGraph: qids と members / memberStart', async () => {
 });
 
 // ---- ルール層の畳み込み（collapseSingleRuleQuestions）
-test('モデル: collapseSingleRuleQuestions=false（既定）は従来どおり全ルールのノードを作る', async () => {
+test('モデル: 既定は 1 問だけのルールを畳む（明示 true と同じ）。2 問以上のルールはノードを残す', async () => {
   const { buildModel } = await lib('model.mjs');
-  const base = buildModel(buildInput());
-  const off = buildModel(buildInput(), { collapseSingleRuleQuestions: false });
-  assert.deepStrictEqual(off, base);
-  assert.ok(idx(base, 'rule:kin:2:8') >= 0, '1 問だけのルールにもノードがある');
+  const def = buildModel(buildInput());
+  assert.deepStrictEqual(def, buildModel(buildInput(), { collapseSingleRuleQuestions: true }));
+  assert.deepStrictEqual(def, buildModel(buildInput(), {}));
+  assert.ok(idx(def, 'rule:kin:2:8') < 0, '1 問だけのルールにノードはない');
+  assert.ok(idx(def, 'rule:kin:1:7') >= 0, '2 問のルールにはノードがある');
+  assert.ok(def.edges.some(e => e[0] === idx(def, 'ch:kin:2') && e[1] === idx(def, 'q:4') && e[2] === 0), '問題 4 の親は章');
 });
 
-test('モデル: collapseSingleRuleQuestions=true は 1 問だけのルールを作らず、問題を章に直接つなぐ', async () => {
+test('モデル: collapseSingleRuleQuestions=false（--keep-single-rules）は全ルールのノードを作る', async () => {
+  const { buildModel } = await lib('model.mjs');
+  const keep = buildModel(buildInput(), { collapseSingleRuleQuestions: false });
+  const def = buildModel(buildInput());
+  assert.ok(idx(keep, 'rule:kin:2:8') >= 0 && idx(keep, 'rule:sekai:1:2') >= 0 && idx(keep, 'rule:toplevel:2:1') >= 0);
+  const rk = keep.kinds.indexOf('rule');
+  assert.strictEqual(keep.kind.filter(k => k === rk).length, 7, 'ミニ入力のルール数は 7');
+  assert.strictEqual(def.kind.filter(k => k === rk).length, 2, '畳むと 2（2 問以上の kin:1:7 と sekai:1:1）');
+  assert.strictEqual(keep.id.length - def.id.length, 5);
+});
+
+test('モデル: 既定（collapse）は 1 問だけのルールを作らず、問題を章に直接つなぐ。members などの不変条件は保たれる', async () => {
   const { buildModel } = await lib('model.mjs');
   const { encodeGraph } = await lib('encode.mjs');
-  const m = buildModel(buildInput(), { collapseSingleRuleQuestions: true });
+  const m = buildModel(buildInput());
   const has = (a, b, t) => m.edges.some(e => e[0] === idx(m, a) && e[1] === idx(m, b) && e[2] === t);
   // 1 問だけのルール: kin 2章のルール 7（q3）・ルール 8（q4）、sekai の 2 つ目（q12）、toplevel 各章（q20, q21）
   for (const rid of ['rule:kin:2:7', 'rule:kin:2:8', 'rule:sekai:1:2', 'rule:toplevel:1:1', 'rule:toplevel:2:1']) {
@@ -324,16 +339,23 @@ d3test('layout: 同じ入力から同じ座標（2 回）、整数で有限', as
   for (const v of [...a.x, ...a.y]) assert.ok(Number.isFinite(v) && Number.isInteger(v), String(v));
 });
 
-d3test('layout: 2 つのノードが同じ座標にならない（衝突半径が効く）', async () => {
+d3test('layout: 衝突半径が効く（同じ座標なし・質問以外のノードどうしは最小距離を保つ）', async () => {
   const { layout } = await lib('layout.mjs');
   const m = await model();
   const { x, y } = layout(m);
-  const seen = new Map();
+  const qk = m.kinds.indexOf('question');
+  let minAll = Infinity, minHub = Infinity;
   for (let i = 0; i < x.length; i++) {
-    const key = x[i] + ',' + y[i];
-    assert.ok(!seen.has(key), `${m.id[seen.get(key)]} と ${m.id[i]} が同じ座標 ${key}`);
-    seen.set(key, i);
+    for (let j = i + 1; j < x.length; j++) {
+      const d = Math.hypot(x[i] - x[j], y[i] - y[j]);
+      assert.ok(d > 0, `${m.id[i]} と ${m.id[j]} が同じ座標`);
+      minAll = Math.min(minAll, d);
+      if (m.kind[i] !== qk && m.kind[j] !== qk) minHub = Math.min(minHub, d);
+    }
   }
+  // 問題以外（本・章・ルール・概念・Trap）の衝突半径はいちばん小さい rule で 7（二つで 14）。丸めと tick 数の誤差を見て 8 以上を要求する
+  assert.ok(minHub >= 8, `問題以外の最小距離 ${minHub}`);
+  assert.ok(minAll >= 2, `全体の最小距離 ${minAll}`);
 });
 
 d3test('layout: config の seed を変えると座標が変わる（種が効いている）', async () => {
@@ -352,12 +374,13 @@ d3test('layout + encode: 生成される文字列が 2 回で一致する', asyn
   assert.strictEqual(await run(), await run());
 });
 
-d3test('layout: collapse 版でも動く', async () => {
+d3test('layout: 既定（collapse）の入力でも動き、keep 版とは別のモデルになる', async () => {
   const { layout } = await lib('layout.mjs');
   const { buildModel } = await lib('model.mjs');
-  const m = buildModel(buildInput(), { collapseSingleRuleQuestions: true });
+  const m = buildModel(buildInput());
   const { x, y } = layout(m);
   assert.strictEqual(x.length, m.id.length);
+  assert.ok(m.id.length < (await model()).id.length);
 });
 
 // ---- 生成コマンド（純粋関数の部分）
@@ -373,6 +396,15 @@ test('build: 未対応の問題・dangling があれば problems に出る', asy
   input.byApp.set(3, V(3, ['幽霊概念']));
   const dang = assemble(input.app, fake, { byApp: input.byApp, unmatched: [] }, {});
   assert.ok(dang.problems.some(p => /幽霊概念/.test(p)));
+});
+
+test('CLI: --out に値がなければ使い方エラー（終了コード 2）で、ファイルは書かない', () => {
+  const { spawnSync } = require('node:child_process');
+  const r = spawnSync(process.execPath, [path.resolve(__dirname, '..', 'tools', 'build_grammar_graph.mjs'), '/nonexistent-vault', '--out'], { encoding: 'utf8' });
+  assert.strictEqual(r.status, 2);
+  assert.match(r.stderr, /--out/);
+  const r2 = spawnSync(process.execPath, [path.resolve(__dirname, '..', 'tools', 'build_grammar_graph.mjs'), '--keep-single-rules', '--bogus'], { encoding: 'utf8' });
+  assert.strictEqual(r2.status, 2);
 });
 
 // ---- 生成物の契約（実データ。Vault は不要）
@@ -411,14 +443,26 @@ test('生成物: qids が RAW_GRAMMAR の全問と過不足なく一致', () => 
   });
 });
 
-test('生成物: ノード数（book 4・chapter 51・concept 13・trap 12・question 983）', () => {
+test('生成物: ノード数（book 4・chapter 51・rule 138・concept 13・trap 12・question 983）と総数', () => {
   const { g } = loadArtifact();
   const count = k => g.kind.filter(v => v === g.kinds.indexOf(k)).length;
   assert.strictEqual(count('book'), 4);
+  // 1 問だけのルールは作らない既定（2026-11-08 決定）。全ルールを作ると 521 になる
+  assert.strictEqual(count('rule'), 138);
+  assert.strictEqual(g.id.length, 1201, 'ノード総数');
+  assert.strictEqual(g.edges.length / 3, 3180, 'エッジ総数');
   assert.strictEqual(count('chapter'), 51);
   assert.strictEqual(count('concept'), 13);
   assert.strictEqual(count('trap'), 12);
   assert.strictEqual(count('question'), 983);
+});
+
+test('生成物: どのルールノードにも問題が 2 問以上ある（1 問だけのルールは章に直接つなぐ）', () => {
+  const { g } = loadArtifact();
+  const rk = g.kinds.indexOf('rule');
+  g.id.forEach((id, i) => {
+    if (g.kind[i] === rk) assert.ok(g.memberStart[i + 1] - g.memberStart[i] >= 2, id);
+  });
 });
 
 test('生成物: 全エッジの端点が存在し、種類と向きが正しい', () => {

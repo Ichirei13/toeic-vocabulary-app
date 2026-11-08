@@ -16,9 +16,10 @@ const cut = s => {
 };
 const bookOf = q => q.b || 'sekai';
 
-// options.collapseSingleRuleQuestions（既定 false）: true のとき、問題が 1 つだけのルールはノードを作らず、
-// その問題を章に直接つなぐ（ポラリス2 のように 1 問 1 ルールの本で、ルール層が図を重くするのを避ける案）。
-export function buildModel({ app, byApp, concepts, traps }, { collapseSingleRuleQuestions = false } = {}) {
+// options.collapseSingleRuleQuestions（既定 true。2026-11-08 にユーザーが決定）: true のとき、問題が 1 つだけのルールは
+// ノードを作らず、その問題を章に直接つなぐ（ポラリス2 のように 1 問 1 ルールの本で、ルール層が図を重くするのを避ける）。
+// false にすると全ルールをノードにする（--keep-single-rules。テストと比較用）。
+export function buildModel({ app, byApp, concepts, traps }, { collapseSingleRuleQuestions = true } = {}) {
   const id = [], kind = [], label = [], qid = [];
   const edges = [];
   const text = {};
