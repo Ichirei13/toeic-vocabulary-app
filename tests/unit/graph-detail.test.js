@@ -230,3 +230,48 @@ test('実グラフ: Trap ノードは advice を持つ', () => {
   assert.ok(typeof d.advice === 'string' && d.advice.length > 0);
   assert.ok(typeof d.desc === 'string' && d.desc.length > 0);
 });
+
+// ---- ルールの title は先頭メンバー問題から全文を復元する ----
+const ruleTitle = getQuestion => D.buildDetail(G, mastery(), 2, { stats: {}, weak: {}, getQuestion }).title;
+
+test('ルール: 先頭メンバー問題の rule.title を title にする', () => {
+  const seen = [];
+  const t = ruleTitle(id => { seen.push(id); return { q: 'x', rule: { title: '完全なルール名' } }; });
+  assert.strictEqual(t, '完全なルール名');
+  assert.strictEqual(seen[0], 1); // rule:a:1:1 の先頭メンバーは qid 1
+});
+
+test('ルール: rule が無い問題（世界一スタイル）は th_title を使う', () => {
+  assert.strictEqual(ruleTitle(() => ({ q: 'x', th_title: '章の完全な名前' })), '章の完全な名前');
+  // rule.title が空文字なら th_title へ
+  assert.strictEqual(ruleTitle(() => ({ rule: { title: '' }, th_title: 'TH' })), 'TH');
+});
+
+test('ルール: 全文を取れなければグラフの label に戻る（getQuestion なし / 例外 / 空）', () => {
+  assert.strictEqual(D.buildDetail(G, mastery(), 2, { stats: {}, weak: {} }).title, '短いルール…');
+  assert.strictEqual(ruleTitle(() => { throw new Error('boom'); }), '短いルール…');
+  assert.strictEqual(ruleTitle(() => ({})), '短いルール…');
+  assert.strictEqual(ruleTitle(() => undefined), '短いルール…');
+  assert.strictEqual(ruleTitle(() => ({ rule: { title: 5 }, th_title: '' })), '短いルール…');
+});
+
+test('ルール以外（章など）は getQuestion の rule.title に影響されない', () => {
+  const c = { stats: {}, weak: {}, getQuestion: () => ({ rule: { title: 'NO' }, th_title: 'NO' }) };
+  assert.strictEqual(D.buildDetail(G, mastery(), 1, c).title, '受動態');
+});
+
+test('実グラフ: 「…」で終わるルールの title は先頭メンバー問題から復元される', () => {
+  const g = loadRealGraph();
+  const m = M.computeMastery(g, {}, {}, NEVER_DUE);
+  const rule = g.kinds.indexOf('rule');
+  const getQuestion = id => ({ q: 'q' + id, rule: { title: 'FULL:' + id } });
+  let checked = 0;
+  for (let i = 0; i < g.id.length; i++) {
+    if (g.kind[i] !== rule || !g.label[i].endsWith('…') || g.memberStart[i + 1] <= g.memberStart[i]) continue;
+    const first = g.qids[g.members[g.memberStart[i]]];
+    const d = D.buildDetail(g, m, i, { stats: {}, weak: {}, getQuestion });
+    assert.strictEqual(d.title, 'FULL:' + first, g.id[i]);
+    checked++;
+  }
+  assert.ok(checked > 0);
+});

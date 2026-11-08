@@ -31,6 +31,19 @@
     return null;
   }
 
+  // ルールの全文名。グラフの label は 14 字に縮めてあるので、先頭メンバー問題の
+  // rule.title（無ければ世界一スタイルの th_title）から復元する。取れなければ null。
+  function ruleFullTitle(ctx, qid) {
+    if (!ctx || typeof ctx.getQuestion !== 'function') return null;
+    try {
+      const q = ctx.getQuestion(qid);
+      if (!q) return null;
+      if (q.rule && typeof q.rule.title === 'string' && q.rule.title) return q.rule.title;
+      if (typeof q.th_title === 'string' && q.th_title) return q.th_title;
+    } catch (e) { /* 無視 */ }
+    return null;
+  }
+
   // 並びの優先度: weak(0) → wrong(1) → unseen(2) → correct(3)
   const STATUS_RANK = { weak: 0, wrong: 1, unseen: 2, correct: 3 };
 
@@ -79,10 +92,13 @@
       }
     }
 
-    // title: 問題ノードは問題文、それ以外はグラフの label
+    // title: 問題ノードは問題文、ルールは先頭メンバー問題から復元した全文、それ以外はグラフの label
     let title = label;
     if (kindName === 'question') {
       const t = questionText(ctx, graph.qid[nodeIndex]);
+      if (t != null) title = t;
+    } else if (kindName === 'rule' && qidList.length > 0) {
+      const t = ruleFullTitle(ctx, qidList[0]);
       if (t != null) title = t;
     }
 
