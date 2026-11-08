@@ -1,4 +1,5 @@
 // 文法グラフの絞り込み（本・苦手のみ）と LOD（段階表示）。DOM にも保存にも触れない純関数。
+// 苦手のみ（weakOnly）は本の絞り込みと併用しても、概念・Trap の苦手は全体で数える（ノード自身の weak/due で決める。他の本の苦手でも残る）。
 // グラフの辺は辿らず、ノードの members（問題の序数）だけを使う。1 回の計算は O(ノード数 + members)。
 (function (root, factory) {
   const api = factory();
@@ -60,7 +61,7 @@
     // 種類による除外（LOD）
     const kinds = graph.kinds || DEFAULT_KINDS;
     const kindOk = new Uint8Array(kinds.length);
-    const visibleKinds = kindsAtLod(opts.lod === undefined ? 2 : opts.lod, kinds);
+    const visibleKinds = kindsAtLod(opts.lod == null ? 2 : opts.lod, kinds);
     for (let j = 0; j < visibleKinds.length; j++) kindOk[visibleKinds[j]] = 1;
     const bookKind = kinds.indexOf('book');
 

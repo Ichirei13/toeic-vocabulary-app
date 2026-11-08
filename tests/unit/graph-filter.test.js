@@ -169,6 +169,22 @@ test('苦手のみ: 何も苦手でなければ全部消える。mastery が無�
   assert.strictEqual(F.visibleMask(SMALL, null, FULL).reduce((a, b) => a + b, 0), N);
 });
 
+test('苦手のみ + 本: 概念・Trap の苦手は全体で数える（他の本の苦手でも、その本の問題があれば残る）', () => {
+  // ユーザー決定（2026-11-08）: 本で絞っても、concept / trap の苦手判定は全体（ノード自身の weak/due）のまま。
+  // 苦手は sekai の q5 だけ。concept:a は q1(kin)・q5(sekai) にまたがるので、kin に絞っても残る。
+  const m = M.computeMastery(SMALL, {}, { 5: {} }, NEVER_DUE);
+  const v = visible(F.visibleMask(SMALL, m, { ...FULL, book: 'kin', weakOnly: true }));
+  assert.deepStrictEqual(v, ['concept:a']);
+  assert.ok(!v.includes('q:5') && !v.includes('book:sekai'));
+});
+
+test('opts.lod が null / undefined なら 2（全部の種類）。book: null が all になるのと同じ', () => {
+  const m = emptyMastery();
+  const full = F.visibleMask(SMALL, m, FULL);
+  assert.deepStrictEqual(F.visibleMask(SMALL, m, { lod: null }), full);
+  assert.deepStrictEqual(F.visibleMask(SMALL, m, { lod: undefined, book: null }), full);
+});
+
 // ---- 3 条件の組み合わせ ----
 
 test('3 条件の AND: 本 × 苦手 × LOD', () => {
