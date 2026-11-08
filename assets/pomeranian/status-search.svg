@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-scan { 0%, 100% { transform: rotate(-6deg) translateX(0); } 50% { transform: rotate(8deg) translateX(4px); } }
-    .lens { transform-origin: 146px 128px; animation: pom-scan 1.5s ease-in-out infinite; }
+    .lens { transform-origin: 146px 128px; animation: pom-scan 1.5s ease-in-out 4; }
     @media (prefers-reduced-motion: reduce) {
       .lens { animation: none; }
     }

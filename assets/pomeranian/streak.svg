@@ -2,9 +2,9 @@
   <style>
     @keyframes pom-flame { 0%, 100% { transform: scaleY(1) scaleX(1); } 50% { transform: scaleY(1.06) scaleX(0.96); } }
     @keyframes pom-pump { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-    .flame-outer { transform-origin: 100px 164px; animation: pom-flame 0.45s ease-in-out infinite; }
-    .flame-inner { transform-origin: 100px 164px; animation: pom-flame 0.35s ease-in-out infinite reverse; }
-    .paws { animation: pom-pump 0.55s ease-in-out infinite; }
+    .flame-outer { transform-origin: 100px 164px; animation: pom-flame 0.45s ease-in-out 12; }
+    .flame-inner { transform-origin: 100px 164px; animation: pom-flame 0.35s ease-in-out 15 reverse; }
+    .paws { animation: pom-pump 0.55s ease-in-out 10; }
     @media (prefers-reduced-motion: reduce) {
       .flame-outer, .flame-inner, .paws { animation: none; }
     }

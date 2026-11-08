@@ -414,7 +414,7 @@ function weakRuleHtml(ex) {
 function renderGrammarWeakList() {
   const container = document.getElementById('weak-list-content');
   const items = Object.keys(state.grammarWeakData)
-    .map(id => ({ key: id, entry: state.grammarWeakData[id], ex: RAW_GRAMMAR.find(g => g.id === Number(id)) }))
+    .map(id => ({ key: id, entry: state.grammarWeakData[id], ex: GRAMMAR_BY_ID.get(Number(id)) }))
     .filter(x => x.ex);
   document.getElementById('sheet-title').innerText = `苦手リスト（${items.length}）`;
   if (items.length === 0) {

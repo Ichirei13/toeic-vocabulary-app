@@ -5,11 +5,11 @@
     @keyframes daily-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes daily-note { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-4px) rotate(-3deg); } }
     @keyframes daily-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-    .leaf { transform-origin: 164px 44px; animation: daily-leaf 1.2s ease-in-out infinite; }
-    .tail { transform-origin: 46px 128px; animation: daily-tail 0.75s ease-in-out infinite; }
-    .head-group { transform-origin: 96px 86px; animation: daily-bob 1.4s ease-in-out infinite; }
-    .notebook { transform-origin: 146px 136px; animation: daily-note 1.3s ease-in-out infinite; }
-    .eyes { transform-origin: 96px 78px; animation: daily-blink 3.8s ease-in-out infinite; }
+    .leaf { transform-origin: 164px 44px; animation: daily-leaf 1.2s ease-in-out 5; }
+    .tail { transform-origin: 46px 128px; animation: daily-tail 0.75s ease-in-out 7; }
+    .head-group { transform-origin: 96px 86px; animation: daily-bob 1.4s ease-in-out 4; }
+    .notebook { transform-origin: 146px 136px; animation: daily-note 1.3s ease-in-out 4; }
+    .eyes { transform-origin: 96px 78px; animation: daily-blink 3.8s ease-in-out 2; }
     @media (prefers-reduced-motion: reduce) {
       .leaf, .tail, .head-group, .notebook, .eyes { animation: none; }
     }

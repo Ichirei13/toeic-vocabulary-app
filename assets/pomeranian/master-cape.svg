@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-cape { 0%, 100% { transform: skewX(0deg); } 50% { transform: skewX(-5deg); } }
-    .cape { transform-origin: 100px 116px; animation: pom-cape 1.1s ease-in-out infinite; }
+    .cape { transform-origin: 100px 116px; animation: pom-cape 1.1s ease-in-out 5; }
     @media (prefers-reduced-motion: reduce) {
       .cape { animation: none; }
     }

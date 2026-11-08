@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-dash { 0%, 100% { transform: translateX(0) translateY(0); } 50% { transform: translateX(6px) translateY(-4px); } }
     @keyframes pom-zap { 0%, 100% { opacity: 0.55; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.08); } }
-    .runner { animation: pom-dash 0.35s ease-in-out infinite; }
-    .zap { transform-origin: 100px 100px; animation: pom-zap 0.3s ease-in-out infinite; }
+    .runner { animation: pom-dash 0.35s ease-in-out 15; }
+    .zap { transform-origin: 100px 100px; animation: pom-zap 0.3s ease-in-out 17; }
     @media (prefers-reduced-motion: reduce) {
       .runner, .zap { animation: none; }
     }

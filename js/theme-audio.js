@@ -2,6 +2,24 @@
 function setAppTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   try { localStorage.setItem('toeic_app_theme', theme); } catch(e){}
+  ensureThemeFont(theme);
+}
+
+// テーマが使う Web フォント。Nunito を使うのは Duolingo テーマだけ（css/app.css）なので、そのテーマのときにだけ読む。
+// 使わないテーマで毎回読むと、CSS の取得と接続の確立（fonts.googleapis.com / fonts.gstatic.com）が無駄になる。
+// media="print" で先に読み、届いたら all に戻すので、画面の描画はブロックしない。取れなくても、文字は代わりのフォントで出る
+const THEME_FONTS = {
+  duolingo: 'https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap',
+};
+function ensureThemeFont(theme) {
+  const href = THEME_FONTS[theme];
+  if (!href || [...document.head.querySelectorAll('link[rel="stylesheet"]')].some(l => l.href === href)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  link.media = 'print';
+  link.addEventListener('load', () => { link.media = 'all'; }, { once: true });
+  document.head.appendChild(link);
 }
 // 何も選んでいないとき（初めて開いたとき）のテーマ。index.html の <html data-theme> と合わせる
 const DEFAULT_THEME = 'ios';
@@ -14,6 +32,7 @@ const DEFAULT_THEME = 'ios';
   const asked = new URLSearchParams(location.search).get('theme');
   if (PREVIEW_THEMES.includes(asked)) saved = asked;
   document.documentElement.setAttribute('data-theme', saved);
+  ensureThemeFont(saved);
 })();
 
 // === Duolingo風 Web Audio API 効果音 & 結果バナー ===

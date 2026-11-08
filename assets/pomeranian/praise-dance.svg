@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-dance { 0%, 100% { transform: rotate(-6deg) translateY(0); } 50% { transform: rotate(6deg) translateY(-7px); } }
     @keyframes pom-notes { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-6px) scale(1.1); } }
-    .dancer { transform-origin: 100px 150px; animation: pom-dance 0.65s ease-in-out infinite; }
-    .notes { transform-origin: 100px 42px; animation: pom-notes 0.8s ease-in-out infinite; }
+    .dancer { transform-origin: 100px 150px; animation: pom-dance 0.65s ease-in-out 8; }
+    .notes { transform-origin: 100px 42px; animation: pom-notes 0.8s ease-in-out 7; }
     @media (prefers-reduced-motion: reduce) {
       .dancer, .notes { animation: none; }
     }

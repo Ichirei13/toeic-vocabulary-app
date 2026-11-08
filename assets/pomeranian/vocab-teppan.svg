@@ -4,10 +4,10 @@
     @keyframes tep-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes tep-book { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-4px) rotate(4deg); } }
     @keyframes tep-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-    .tail { transform-origin: 46px 128px; animation: tep-tail 0.7s ease-in-out infinite; }
-    .head-group { transform-origin: 96px 86px; animation: tep-bob 1.4s ease-in-out infinite; }
-    .teppan-book { transform-origin: 146px 132px; animation: tep-book 1.2s ease-in-out infinite; }
-    .eyes { transform-origin: 96px 78px; animation: tep-blink 3.7s ease-in-out infinite; }
+    .tail { transform-origin: 46px 128px; animation: tep-tail 0.7s ease-in-out 8; }
+    .head-group { transform-origin: 96px 86px; animation: tep-bob 1.4s ease-in-out 4; }
+    .teppan-book { transform-origin: 146px 132px; animation: tep-book 1.2s ease-in-out 5; }
+    .eyes { transform-origin: 96px 78px; animation: tep-blink 3.7s ease-in-out 2; }
     @media (prefers-reduced-motion: reduce) {
       .tail, .head-group, .teppan-book, .eyes { animation: none; }
     }

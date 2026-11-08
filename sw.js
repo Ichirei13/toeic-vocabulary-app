@@ -1,5 +1,5 @@
 // オフラインでも開けるようにするサービスワーカー。
-// 毎回ネットワークから最新を取りに行き（取れたらキャッシュも更新）、つながらないときだけキャッシュを返す。
+// 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
 const CACHE = 'toeic-drill-v14';
 const ASSETS = [
@@ -160,6 +160,26 @@ self.addEventListener('activate', event => {
   );
 });
 
+// 取ってきた応答が、キャッシュに入っているものと同じ版か。ETag があればそれで、なければ Last-Modified で比べる。
+// どちらも無ければ（確かめようがない）違う版として扱い、必ず書く。
+function isSameVersion(cached, fresh) {
+  if (!cached) return false;
+  const etag = fresh.headers.get('ETag');
+  if (etag) return etag === cached.headers.get('ETag');
+  const modified = fresh.headers.get('Last-Modified');
+  return Boolean(modified) && modified === cached.headers.get('Last-Modified');
+}
+
+// 版が変わったときだけキャッシュに書く。起動のたびに全ファイル（約1MB）を書き直さないため
+async function updateCache(req, copy) {
+  const cache = await caches.open(CACHE);
+  if (isSameVersion(await cache.match(req), copy)) {
+    if (copy.body) await copy.body.cancel(); // 使わない写しは捨てる
+    return;
+  }
+  await cache.put(req, copy);
+}
+
 self.addEventListener('fetch', event => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
@@ -167,10 +187,8 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(req)
       .then(res => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then(cache => cache.put(req, copy));
-        }
+        // waitUntil で待つので、書き込みの途中で Service Worker が止まらない
+        if (res.ok) event.waitUntil(updateCache(req, res.clone()).catch(() => {}));
         return res;
       })
       .catch(async () => {

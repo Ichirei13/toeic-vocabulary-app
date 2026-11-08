@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-bouquet { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
-    .bouquet { transform-origin: 146px 146px; animation: pom-bouquet 1.4s ease-in-out infinite; }
+    .bouquet { transform-origin: 146px 146px; animation: pom-bouquet 1.4s ease-in-out 4; }
     @media (prefers-reduced-motion: reduce) {
       .bouquet { animation: none; }
     }

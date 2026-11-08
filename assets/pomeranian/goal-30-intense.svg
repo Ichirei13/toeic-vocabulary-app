@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-intense-flame { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.07); } }
     @keyframes pom-bolt { 0%, 100% { opacity: 1; transform: translateY(0); } 50% { opacity: 0.45; transform: translateY(-5px); } }
-    .flame { transform-origin: 100px 164px; animation: pom-intense-flame 0.4s ease-in-out infinite; }
-    .bolts { animation: pom-bolt 0.55s ease-in-out infinite; }
+    .flame { transform-origin: 100px 164px; animation: pom-intense-flame 0.4s ease-in-out 13; }
+    .bolts { animation: pom-bolt 0.55s ease-in-out 10; }
     @media (prefers-reduced-motion: reduce) {
       .flame, .bolts { animation: none; }
     }

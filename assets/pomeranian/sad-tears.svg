@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-quiver { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
     @keyframes pom-tear-wobble { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
-    .head-sad { animation: pom-quiver 1.4s ease-in-out infinite; }
-    .tears { transform-origin: 100px 84px; animation: pom-tear-wobble 0.9s ease-in-out infinite; }
+    .head-sad { animation: pom-quiver 1.4s ease-in-out 4; }
+    .tears { transform-origin: 100px 84px; animation: pom-tear-wobble 0.9s ease-in-out 6; }
     @media (prefers-reduced-motion: reduce) {
       .head-sad, .tears { animation: none; }
     }

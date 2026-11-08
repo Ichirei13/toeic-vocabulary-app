@@ -81,11 +81,11 @@ function backupHomeHtml(v) {
     ${v.success ? `<div class="backup-msg ok">${escapeHtml(v.success)}</div>` : ''}
     ${v.error ? `<div class="backup-msg ng">${escapeHtml(v.error)}</div>` : ''}
 
-    <!-- Google ドライブ自動保存 -->
+    <!-- Google ドライブ保存（手動の同期） -->
     <div class="gdrive-card">
       <div class="gdrive-header">
         <div class="gdrive-title">
-          <span>☁️ Google ドライブ自動保存</span>
+          <span>☁️ Google ドライブ保存</span>
         </div>
         <span class="gdrive-badge ${isLinked ? 'linked' : 'unlinked'}">
           ${isLinked ? '● 連携中' : '未連携'}
@@ -93,7 +93,7 @@ function backupHomeHtml(v) {
       </div>
       ${!isLinked ? `
         <div class="gdrive-desc">
-          Google ドライブのアプリ専用領域に学習記録を自動バックアップします。別端末の記録とも自動で合算・同期されます。
+          Google ドライブのアプリ専用領域に学習記録をバックアップします。「今すぐ同期」を押すと、別端末の記録とも合算されます。
         </div>
         <button class="backup-btn primary" data-backup="gdrive-login" style="width:100%;text-align:center;">
           🔑 Google アカウントで連携
@@ -103,13 +103,13 @@ function backupHomeHtml(v) {
           ${lastSync > 0 ? `最終同期: ${formatDateTime(lastSync)}` : 'まだ同期されていません'}
           ${gdriveLastSyncMsg ? `<div class="gdrive-sync-msg">${escapeHtml(gdriveLastSyncMsg)}</div>` : ''}
         </div>
-        <div class="gdrive-row">
+        ${GDRIVE_AUTOSYNC_AVAILABLE ? `<div class="gdrive-row">
           <span>学習時に自動で同期・合算</span>
           <label style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
             <input type="checkbox" id="gdrive-auto-toggle" ${autoSync ? 'checked' : ''} onchange="toggleGoogleDriveAutoSync(this.checked)">
             <span style="font-size:12px;font-weight:600;">${autoSync ? 'ON' : 'OFF'}</span>
           </label>
-        </div>
+        </div>` : ''}
         <div class="backup-actions" style="margin: 10px 0 4px;">
           <button class="backup-btn primary" data-backup="gdrive-sync">☁️ 今すぐ同期（合算保存）</button>
           <button class="backup-btn" data-backup="gdrive-restore">📥 ドライブから復元…</button>

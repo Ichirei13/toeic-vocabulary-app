@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-cloud-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-    .cloud-ride { animation: pom-cloud-float 2s ease-in-out infinite; }
+    .cloud-ride { animation: pom-cloud-float 2s ease-in-out 3; }
     @media (prefers-reduced-motion: reduce) {
       .cloud-ride { animation: none; }
     }

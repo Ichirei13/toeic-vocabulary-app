@@ -3,9 +3,9 @@
     @keyframes sekai-bulb { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.14) translateY(-2px); opacity: 0.85; } }
     @keyframes sekai-nod { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-3.5px) rotate(2deg); } }
     @keyframes sekai-book { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-    .bulb { transform-origin: 52px 36px; animation: sekai-bulb 1.1s ease-in-out infinite; }
-    .head-group { transform-origin: 100px 84px; animation: sekai-nod 1.5s ease-in-out infinite; }
-    .open-book { transform-origin: 100px 150px; animation: sekai-book 1.5s ease-in-out infinite; }
+    .bulb { transform-origin: 52px 36px; animation: sekai-bulb 1.1s ease-in-out 5; }
+    .head-group { transform-origin: 100px 84px; animation: sekai-nod 1.5s ease-in-out 4; }
+    .open-book { transform-origin: 100px 150px; animation: sekai-book 1.5s ease-in-out 4; }
     @media (prefers-reduced-motion: reduce) {
       .bulb, .head-group, .open-book { animation: none; }
     }

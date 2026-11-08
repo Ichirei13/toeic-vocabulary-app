@@ -5,11 +5,11 @@
     @keyframes cal-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3.5px); } }
     @keyframes cal-target { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
     @keyframes cal-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-    .tail { transform-origin: 36px 136px; animation: cal-tail 0.75s ease-in-out infinite; }
-    .point-arm { transform-origin: 104px 120px; animation: cal-point 0.9s ease-in-out infinite; }
-    .head-group { transform-origin: 78px 92px; animation: cal-bob 1.4s ease-in-out infinite; }
-    .target-dot { transform-origin: 170px 81px; animation: cal-target 1.1s ease-in-out infinite; }
-    .eyes { transform-origin: 78px 92px; animation: cal-blink 3.6s ease-in-out infinite; }
+    .tail { transform-origin: 36px 136px; animation: cal-tail 0.75s ease-in-out 7; }
+    .point-arm { transform-origin: 104px 120px; animation: cal-point 0.9s ease-in-out 6; }
+    .head-group { transform-origin: 78px 92px; animation: cal-bob 1.4s ease-in-out 4; }
+    .target-dot { transform-origin: 170px 81px; animation: cal-target 1.1s ease-in-out 5; }
+    .eyes { transform-origin: 78px 92px; animation: cal-blink 3.6s ease-in-out 2; }
     @media (prefers-reduced-motion: reduce) {
       .tail, .point-arm, .head-group, .target-dot, .eyes { animation: none; }
     }

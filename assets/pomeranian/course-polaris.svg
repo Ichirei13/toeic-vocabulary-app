@@ -4,10 +4,10 @@
     @keyframes polaris-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes polaris-needle { 0%, 100% { transform: rotate(-18deg); } 50% { transform: rotate(22deg); } }
     @keyframes polaris-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-    .north-star { transform-origin: 158px 41px; animation: polaris-star 1.5s ease-in-out infinite; }
-    .head-group { transform-origin: 100px 82px; animation: polaris-bob 1.5s ease-in-out infinite; }
-    .needle { transform-origin: 152px 128px; animation: polaris-needle 1.2s ease-in-out infinite; }
-    .eyes { transform-origin: 100px 78px; animation: polaris-blink 4s ease-in-out infinite; }
+    .north-star { transform-origin: 158px 41px; animation: polaris-star 1.5s ease-in-out 4; }
+    .head-group { transform-origin: 100px 82px; animation: polaris-bob 1.5s ease-in-out 4; }
+    .needle { transform-origin: 152px 128px; animation: polaris-needle 1.2s ease-in-out 5; }
+    .eyes { transform-origin: 100px 78px; animation: polaris-blink 4s ease-in-out 2; }
     @media (prefers-reduced-motion: reduce) {
       .north-star, .head-group, .needle, .eyes { animation: none; }
     }

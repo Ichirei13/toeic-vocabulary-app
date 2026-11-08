@@ -4,10 +4,10 @@
     @keyframes kin-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes kin-book { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-5px) rotate(-4deg); } }
     @keyframes kin-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
-    .tail { transform-origin: 50px 128px; animation: kin-tail 0.75s ease-in-out infinite; }
-    .head-group { transform-origin: 100px 85px; animation: kin-bob 1.4s ease-in-out infinite; }
-    .book-group { transform-origin: 138px 138px; animation: kin-book 1.3s ease-in-out infinite; }
-    .eyes { transform-origin: 100px 78px; animation: kin-blink 3.8s ease-in-out infinite; }
+    .tail { transform-origin: 50px 128px; animation: kin-tail 0.75s ease-in-out 7; }
+    .head-group { transform-origin: 100px 85px; animation: kin-bob 1.4s ease-in-out 4; }
+    .book-group { transform-origin: 138px 138px; animation: kin-book 1.3s ease-in-out 4; }
+    .eyes { transform-origin: 100px 78px; animation: kin-blink 3.8s ease-in-out 2; }
     @media (prefers-reduced-motion: reduce) {
       .tail, .head-group, .book-group, .eyes { animation: none; }
     }

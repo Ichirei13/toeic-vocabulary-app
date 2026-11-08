@@ -3,9 +3,9 @@
     @keyframes pom-clap-l { 0%, 100% { transform: translateX(0) rotate(0deg); } 50% { transform: translateX(10px) rotate(8deg); } }
     @keyframes pom-clap-r { 0%, 100% { transform: translateX(0) rotate(0deg); } 50% { transform: translateX(-10px) rotate(-8deg); } }
     @keyframes pom-spark { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
-    .paw-l { transform-origin: 76px 128px; animation: pom-clap-l 0.35s ease-in-out infinite; }
-    .paw-r { transform-origin: 124px 128px; animation: pom-clap-r 0.35s ease-in-out infinite; }
-    .sparks { transform-origin: 100px 104px; animation: pom-spark 0.35s ease-in-out infinite; }
+    .paw-l { transform-origin: 76px 128px; animation: pom-clap-l 0.35s ease-in-out 15; }
+    .paw-r { transform-origin: 124px 128px; animation: pom-clap-r 0.35s ease-in-out 15; }
+    .sparks { transform-origin: 100px 104px; animation: pom-spark 0.35s ease-in-out 15; }
     @media (prefers-reduced-motion: reduce) {
       .paw-l, .paw-r, .sparks { animation: none; }
     }

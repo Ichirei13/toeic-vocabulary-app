@@ -6,6 +6,10 @@ const SESSION_KEY = 'toeic_session';
 // 出題中の並びは、単語を RAW_WORDS の番号、文法を問題の id で保存する。戻すときの逆引き用
 const WORD_INDEX = new Map(RAW_WORDS.map((w, i) => [w, i]));
 const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
+// 見出し語から単語を引く索引。見出し語は daily と TEPPAN で重複するので、先頭の1件を残す
+// （RAW_WORDS.find(x => x.w === 見出し語) と同じ結果。リストの描画で件数ぶん find を繰り返さないための索引）
+const WORD_BY_HEADWORD = new Map();
+RAW_WORDS.forEach(w => { if (!WORD_BY_HEADWORD.has(w.w)) WORD_BY_HEADWORD.set(w.w, w); });
 
 // 保存する設定。ここに足したキーは restoreSettings で検証して戻すこと（保存値は信用しない）
 function settingsSnapshot() {

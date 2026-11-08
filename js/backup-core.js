@@ -214,7 +214,7 @@ function applyMergedRecordsToLocal(mergedRecords) {
       rawByKey[key] = JSON.stringify(mergedRecords[name]);
     }
   });
-  replaceRecords(rawByKey, false, 'クラウド自動同期');
+  replaceRecords(rawByKey, false, 'クラウド同期');
   reloadRecordsFromStorage(false);
 }
 

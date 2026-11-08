@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-heart { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
     @keyframes pom-float-h { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
-    .big-heart { transform-origin: 100px 136px; animation: pom-heart 0.8s ease-in-out infinite; }
-    .mini-hearts { animation: pom-float-h 1.4s ease-in-out infinite; }
+    .big-heart { transform-origin: 100px 136px; animation: pom-heart 0.8s ease-in-out 7; }
+    .mini-hearts { animation: pom-float-h 1.4s ease-in-out 4; }
     @media (prefers-reduced-motion: reduce) {
       .big-heart, .mini-hearts { animation: none; }
     }

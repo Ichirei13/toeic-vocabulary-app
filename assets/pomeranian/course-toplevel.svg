@@ -3,9 +3,9 @@
     @keyframes top-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
     @keyframes top-tassel { 0%, 100% { transform: rotate(-8deg); } 50% { transform: rotate(10deg); } }
     @keyframes top-scroll { 0%, 100% { transform: rotate(0deg) translateY(0); } 50% { transform: rotate(-8deg) translateY(-4px); } }
-    .head-group { transform-origin: 100px 80px; animation: top-bob 1.4s ease-in-out infinite; }
-    .tassel { transform-origin: 144px 34px; animation: top-tassel 0.9s ease-in-out infinite; }
-    .diploma { transform-origin: 42px 124px; animation: top-scroll 1.2s ease-in-out infinite; }
+    .head-group { transform-origin: 100px 80px; animation: top-bob 1.4s ease-in-out 4; }
+    .tassel { transform-origin: 144px 34px; animation: top-tassel 0.9s ease-in-out 6; }
+    .diploma { transform-origin: 42px 124px; animation: top-scroll 1.2s ease-in-out 5; }
     @media (prefers-reduced-motion: reduce) {
       .head-group, .tassel, .diploma { animation: none; }
     }

@@ -7,6 +7,15 @@ syncFilterUI();
 setApp(state.app);
 checkGoogleDriveOnStartup();
 
+// 保存に失敗したら（容量不足・プライベートモードなど）、記録が残っていないことを1度だけ知らせる。
+// 失敗は1問ごとに続くので、2回目以降は出さない。学習はそのまま続けられる
+let saveFailureNoticed = false;
+onStorageSaveFailed(() => {
+  if (saveFailureNoticed) return;
+  saveFailureNoticed = true;
+  showToast('⚠️ 保存できませんでした。空き容量やプライベートモードを確認してください。学習記録はバックアップから戻せます');
+});
+
 // 別のタブで復元・取り消しをしたら、古い記録で上書きしないよう読み込み直す
 window.addEventListener('storage', e => {
   if (e.key !== RESTORE_STAMP_KEY) return;

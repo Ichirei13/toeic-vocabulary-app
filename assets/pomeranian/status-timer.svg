@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-tick { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(6deg); } }
-    .watch { transform-origin: 148px 124px; animation: pom-tick 0.35s ease-in-out infinite; }
+    .watch { transform-origin: 148px 124px; animation: pom-tick 0.35s ease-in-out 15; }
     @media (prefers-reduced-motion: reduce) {
       .watch { animation: none; }
     }

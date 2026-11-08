@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-type-l { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
     @keyframes pom-type-r { 0%, 100% { transform: translateY(6px); } 50% { transform: translateY(0); } }
-    .paw-l { animation: pom-type-l 0.28s ease-in-out infinite; }
-    .paw-r { animation: pom-type-r 0.28s ease-in-out infinite; }
+    .paw-l { animation: pom-type-l 0.28s ease-in-out 18; }
+    .paw-r { animation: pom-type-r 0.28s ease-in-out 18; }
     @media (prefers-reduced-motion: reduce) {
       .paw-l, .paw-r { animation: none; }
     }

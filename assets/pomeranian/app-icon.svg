@@ -4,10 +4,10 @@
     @keyframes icon-card { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(8deg) translateY(-3px); } }
     @keyframes icon-sparkle { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0.65; } }
     @keyframes icon-crown { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg) translateY(-2px); } }
-    .head-group { transform-origin: 100px 100px; animation: icon-bob 1.6s ease-in-out infinite; }
-    .card-paw { transform-origin: 150px 118px; animation: icon-card 1.2s ease-in-out infinite; }
-    .sparkle { transform-origin: 158px 46px; animation: icon-sparkle 1.4s ease-in-out infinite; }
-    .crown { transform-origin: 100px 36px; animation: icon-crown 1.6s ease-in-out infinite; }
+    .head-group { transform-origin: 100px 100px; animation: icon-bob 1.6s ease-in-out 4; }
+    .card-paw { transform-origin: 150px 118px; animation: icon-card 1.2s ease-in-out 5; }
+    .sparkle { transform-origin: 158px 46px; animation: icon-sparkle 1.4s ease-in-out 4; }
+    .crown { transform-origin: 100px 36px; animation: icon-crown 1.6s ease-in-out 4; }
     @media (prefers-reduced-motion: reduce) {
       .head-group, .card-paw, .sparkle, .crown { animation: none; }
     }

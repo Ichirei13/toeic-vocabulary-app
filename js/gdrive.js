@@ -3,6 +3,9 @@ const GOOGLE_CLIENT_ID = '739368898331-c517aujpdukivk4uang69hcm8go3p6ca.apps.goo
 const GDRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
 const GDRIVE_LINKED_KEY = 'toeic_gdrive_linked';
 const GDRIVE_AUTOSYNC_KEY = 'toeic_gdrive_autosync';
+// 自動同期（記録が変わった4秒後・画面を離れたとき・起動時）は一旦止めている。コードは残してあり、
+// true に戻せば再開する（画面のスイッチは backup-ui.js 側で別に外してある）。手動の同期（今すぐ同期・復元）はこの値に関係なく使える
+const GDRIVE_AUTOSYNC_AVAILABLE = false;
 const GDRIVE_LAST_SYNC_KEY = 'toeic_gdrive_last_sync';
 const GDRIVE_LAST_MOD_KEY = 'toeic_gdrive_last_remote_mod';
 const GDRIVE_BACKUP_FILENAME = 'toeic-drill-backup.json';
@@ -25,7 +28,7 @@ function isGoogleDriveLinked() {
 
 function isGoogleDriveAutoSyncEnabled() {
   try {
-    return isGoogleDriveLinked() && localStorage.getItem(GDRIVE_AUTOSYNC_KEY) !== '0';
+    return GDRIVE_AUTOSYNC_AVAILABLE && isGoogleDriveLinked() && localStorage.getItem(GDRIVE_AUTOSYNC_KEY) !== '0';
   } catch (e) {
     return false;
   }
@@ -62,7 +65,7 @@ function initGoogleDriveClient() {
         gdriveTokenExpiresAt = Date.now() + (expiresIn - 120) * 1000;
         try {
           localStorage.setItem(GDRIVE_LINKED_KEY, '1');
-          if (localStorage.getItem(GDRIVE_AUTOSYNC_KEY) === null) {
+          if (GDRIVE_AUTOSYNC_AVAILABLE && localStorage.getItem(GDRIVE_AUTOSYNC_KEY) === null) {
             localStorage.setItem(GDRIVE_AUTOSYNC_KEY, '1');
           }
         } catch (e) {}
@@ -297,6 +300,8 @@ function scheduleGoogleDriveAutoSync(key) {
     }
   }, 4000);
 }
+// 保存の側（util.js の saveJSON）は同期を知らない。保存されたら通知が来るので、ここで受け取って同期を予約する
+onStorageSaved(scheduleGoogleDriveAutoSync);
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && gdriveSyncTimer) {
@@ -309,7 +314,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function checkGoogleDriveOnStartup() {
-  if (!isGoogleDriveLinked()) return;
+  if (!GDRIVE_AUTOSYNC_AVAILABLE || !isGoogleDriveLinked()) return;
   setTimeout(async () => {
     if (!initGoogleDriveClient()) return;
     const token = await getGoogleAccessToken(false);

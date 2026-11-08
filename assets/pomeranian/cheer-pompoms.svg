@@ -2,8 +2,8 @@
   <style>
     @keyframes pom-cheer-l { 0%, 100% { transform: rotate(-12deg) translateY(0); } 50% { transform: rotate(14deg) translateY(-8px); } }
     @keyframes pom-cheer-r { 0%, 100% { transform: rotate(12deg) translateY(-8px); } 50% { transform: rotate(-14deg) translateY(0); } }
-    .pom-l { transform-origin: 42px 92px; animation: pom-cheer-l 0.5s ease-in-out infinite; }
-    .pom-r { transform-origin: 158px 92px; animation: pom-cheer-r 0.5s ease-in-out infinite; }
+    .pom-l { transform-origin: 42px 92px; animation: pom-cheer-l 0.5s ease-in-out 10; }
+    .pom-r { transform-origin: 158px 92px; animation: pom-cheer-r 0.5s ease-in-out 10; }
     @media (prefers-reduced-motion: reduce) {
       .pom-l, .pom-r { animation: none; }
     }

@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
   <style>
     @keyframes pom-swirl { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .swirl-l { transform-origin: 76px 78px; animation: pom-swirl 2s linear infinite; }
-    .swirl-r { transform-origin: 124px 78px; animation: pom-swirl 2s linear infinite reverse; }
+    .swirl-l { transform-origin: 76px 78px; animation: pom-swirl 2s linear 3; }
+    .swirl-r { transform-origin: 124px 78px; animation: pom-swirl 2s linear 3 reverse; }
     @media (prefers-reduced-motion: reduce) {
       .swirl-l, .swirl-r { animation: none; }
     }
