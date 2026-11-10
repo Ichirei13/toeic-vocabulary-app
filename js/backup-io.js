@@ -269,13 +269,21 @@ function replaceRecords(rawByKey, saveUndo, label) {
       throw new Error(`空き容量が足りないため、${label}を中止しました。記録は元のままです。`);
     }
   }
+  const written = []; // 書けたキー（書いた順）
   try {
-    writeRaw(rawByKey);
+    Object.entries(rawByKey).forEach(([k, raw]) => {
+      writeRaw({ [k]: raw });
+      written.push(k);
+    });
   } catch (e) {
     try {
-      // 先に取り消し用の記録を外して空きを作ってから、元の記録を書き戻す
+      // 先に取り消し用の記録を外して空きを作ってから、元の記録を書き戻す。
+      // 書けたキーだけを、書いたのと逆の順で戻す。逆順なら、戻す途中の使用量は「書き込みの途中で一度通った量」を
+      // 超えないので、容量不足で書き戻せなくなることがない（同じ順で戻すと、縮んだキーを先に元へ戻す空きが足りないことがある）
       if (saveUndo) localStorage.removeItem(BACKUP_UNDO_KEY);
-      writeRaw(before);
+      written.reverse().forEach(k => {
+        if (Object.hasOwn(before, k)) writeRaw({ [k]: before[k] });
+      });
       if (saveUndo) writeRaw({ [BACKUP_UNDO_KEY]: undoBefore });
     } catch (e2) {
       throw new Error(`${label}に失敗し、元の記録にも戻せませんでした。書き出しておいたバックアップファイルから、もう一度復元してください。`);

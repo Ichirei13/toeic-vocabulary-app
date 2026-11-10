@@ -16,15 +16,48 @@ onStorageSaveFailed(() => {
   showToast('⚠️ 保存できませんでした。空き容量やプライベートモードを確認してください。学習記録はバックアップから戻せます');
 });
 
-// 別のタブで復元・取り消しをしたら、古い記録で上書きしないよう読み込み直す
+// 別のタブが学習記録を保存したら、このタブのメモリを保存領域から読み込み直す。
+// どのタブも、起動時に読んだ記録を丸ごと書き戻す。読み込み直さないと、次の保存で別のタブの回答を消してしまう。
+// 設定と出題の続きはタブごとの画面の状態なので対象にしない。ポモドーロの設定も対象にしない（止めているタイマーの残り時間を戻さないため）
+const CROSS_TAB_KEYS = [
+  ...RECORD_STORAGE_KEYS.filter(k => k !== SETTINGS_KEY && k !== SESSION_KEY),
+  EXTRA_KEYS.activity, EXTRA_KEYS.prefs, EXTRA_KEYS.pomoLog,
+];
+let crossTabReloadTimer = null;
+function reloadRecordsSavedElsewhere() {
+  clearTimeout(crossTabReloadTimer);
+  crossTabReloadTimer = null;
+  // 保存に失敗したタブは、メモリにしかない回答を持っている。読み込み直すとそれを捨ててしまうので、そのままにする
+  if (saveFailureNoticed) return;
+  // 同期のときと同じ読み込み直し。解いている最中の画面は作り直さない
+  reloadRecordsFromStorage(false);
+  if (typeof reloadActivityAndPrefs === 'function') reloadActivityAndPrefs();
+  if (typeof reloadPomoLog === 'function') reloadPomoLog();
+}
+
 window.addEventListener('storage', e => {
-  if (e.key !== RESTORE_STAMP_KEY) return;
-  try {
-    sessionStorage.setItem(NOTICE_KEY, '別のタブで学習記録が復元されたため、読み込み直しました。');
-  } catch (err) {
-    // お知らせを出せなくても読み込み直しは行う
+  // 別のタブで復元・取り消しをしたら、設定と出題の続きも変わっているので、ページごと読み込み直す
+  if (e.key === RESTORE_STAMP_KEY) {
+    clearTimeout(crossTabReloadTimer);
+    try {
+      sessionStorage.setItem(NOTICE_KEY, '別のタブで学習記録が復元されたため、読み込み直しました。');
+    } catch (err) {
+      // お知らせを出せなくても読み込み直しは行う
+    }
+    location.reload();
+    return;
   }
-  location.reload();
+  // key が null なのは、保存領域がまるごと消されたとき
+  if (e.key !== null && !CROSS_TAB_KEYS.includes(e.key)) return;
+  // 1 回の回答でいくつものキーが変わるので、少し待ってまとめて 1 回だけ読み込み直す
+  if (crossTabReloadTimer === null) crossTabReloadTimer = setTimeout(reloadRecordsSavedElsewhere, 50);
+});
+// 裏にいた間の通知を受け取れていないことがあるので、画面に戻ってきたときにも読み込み直す
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') reloadRecordsSavedElsewhere();
+});
+window.addEventListener('pageshow', e => {
+  if (e.persisted) reloadRecordsSavedElsewhere();
 });
 
 try {

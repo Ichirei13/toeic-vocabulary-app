@@ -765,6 +765,15 @@ function reloadPomoExtras() {
   syncPomoMiniPill();
 }
 
+// 別のタブが保存したポモドーロの記録を読み込み直す（js/boot.js から呼ぶ）。設定とタイマーの残り時間には触らない。
+// 中身が変わっていなければ何もしない
+function reloadPomoLog() {
+  const next = loadPomoLog();
+  if (JSON.stringify(next) === JSON.stringify(pomoLog)) return;
+  pomoLog = next;
+  if (typeof currentAppPage !== 'undefined' && currentAppPage === 'timer') renderTimerPage();
+}
+
 // 画面に戻ってきたとき、止まっていた interval を待たずにすぐ残り時間を合わせる（時間切れならそのまま次のフェーズへ）
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && pomoState.running) tickPomo();

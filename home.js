@@ -146,6 +146,17 @@ function reloadHomeExtras() {
   if (currentAppPage === 'home') renderHomePage();
 }
 
+// 別のタブが保存した日別記録と表示設定を読み込み直す（js/boot.js から呼ぶ）。ポモドーロには触らない。
+// 中身が変わっていなければ何もしない（画面に戻るたびに呼ばれるので、ホームを作り直すのは変わったときだけ）
+function reloadActivityAndPrefs() {
+  const nextActivity = loadDailyActivity();
+  const nextPrefs = loadPrefs();
+  if (JSON.stringify(nextActivity) === JSON.stringify(dailyActivity) && JSON.stringify(nextPrefs) === JSON.stringify(prefs)) return;
+  dailyActivity = nextActivity;
+  prefs = nextPrefs;
+  if (currentAppPage === 'home') renderHomePage();
+}
+
 // 回答のあとに呼ぶ。苦手だった問題に正解したら集計し、苦手から外れたらその日の克服数 gr も増やす
 function noteSessionReview(kind, wasWeak, isWeakNow, isCorrect) {
   StudyCore.noteReviewAnswer(reviewCounter(kind), { wasWeak, isWeakNow, isCorrect });
