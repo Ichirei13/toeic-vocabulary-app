@@ -383,6 +383,18 @@ d3test('layout: 既定（collapse）の入力でも動き、keep 版とは別の
   assert.ok(m.id.length < (await model()).id.length);
 });
 
+d3test('layout: コミット済みの data/grammar_graph.js の座標を、同じモデルから再現できる（力の定義を動かしても変わらない）', async () => {
+  const { layout } = await lib('layout.mjs');
+  const src = fs.readFileSync(path.resolve(__dirname, '..', 'data', 'grammar_graph.js'), 'utf8');
+  const g = vm.runInNewContext(src + '; GRAMMAR_GRAPH');
+  const edges = [];
+  for (let i = 0; i < g.edges.length; i += 3) edges.push([g.edges[i], g.edges[i + 1], g.edges[i + 2]]);
+  const { x, y } = layout({ id: [...g.id], kind: [...g.kind], kinds: [...g.kinds], edges });
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) if (x[i] !== g.x[i] || y[i] !== g.y[i]) diff++;
+  assert.strictEqual(diff, 0, `座標が変わったノードが ${diff} 個ある`);
+});
+
 // ---- 生成コマンド（純粋関数の部分）
 test('build: 未対応の問題・dangling があれば problems に出る', async () => {
   const { assemble } = await import(path.resolve(__dirname, '..', 'tools', 'build_grammar_graph.mjs'));
