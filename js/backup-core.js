@@ -66,6 +66,8 @@ const BACKUP_MIGRATIONS = {
   5: backup => ({ ...backup, format: 6 }),
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
+// 端末どうしの時計のずれとして許す幅。記録の時刻がこの端末の「今」よりこれ以上先なら、どちらかの時計がずれているとみなす
+const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000;
 // ファイルの中の名前 → この端末の保存先
 const RECORD_KEYS = {
   weakWords: WEAK_WORDS_KEY,

@@ -7,14 +7,22 @@ syncFilterUI();
 setApp(state.app);
 checkGoogleDriveOnStartup();
 
-// 保存に失敗したら（容量不足・プライベートモードなど）、記録が残っていないことを1度だけ知らせる。
-// 失敗は1問ごとに続くので、2回目以降は出さない。学習はそのまま続けられる
-let saveFailureNoticed = false;
-onStorageSaveFailed(() => {
-  if (saveFailureNoticed) return;
-  saveFailureNoticed = true;
+// 保存に失敗したら（容量不足・プライベートモードなど）、記録が残っていないことを知らせる。
+// 失敗は1問ごとに続くので、保存できていないキーがある間は、2回目以降は出さない。学習はそのまま続けられる。
+// 保存できていないキーを覚えておき、そのキーがまた保存できたら外す。全部外れたあとの失敗は、あらためて知らせる
+const failedSaveKeys = new Set();
+onStorageSaveFailed(key => {
+  const alreadyNoticed = failedSaveKeys.size > 0;
+  failedSaveKeys.add(key);
+  if (alreadyNoticed) return;
   showToast('⚠️ 保存できませんでした。空き容量やプライベートモードを確認してください。学習記録はバックアップから戻せます');
 });
+onStorageSaved(key => failedSaveKeys.delete(key));
+
+// 起動時に読めなかった記録があれば知らせる（元の文字列は word-stats.js の keepBrokenRecords が残している）
+if (brokenRecordKeys.length > 0) {
+  showToast('⚠️ 読み込めない学習記録がありました。その分は空から始めます。元のデータは消さずに残してあります');
+}
 
 // 別のタブが学習記録を保存したら、このタブのメモリを保存領域から読み込み直す。
 // どのタブも、起動時に読んだ記録を丸ごと書き戻す。読み込み直さないと、次の保存で別のタブの回答を消してしまう。
@@ -27,8 +35,8 @@ let crossTabReloadTimer = null;
 function reloadRecordsSavedElsewhere() {
   clearTimeout(crossTabReloadTimer);
   crossTabReloadTimer = null;
-  // 保存に失敗したタブは、メモリにしかない回答を持っている。読み込み直すとそれを捨ててしまうので、そのままにする
-  if (saveFailureNoticed) return;
+  // 保存できていない記録があるタブは、メモリにしかない回答を持っている。読み込み直すとそれを捨ててしまうので、そのままにする
+  if (failedSaveKeys.size > 0) return;
   // 同期のときと同じ読み込み直し。解いている最中の画面は作り直さない
   reloadRecordsFromStorage(false);
   if (typeof reloadActivityAndPrefs === 'function') reloadActivityAndPrefs();

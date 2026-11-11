@@ -9,6 +9,8 @@ const GDRIVE_AUTOSYNC_AVAILABLE = false;
 const GDRIVE_LAST_SYNC_KEY = 'toeic_gdrive_last_sync';
 const GDRIVE_LAST_MOD_KEY = 'toeic_gdrive_last_remote_mod';
 const GDRIVE_BACKUP_FILENAME = 'toeic-drill-backup.json';
+// 取得してから保存するまでの間に、ほかの端末がクラウドを書き換えていたら、取得からやり直す。その回数の上限
+const GDRIVE_MAX_SYNC_ROUNDS = 3;
 
 let gdriveTokenClient = null;
 let gdriveAccessToken = null;
@@ -123,9 +125,11 @@ function unlinkGoogleDrive() {
   refreshBackupSheet();
 }
 
+// クラウドのバックアップファイルを探す。file は見つからなければ null。
+// serverNow は Google 側の「今」（応答の Date ヘッダー。読めなければ NaN）。この端末の時計がずれていないかを確かめるのに使う
 async function findGoogleDriveBackupFile(token) {
   const query = encodeURIComponent(`name = '${GDRIVE_BACKUP_FILENAME}' and trashed = false`);
-  const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime,size)&pageSize=1`;
+  const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${query}&fields=files(id,name,modifiedTime,size,md5Checksum,version)&pageSize=1`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -133,7 +137,33 @@ async function findGoogleDriveBackupFile(token) {
     throw new Error(`ファイル検索に失敗しました (${res.status})`);
   }
   const data = await res.json();
-  return (data.files && data.files.length > 0) ? data.files[0] : null;
+  return {
+    file: (data.files && data.files.length > 0) ? data.files[0] : null,
+    serverNow: Date.parse((res.headers && res.headers.get('date')) || ''),
+  };
+}
+
+// 取得したときと同じファイルのままか（ほかの端末が書き換えていないか）。応答に無い項目は比べない
+function isSameDriveFileVersion(a, b) {
+  return ['version', 'md5Checksum', 'modifiedTime'].every(k => a[k] === b[k]);
+}
+
+// 時計のずれを確かめる。統合は「最終更新が新しい方」を残すので、時計がずれた端末の記録が混ざると、新旧の判定が入れ替わって
+// 記録が巻き戻る。ずれが分かったときは、統合も保存もせずに止める（止めても、手元とクラウドの記録はどちらも変わらない）。
+// ずれていれば利用者に見せる文言、問題なければ null を返す。渡されなかった・読めなかった時刻は確かめない
+//   serverNow: Google 側の「今」 / serverModified: クラウドのファイルの更新時刻（Google 側の時計）
+//   exportedAt・latestTime: クラウドのファイルに入っている書き出し時刻と、記録のいちばん新しい時刻（書いた端末の時計）
+function driveClockProblem({ serverNow = NaN, serverModified = NaN, exportedAt = NaN, latestTime = NaN }) {
+  const now = Date.now();
+  const tol = CLOCK_SKEW_TOLERANCE_MS;
+  const own = 'この端末の時計がずれているため、同期を止めました。時計を合わせてから、もう一度同期してください。記録は変えていません';
+  if (Number.isFinite(serverNow) && Math.abs(serverNow - now) > tol) return own;
+  if (Number.isFinite(serverModified) && serverModified - now > tol) return own;
+  const latestInFile = Math.max(Number.isFinite(exportedAt) ? exportedAt : 0, Number.isFinite(latestTime) ? latestTime : 0);
+  if (latestInFile - now > tol) {
+    return 'クラウドの記録に、この端末の時計より先の時刻が入っているため、同期を止めました。前に同期した端末の時計が進んでいたようです。その時刻を過ぎると、また同期できます。記録は変えていません';
+  }
+  return null;
 }
 
 // クラウドとローカルの双方向マージ同期（合算保存・反映）
@@ -148,31 +178,55 @@ async function syncWithGoogleDrive({ interactive = false, silent = false } = {})
   gdriveIsSyncing = true;
   if (!silent) showToast('☁️ Google ドライブと同期・合算中...');
   try {
-    const existingFile = await findGoogleDriveBackupFile(token);
+    const found = await findGoogleDriveBackupFile(token);
+    let existingFile = found.file;
+    // この端末の時計がずれていたら、何もせずに止める（ずれた時刻の記録をクラウドに上げない）
+    const ownClockProblem = driveClockProblem({ serverNow: found.serverNow });
+    if (ownClockProblem) throw new Error(ownClockProblem);
 
     if (existingFile) {
-      // 1. クラウド側の最新バックアップを取得
-      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFile.id}?alt=media`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error(`クラウドからの取得に失敗しました (${res.status})`);
-      const remoteText = await res.text();
+      for (let round = 1; ; round++) {
+        // 1. クラウド側の最新バックアップを取得
+        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${existingFile.id}?alt=media`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error(`クラウドからの取得に失敗しました (${res.status})`);
+        const remoteText = await res.text();
 
-      // 中身が空のファイル（作成途中で止まったものなど）は、失う記録がないので手元の内容で作り直す
-      if (remoteText.trim() !== '') {
-        const remoteParsed = parseBackup(remoteText);
+        // 中身が空のファイル（作成途中で止まったものなど）は、失う記録がないので手元の内容で作り直す
+        if (remoteText.trim() !== '') {
+          const remoteParsed = parseBackup(remoteText);
 
-        // クラウド側が読めない（壊れている、またはこのアプリより新しい形式）ときは、
-        // 手元の内容で上書きするとクラウドの記録を失うので、保存せずに止める
-        if (!remoteParsed.ok) {
-          throw new Error('クラウドのバックアップを読み込めないため、上書きを中止しました (' + remoteParsed.error + ')');
+          // クラウド側が読めない（壊れている、またはこのアプリより新しい形式）ときは、
+          // 手元の内容で上書きするとクラウドの記録を失うので、保存せずに止める
+          if (!remoteParsed.ok) {
+            throw new Error('クラウドのバックアップを読み込めないため、上書きを中止しました (' + remoteParsed.error + ')');
+          }
+
+          // クラウドの記録の時刻がこの端末の時計より先なら、統合せずに止める
+          const clockProblem = driveClockProblem({
+            serverModified: Date.parse(existingFile.modifiedTime || ''),
+            exportedAt: remoteParsed.exportedAt === null ? NaN : remoteParsed.exportedAt,
+            latestTime: remoteParsed.latestTime,
+          });
+          if (clockProblem) throw new Error(clockProblem);
+
+          // 2. 手元データとクラウドデータを合算（マージ）
+          const localRec = getCurrentLocalRecords();
+          const mergedRecords = mergeBackupRecords(localRec, remoteParsed.records);
+          // 3. 合算結果を手元（メモリ・ストレージ）に反映
+          applyMergedRecordsToLocal(mergedRecords);
         }
 
-        // 2. 手元データとクラウドデータを合算（マージ）
-        const localRec = getCurrentLocalRecords();
-        const mergedRecords = mergeBackupRecords(localRec, remoteParsed.records);
-        // 3. 合算結果を手元（メモリ・ストレージ）に反映
-        applyMergedRecordsToLocal(mergedRecords);
+        // 保存の直前に、取得したあとでほかの端末がクラウドを書き換えていないか確かめる。
+        // 書き換えられていたら、そのまま保存すると相手の記録を消してしまうので、取得からやり直す。
+        // （確かめてから保存するまでの通信 1 回ぶんの隙は残る。消えるのはクラウド側だけで、相手の端末が次に同期すれば戻る）
+        const latest = (await findGoogleDriveBackupFile(token)).file;
+        if (!latest || isSameDriveFileVersion(existingFile, latest)) break;
+        if (round >= GDRIVE_MAX_SYNC_ROUNDS) {
+          throw new Error('ほかの端末が同時に同期しているため、クラウドへの保存を見送りました。少し待ってから、もう一度同期してください');
+        }
+        existingFile = latest;
       }
 
       // 4. 合算された完全な最新データをクラウドへ上書き保存 (PATCH)
@@ -190,7 +244,8 @@ async function syncWithGoogleDrive({ interactive = false, silent = false } = {})
       if (!patchRes.ok) throw new Error(`クラウドへの保存に失敗しました (${patchRes.status})`);
       const savedFile = await patchRes.json();
       if (savedFile.modifiedTime) {
-        localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime);
+        // クラウドへの保存は済んでいる。この控えが書けなくても、同期を失敗にしない
+        try { localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime); } catch (e) {}
       }
     } else {
       // 初回：クラウドにファイルが無いので新規作成 (POST)
@@ -222,7 +277,7 @@ async function syncWithGoogleDrive({ interactive = false, silent = false } = {})
       if (!postRes.ok) throw new Error(`クラウドへの新規保存に失敗しました (${postRes.status})`);
       const savedFile = await postRes.json();
       if (savedFile.modifiedTime) {
-        localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime);
+        try { localStorage.setItem(GDRIVE_LAST_MOD_KEY, savedFile.modifiedTime); } catch (e) {}
       }
     }
 
@@ -257,7 +312,7 @@ async function loadFromGoogleDrive({ interactive = false } = {}) {
   }
   showToast('☁️ ドライブから記録を取得中...');
   try {
-    const file = await findGoogleDriveBackupFile(token);
+    const { file } = await findGoogleDriveBackupFile(token);
     if (!file) {
       showToast('Google ドライブ内にバックアップが見つかりませんでした');
       return null;

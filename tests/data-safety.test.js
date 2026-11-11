@@ -1,9 +1,10 @@
 // 学習記録が消える・巻き戻る経路のテスト（2026-11-10 の調査で作成）。
-// 実行: NODE_PATH=$(npm root -g) node tests/data-loss-repro.test.js   （引数に 1 や 3b を付けると、その番号で始まるものだけ）
+// 実行: NODE_PATH=$(npm root -g) node tests/data-safety.test.js   （引数に 1 や 3b を付けると、その番号で始まるものだけ）
 //
 // 各シナリオは「記録が消える・巻き戻る不具合が再現するか」を調べ、「再現できた／再現できない」と根拠（観測した値）を出力する。
-// 直した経路は「再現できない」でなければ失敗（終了コード 1）。まだ直していない経路（{ open: true } を付けたもの）は、
-// 再現しても失敗にしない。直したら { open: true } を外す。
+// 「再現できない」でなければ失敗（終了コード 1）。調査中でまだ直していない経路を足すときは { open: true } を付けると、
+// 再現しても失敗にしない（直したら外す）。
+// 番号: 1 複数タブ / 2 Drive 同期の重なり / 3 容量不足のときの巻き戻し / 4 端末の時計のずれ / 5 そのほか
 //
 // 前提: マージの規則（u の新しい方・より進んでいる方・合算しない）は意図した仕様として扱う。
 // Google ドライブは本物に通信せず、Node 側の偽物（makeDrive）に差し替える。
@@ -55,14 +56,24 @@ async function newDevice({ storage = {}, time = null } = {}) {
 }
 
 // 偽の Google ドライブ。ファイルは 1 つだけで、PATCH は無条件に上書きする（本物の PATCH も、条件を付けなければ同じ）
+// modified: ファイルの更新時刻（Google 側の時計）。serverNow: 応答の Date ヘッダーに入れる Google 側の「今」。どちらも無ければ付けない。
+// gate: { label, at } を入れると、その端末の at 回目のファイル検索を、だれかの PATCH が済むまで待たせる
 function makeDrive(initialText = '') {
-  const d = { text: initialText, log: [], holdGetsUntil: 0, waiting: [] };
+  const d = { text: initialText, log: [], holdGetsUntil: 0, waiting: [], version: 1, modified: null, serverNow: null, finds: {}, gate: null, gateWaiters: [] };
   d.handle = async (label, method, url, body) => {
-    if (url.includes('spaces=appDataFolder')) return { status: 200, body: JSON.stringify({ files: [{ id: 'f1' }] }) };
+    const date = d.serverNow === null ? null : new Date(d.serverNow).toUTCString();
+    if (url.includes('spaces=appDataFolder')) {
+      d.finds[label] = (d.finds[label] || 0) + 1;
+      if (d.gate && d.gate.label === label && d.finds[label] === d.gate.at) await new Promise(resolve => d.gateWaiters.push(resolve));
+      const file = { id: 'f1', version: String(d.version), ...(d.modified === null ? {} : { modifiedTime: new Date(d.modified).toISOString() }) };
+      return { status: 200, date, body: JSON.stringify({ files: [file] }) };
+    }
     if (method === 'PATCH') {
       d.log.push(`${label}: PATCH`);
       d.text = body;
-      return { status: 200, body: JSON.stringify({ modifiedTime: 't' }) };
+      d.version++;
+      d.gate = null; d.gateWaiters.forEach(r => r()); d.gateWaiters = [];
+      return { status: 200, date, body: JSON.stringify({ modifiedTime: 't' }) };
     }
     if (url.includes('alt=media')) {
       const snapshot = d.text; // 取得した時点の中身
@@ -90,7 +101,7 @@ async function linkDrive(page, label, drive) {
       const u = String(url);
       if (!u.includes('googleapis.com')) return realFetch(url, opt);
       const r = await window.__drive(opt.method || 'GET', u, opt.body || null);
-      return new Response(r.body, { status: r.status });
+      return new Response(r.body, { status: r.status, headers: r.date ? { Date: r.date } : {} });
     };
     localStorage.setItem(GDRIVE_LINKED_KEY, '1');
     gdriveAccessToken = 'fake';
@@ -282,7 +293,7 @@ scenario('1f', '別タブの保存を受け取ると、止めているポモド�
 
 // ==================== 仮説2: Drive 同期の 取得→マージ→PATCH の競合 ====================
 
-scenario('2a', '2 台が同じ中身を取得してから保存すると、先に保存した端末の記録がクラウドから消える', async () => {
+scenario('2a', '2 台が同じ中身を取得したあと、片方が先に保存すると、あとから保存した端末が先の端末の記録をクラウドから消す', async () => {
   const drive = makeDrive('');
   const devA = await newDevice();
   const devB = await newDevice();
@@ -295,7 +306,9 @@ scenario('2a', '2 台が同じ中身を取得してから保存すると、先�
     const keyA = await answerWord(a, 0, false);
     const keyB = await answerWord(b, 1, false);
     drive.log.length = 0;
+    drive.finds = {};
     drive.holdGetsUntil = 2; // 両方の取得がそろってから返す
+    drive.gate = { label: 'B', at: 2 }; // B の「保存前の確認」は、A の保存が済んでから返す
     const [ra, rb] = await Promise.all([sync(a), sync(b)]);
     const cloud = JSON.parse(drive.text).data.wordStats;
     const order = drive.log.join(' → ');
@@ -313,7 +326,7 @@ scenario('2a', '2 台が同じ中身を取得してから保存すると、先�
       ],
     };
   } finally { await devA.close(); await devB.close(); }
-}, { open: true });
+});
 
 scenario('2b', '同じ端末の別タブで解いた記録が、もう一方のタブの同期で保存領域から消える', async () => {
   const drive = makeDrive('');
@@ -501,6 +514,7 @@ async function graduateThenWrong(clockAheadOfA) {
       return state.weakDeleted[`w:e2j:${w.w}`];
     });
     drive.text = await a.evaluate(() => JSON.stringify(buildBackup({ forDrive: true })));
+    drive.modified = T; // A が保存した、実際の時刻
     const b = await devB.openTab();
     await linkDrive(b, 'B', drive);
     const word = await b.evaluate(() => { recordWeak(RAW_WORDS[0], false); return RAW_WORDS[0].w; });
@@ -509,7 +523,7 @@ async function graduateThenWrong(clockAheadOfA) {
     const r = await sync(b);
     const kept = await b.evaluate(w => w in state.weakByMode.e2j && w in JSON.parse(localStorage.getItem('toeic_weak_words_by_mode')).e2j, word);
     const cloudHas = word in JSON.parse(drive.text).data.weakWords.e2j;
-    return { tomb, uB, ok: r.ok, kept, cloudHas };
+    return { tomb, uB, ok: r.ok, msg: r.msg, kept, cloudHas };
   } finally { await devA.close(); await devB.close(); }
 }
 
@@ -518,14 +532,14 @@ scenario('4a', '時計が進んだ端末の「克服」が、そのあとに別�
   const skewed = await graduateThenWrong(2 * DAY);
   const fmt = ms => new Date(ms).toISOString();
   return {
-    verdict: control.kept && !skewed.kept ? YES : NO,
+    verdict: control.ok && control.kept && skewed.kept ? NO : YES,
     evidence: [
-      `時計が合っているとき: 削除 ${fmt(control.tomb)} < 間違い ${fmt(control.uB)} → 同期後もBの苦手に残る: ${control.kept}`,
-      `Aの時計が2日進んでいるとき: 削除 ${fmt(skewed.tomb)}（実際は間違いより前）→ 同期後もBの苦手に残る: ${skewed.kept}、クラウドに残る: ${skewed.cloudHas}`,
-      '読み込み時に未来の時刻を「今」に直しているが、「今」は同期した時刻なので、同期より前の回答すべてより新しい扱いになる',
+      `時計が合っているとき: 削除 ${fmt(control.tomb)} < 間違い ${fmt(control.uB)} → 同期 成功=${control.ok}、Bの苦手に残る: ${control.kept}`,
+      `Aの時計が2日進んでいるとき: 削除 ${fmt(skewed.tomb)}（実際は間違いより前）→ 同期 成功=${skewed.ok}、Bの苦手に残る: ${skewed.kept}`,
+      `表示: ${skewed.msg}`,
     ],
   };
-}, { open: true });
+});
 
 // 端末Bが苦手を 1 段階進め（実際の時刻で 1 時間前）、そのあと端末Aが同じ単語を間違える。Aが同期したあと、Aの記録はどちらか
 async function progressThenWrong(clockOffsetOfA) {
@@ -540,13 +554,14 @@ async function progressThenWrong(clockOffsetOfA) {
       recordWeak(w, true); // 1 回目の正解 → streak 1、復習日は明日
     });
     drive.text = await b.evaluate(() => JSON.stringify(buildBackup({ forDrive: true })));
+    drive.modified = T - HOUR; // B が保存した、実際の時刻
     const a = await devA.openTab();
     await linkDrive(a, 'A', drive);
     const word = await a.evaluate(() => { recordWeak(RAW_WORDS[0], false); return RAW_WORDS[0].w; });
     await a.clock.setFixedTime(new Date(T + clockOffsetOfA + MIN));
     const r = await sync(a);
     const entry = await a.evaluate(w => JSON.parse(localStorage.getItem('toeic_weak_words_by_mode')).e2j[w], word);
-    return { ok: r.ok, streak: entry && entry.streak, dueNow: await a.evaluate(w => isDue(state.weakByMode.e2j[w]), word) };
+    return { ok: r.ok, msg: r.msg, streak: entry && entry.streak, dueNow: await a.evaluate(w => isDue(state.weakByMode.e2j[w]), word) };
   } finally { await devA.close(); await devB.close(); }
 }
 
@@ -554,13 +569,130 @@ scenario('4b', '時計が遅れた端末で間違えた記録が、別の端末�
   const control = await progressThenWrong(0);
   const skewed = await progressThenWrong(-2 * DAY);
   return {
-    verdict: control.streak === 0 && skewed.streak !== 0 ? YES : NO,
+    verdict: control.ok && control.streak === 0 && skewed.streak === 0 ? NO : YES,
     evidence: [
-      `時計が合っているとき: 同期後のAの記録は streak ${control.streak}・要復習 ${control.dueNow}（今の間違いが残る）`,
-      `Aの時計が2日遅れているとき: 同期後のAの記録は streak ${skewed.streak}・要復習 ${skewed.dueNow}（1時間前のBの記録が「新しい」と判定され、今の間違いが消える）`,
+      `時計が合っているとき: 同期 成功=${control.ok}、Aの記録は streak ${control.streak}・要復習 ${control.dueNow}（今の間違いが残る）`,
+      `Aの時計が2日遅れているとき: 同期 成功=${skewed.ok}、Aの記録は streak ${skewed.streak}・要復習 ${skewed.dueNow}`,
+      `表示: ${skewed.msg}`,
     ],
   };
-}, { open: true });
+});
+
+scenario('4c', '時計が進んだ端末が同期すると、自分の古い記録を「新しい」としてクラウドに上書きする', async () => {
+  const drive = makeDrive('');
+  const devB = await newDevice({ time: T });
+  const devA = await newDevice({ time: T + 2 * DAY });
+  try {
+    // 端末A（時計が2日進み）: 単語を間違えた記録がある（streak 0）
+    const a = await devA.openTab();
+    await linkDrive(a, 'A', drive);
+    const word = await a.evaluate(() => { recordWeak(RAW_WORDS[0], false); return RAW_WORDS[0].w; });
+    // 端末B（正しい時計）: そのあとに同じ単語を 1 段階進めて、クラウドに保存した
+    const b = await devB.openTab();
+    await b.evaluate(() => {
+      const w = RAW_WORDS[0];
+      state.weakByMode.e2j[w.w] = { streak: 0, added: 1, due: 1 };
+      recordWeak(w, true);
+    });
+    drive.text = await b.evaluate(() => JSON.stringify(buildBackup({ forDrive: true })));
+    drive.modified = T;
+    drive.serverNow = T + MIN; // Google 側の「今」（応答の Date ヘッダー）
+    const cloudBefore = drive.text;
+    const r = await sync(a);
+    const cloudStreak = JSON.parse(drive.text).data.weakWords.e2j[word].streak;
+    return {
+      verdict: !r.ok && drive.text === cloudBefore ? NO : YES,
+      evidence: [`同期 成功=${r.ok}`, `表示: ${r.msg}`, `クラウドの記録は変わっていない: ${drive.text === cloudBefore}（Bの進んだ記録 streak ${cloudStreak}）`],
+    };
+  } finally { await devA.close(); await devB.close(); }
+});
+
+// ==================== そのほかの経路 ====================
+
+scenario('5a', '壊れて読めない記録が、次の回答（日別記録は起動時）で跡形なく上書きされる', async () => {
+  const dev = await newDevice({ storage: { toeic_word_stats: '{"e2j:keep":{"a":3,"c":2', toeic_daily_activity_v1: '{"days":{"2026-10-01":' } });
+  try {
+    const page = await dev.openTab();
+    await answerWord(page, 0, false);
+    const r = await page.evaluate(() => ({
+      stats: localStorage.getItem('toeic_word_stats'),
+      statsKept: localStorage.getItem('toeic_word_stats.broken'),
+      activityKept: localStorage.getItem('toeic_daily_activity_v1.broken'),
+    }));
+    const ok = r.statsKept === '{"e2j:keep":{"a":3,"c":2' && r.activityKept === '{"days":{"2026-10-01":';
+    return {
+      verdict: ok ? NO : YES,
+      evidence: [`回答のあとの成績: ${r.stats}`, `壊れていた成績の元の文字列が残っている: ${r.statsKept !== null}`, `壊れていた日別記録の元の文字列が残っている: ${r.activityKept !== null}`],
+    };
+  } finally { await dev.close(); }
+});
+
+scenario('5b', 'クラウドへの保存は成功したのに、そのあとの端末内の控えが書けないだけで「同期失敗」と表示される', async () => {
+  const drive = makeDrive('');
+  const dev = await newDevice();
+  try {
+    const page = await dev.openTab();
+    await linkDrive(page, 'A', drive);
+    const key = await answerWord(page, 0, false);
+    await page.evaluate(() => {
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (k === GDRIVE_LAST_MOD_KEY) throw new DOMException('quota', 'QuotaExceededError');
+        return orig.call(this, k, v);
+      };
+    });
+    const r = await sync(page);
+    const inCloud = drive.text !== '' && key in JSON.parse(drive.text).data.wordStats;
+    return { verdict: inCloud && r.ok ? NO : YES, evidence: [`クラウドに保存されている: ${inCloud}`, `表示: 成功=${r.ok} / ${r.msg}`] };
+  } finally { await dev.close(); }
+});
+
+scenario('5c', '保存の失敗が一度あると、直ったあとも別タブの保存を受け取らず、次の失敗も知らせない', async () => {
+  const dev = await newDevice();
+  try {
+    const tabA = await dev.openTab();
+    const tabB = await dev.openTab();
+    await tabB.evaluate(() => {
+      window.__toasts = [];
+      new MutationObserver(list => list.forEach(m => m.addedNodes.forEach(n => {
+        if (n.classList && n.classList.contains('toast') && /保存できませんでした/.test(n.textContent)) window.__toasts.push(n.textContent);
+      }))).observe(document.getElementById('app'), { childList: true, subtree: true });
+      window.__realSetItem = Storage.prototype.setItem;
+      window.__failWrites = on => { Storage.prototype.setItem = on ? function () { throw new DOMException('quota', 'QuotaExceededError'); } : window.__realSetItem; };
+      window.__failWrites(true);
+    });
+    await answerWord(tabB, 1, false); // 失敗（1 回目のお知らせ）
+    await answerWord(tabB, 2, false); // 失敗が続く（お知らせは増えない）
+    const toastsDuring = await tabB.evaluate(() => window.__toasts.length);
+    await tabB.evaluate(() => window.__failWrites(false));
+    await answerWord(tabB, 3, false); // 直った。メモリにあった分もまとめて保存される
+    const keyA = await answerWord(tabA, 0, false);
+    await sleep(400);
+    const bSeesA = await tabB.evaluate(k => k in state.wordStats, keyA);
+    await tabB.evaluate(() => window.__failWrites(true));
+    await answerWord(tabB, 4, false); // また失敗（2 回目のお知らせ）
+    const toastsAfter = await tabB.evaluate(() => window.__toasts.length);
+    return {
+      verdict: toastsDuring === 1 && bSeesA && toastsAfter === 2 ? NO : YES,
+      evidence: [`失敗が続いている間のお知らせ: ${toastsDuring} 回（1 回が正しい）`, `直ったあと、タブAの回答がタブBのメモリに入る: ${bSeesA}`, `もう一度失敗したときまでのお知らせ: ${toastsAfter} 回（2 回が正しい）`],
+    };
+  } finally { await dev.close(); }
+});
+
+scenario('5d', '書き出したバックアップを書き換えると、メモリの学習記録まで変わる', async () => {
+  const dev = await newDevice();
+  try {
+    const page = await dev.openTab();
+    await answerWord(page, 0, false);
+    const r = await page.evaluate(() => {
+      const b = buildBackup({ forDrive: true });
+      b.data.wordStats['e2j:__leak__'] = { a: 1, c: 1 };
+      b.data.weakWords.e2j = {};
+      return { leaked: 'e2j:__leak__' in state.wordStats, weak: Object.keys(state.weakByMode.e2j).length };
+    });
+    return { verdict: !r.leaked && r.weak === 1 ? NO : YES, evidence: [`書き換えがメモリの成績に入った: ${r.leaked}`, `メモリの苦手（e2j）: ${r.weak} 語（1 語のままなら正しい）`] };
+  } finally { await dev.close(); }
+});
 
 // ==================== 実行 ====================
 

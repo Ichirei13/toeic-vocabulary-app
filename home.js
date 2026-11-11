@@ -116,9 +116,7 @@ function loadDailyActivity() {
     }
   } catch (e) {}
   const initial = { days };
-  try {
-    writeStorage(DAILY_ACTIVITY_KEY, JSON.stringify(initial));
-  } catch (e) { reportSaveFailure(DAILY_ACTIVITY_KEY); }
+  saveJSON(DAILY_ACTIVITY_KEY, initial);
   return initial;
 }
 
@@ -187,10 +185,9 @@ function setDailyGoal(goal) {
   }
 }
 
+// saveJSON を通す（保存できた・できなかったの両方が受け手に伝わり、失敗が直ったことも分かる）
 function saveDailyActivity() {
-  try {
-    writeStorage(DAILY_ACTIVITY_KEY, JSON.stringify(dailyActivity));
-  } catch (e) { reportSaveFailure(DAILY_ACTIVITY_KEY); }
+  saveJSON(DAILY_ACTIVITY_KEY, dailyActivity);
 }
 
 function recordAnswerPaceAndActivity(kind, isCorrect) {
@@ -589,9 +586,7 @@ function saveBookSessionSnapshot() {
       answered: state.answeredCount,
     };
   }
-  try {
-    writeStorage(BOOK_SESSIONS_KEY, JSON.stringify(bookSessions));
-  } catch (e) { reportSaveFailure(BOOK_SESSIONS_KEY); }
+  saveJSON(BOOK_SESSIONS_KEY, bookSessions);
 }
 
 // 保存した続きを戻せたら true。条件（sig）が変わっていたり、問題が見つからなかったら false（settings.js の restoreSession と同じ判定）
