@@ -436,3 +436,36 @@ test('visibleMask: forceShow のノードは LOD に関係なく残す。本の�
   assert.strictEqual(far[4], 0);
   assert.strictEqual(F.visibleMask(g, m, { lod: 0, forceShow: force, book: 'kin' })[10], 0);
 });
+
+const on = mask => [...mask].map((v, i) => (v ? i : -1)).filter(i => i >= 0);
+
+test('focusSet: 問題 → 自分・概念・ひっかけ・ルール・章と、渡された近い問題', () => {
+  const g = makeFixture();
+  const ix = F.buildIndex(g);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 3)), [1, 2, 3, 12]);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 11, [4, 10])), [4, 9, 10, 11, 14, 15]);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 7)), [5, 7], 'つながりのない問題は自分と章だけ');
+});
+
+test('focusSet: 概念・ひっかけ → 自分・配下の問題・その章', () => {
+  const g = makeFixture();
+  const ix = F.buildIndex(g);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 14)), [9, 10, 11, 14]);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 15)), [1, 4, 9, 11, 15]);
+});
+
+test('focusSet: ルール・章・本 → 自分・配下の問題・それらの概念とひっかけ', () => {
+  const g = makeFixture();
+  const ix = F.buildIndex(g);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 2)), [2, 3, 4, 12, 15]);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 9)), [9, 10, 11, 12, 14, 15]);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 0)), [0, 3, 4, 6, 7, 12, 13, 15]);
+});
+
+test('focusSet: 範囲外の添字・範囲外の近い問題でも落ちず、何も立てない', () => {
+  const g = makeFixture();
+  const ix = F.buildIndex(g);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, -1)), []);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 99)), []);
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 3, [99, -1, 4])), [1, 2, 3, 4, 12]);
+});

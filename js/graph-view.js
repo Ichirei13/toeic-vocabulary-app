@@ -56,6 +56,11 @@
   const BUNDLE_WIDTHS = [0.8, 1.6, 2.6, 3.8]; // 束の太さ: 苦手 0 / 1〜2 / 3〜5 / 6 以上
   const SIZE_BOOST_STEP = 0.25, SIZE_BOOST_MAX = 1.2; // 大きさ = 1 + min(上限, 段 × √苦手の数)
   const RED_VARS = ['--graph-weak-1', '--graph-weak-2', '--graph-weak']; // 赤の濃さ（苦手の割合 1 割未満 / 3 割未満 / それ以上）
+  const FOCUS_NEAR = 30;         // 問題を選んだときに一緒に浮かび上がらせる、近い問題の数
+  const DIM_NODE = 0.16;         // 選択中、つながらないノードの濃さ
+  const DIM_EDGE = 0.08;         // 選択中、つながらない線の濃さ
+  const JUMP_MS = 300;           // シートの問題をタップしたときの移動の長さ
+  const JUMP_MIN_REL = 2.4;      // 移動先の倍率の下限（全体表示に対する比。ルールまで見える倍率）
   const STATUS_LABEL = { weak: '苦手', wrong: '誤答あり', unseen: '未解答', correct: '正解' };
 
   // テスト用の観測値。frames はマウントごとに 0 から数える。listeners は今登録中のリスナー・オブザーバーの数
@@ -63,6 +68,7 @@
     frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0,
     drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, book: 'all', weakOnly: false, lastTap: -1,
     settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
+    focusNode: -1, focusCount: 0, animating: false,
   };
   let inst = null;
 
@@ -80,7 +86,7 @@
 
   function createInstance(container, deps) {
     const S = root.StudyCore;
-    if (!S || typeof S.computeMastery !== 'function' || typeof S.createCamera !== 'function' || typeof S.buildDetail !== 'function' || typeof S.buildIndex !== 'function') {
+    if (!S || typeof S.computeMastery !== 'function' || typeof S.createCamera !== 'function' || typeof S.buildDetail !== 'function' || typeof S.buildIndex !== 'function' || typeof S.focusSet !== 'function') {
       throw new Error('GraphView: StudyCore (src/mastery.js, graph-filter.js, graph-geometry.js, graph-detail.js) が読み込まれていない');
     }
     if (!container || !deps || !deps.graph) throw new Error('GraphView.mount: container と deps.graph が必要');
@@ -127,6 +133,8 @@
 
     // 索引と束ねた線（マウント時に 1 回）。bundles[0] = 章の単位（遠景）、[1] = ルールの単位（中景）
     const index = S.buildIndex(graph);
+    const qidNode = new Map(); // 問題 id → ノード添字（シートの一覧から移動するため）
+    for (let o = 0; o < index.nq; o++) if (index.qNode[o] >= 0) qidNode.set(graph.qids[o], index.qNode[o]);
     const bundles = [S.buildBundles(graph, index, 'chapter'), S.buildBundles(graph, index, 'rule')];
     let bundleWeakCnt = [new Int32Array(bundles[0].count), new Int32Array(bundles[1].count)];
     const sizeBoost = new Float32Array(n).fill(1); // 苦手の数に応じた大きさの倍率
@@ -152,7 +160,9 @@
     let colors = null;
     let sheetIndex = -1;
     let settle = null;          // 力学の実行中だけ { sim, nodes, left, t0, maxFrame, quiet }
-    let backdropArmed = false; // 開いた後に覆いで pointerdown があったか
+    let focus = null, focusNode = -1; // 選択中: 浮かび上がらせるノード（Uint8Array）と、選択したノード
+    let anim = null;                  // 移動のアニメーション中だけ { from, to, t0 }
+    let sheetWide = false;            // シートを広げているか（既定は半分の高さ）
     const pointers = new Map(); // pointerId -> { x, y }
     let gesture = null;         // { moved, pinched, lastDist, lastMid }
     const subs = [];
@@ -188,10 +198,10 @@
           '<button type="button" data-zoom="relayout" aria-label="配置し直す">再配置</button>' +
         '</div>' +
       '</div>' +
-      '<div class="graph-sheet-backdrop" hidden></div>' +
-      '<section class="graph-sheet" role="dialog" aria-modal="true" aria-labelledby="graph-sheet-title" tabindex="-1" hidden>' +
+      '<section class="graph-sheet" role="dialog" aria-modal="false" aria-labelledby="graph-sheet-title" tabindex="-1" hidden>' +
         '<header class="graph-sheet-head">' +
           '<div class="graph-sheet-titles"><span class="graph-sheet-kind"></span><h2 class="graph-sheet-title" id="graph-sheet-title"></h2></div>' +
+          '<button type="button" class="graph-sheet-expand" aria-pressed="false">広げる</button>' +
           '<button type="button" class="graph-sheet-close" aria-label="閉じる">×</button>' +
         '</header>' +
         '<div class="graph-sheet-body"></div>' +
@@ -204,11 +214,11 @@
     const stage = rootEl.querySelector('.graph-stage');
     const canvas = rootEl.querySelector('canvas');
     const zoomEl = rootEl.querySelector('.graph-zoom');
-    const backdrop = rootEl.querySelector('.graph-sheet-backdrop');
     const sheet = rootEl.querySelector('.graph-sheet');
     const sheetKind = sheet.querySelector('.graph-sheet-kind');
     const sheetTitle = sheet.querySelector('.graph-sheet-title');
     const sheetBody = sheet.querySelector('.graph-sheet-body');
+    const sheetExpand = sheet.querySelector('.graph-sheet-expand');
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('GraphView: canvas 2D コンテキストを取得できない');
 
@@ -243,7 +253,9 @@
           return;
         }
       }
+      if (anim) stepAnim();
       draw();
+      if (anim) requestDraw(); // 動き終わったら（anim = null）要求しない
     }
 
     // ---- 理解度と絞り込み ----
@@ -269,10 +281,10 @@
       }
     }
     function ensureMask(lod) {
-      const key = lod + '|' + book + '|' + (weakOnly ? 1 : 0) + '|' + masteryVer;
+      const key = lod + '|' + book + '|' + (weakOnly ? 1 : 0) + '|' + masteryVer + '|' + focusNode;
       if (key === maskKey) return;
       maskKey = key;
-      mask = S.visibleMask(graph, mastery, { book, weakOnly, lod, showWeakQuestions: true });
+      mask = S.visibleMask(graph, mastery, { book, weakOnly, lod, showWeakQuestions: true, forceShow: focus });
       for (let i = 0; i < n; i++) hitXs[i] = mask[i] ? xs[i] : NaN;
     }
     const relZoom = () => cam.scale / fitScale;
@@ -333,6 +345,7 @@
     }
     function startSettle() {
       stopSettle();
+      stopAnim();
       resetPositions();
       debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
       const weakQ = new Uint8Array(n);
@@ -405,61 +418,82 @@
       // エッジ: 両端が絞り込みを通り（mask）、かつ少なくとも一端が画面内（余白つき）のときだけ描く。
       // 両端とも画面外で画面を横切るだけの長いエッジは描かない（間引きの規則。visibleIndices はノードだけを見るため）。
       // 種類ごとに 1 つの path にまとめ、1 回だけ stroke する。
+      // 線。選択中は、まず全部を薄く描き、そのあと浮かび上がらせる線を通常の濃さで重ねる
+      const lit = focus;
+      ctx.globalAlpha = lit ? DIM_EDGE : 1;
+      // 概念・ひっかけの線: 遠景・中景は束ねた線。そのうえで、見えている苦手の問題の線は下のループが描く
+      const bundleCount = lod < 2 ? drawBundles(lod, s, ox, oy, lit ? DIM_EDGE : 1) : 0;
       let edgeCount = 0;
       const edgeStyle = [
         [colors.edge, 1, null],
         [colors.conceptEdge, 1, [1.5, 3]],
         [colors.trapLine, 1.2, [5, 4]],
       ];
-      // 概念・ひっかけの線: 遠景・中景は束ねた線。そのうえで、見えている苦手の問題の線は下のループが描く
-      const bundleCount = lod < 2 ? drawBundles(lod, s, ox, oy) : 0;
-      for (let t = 0; t < 3; t++) {
-        const list = edgesByType[t];
-        ctx.beginPath();
-        let any = false;
-        for (let k = 0; k < list.length; k += 2) {
-          const a = list[k], b = list[k + 1];
-          if (!mask[a] || !mask[b] || !(inView[a] || inView[b])) continue;
-          ctx.moveTo(xs[a] * s + ox, ys[a] * s + oy);
-          ctx.lineTo(xs[b] * s + ox, ys[b] * s + oy);
-          any = true;
-          edgeCount++;
+      for (let pass = 0; pass < (lit ? 2 : 1); pass++) {
+        // pass 0 = 全部（選択中は薄く）、pass 1 = 両端が浮かび上がっている線だけ
+        for (let t = 0; t < 3; t++) {
+          const list = edgesByType[t];
+          ctx.beginPath();
+          let any = false;
+          for (let k = 0; k < list.length; k += 2) {
+            const a = list[k], b = list[k + 1];
+            if (!mask[a] || !mask[b] || !(inView[a] || inView[b])) continue;
+            if (pass === 1 && !(lit[a] && lit[b])) continue;
+            ctx.moveTo(xs[a] * s + ox, ys[a] * s + oy);
+            ctx.lineTo(xs[b] * s + ox, ys[b] * s + oy);
+            any = true;
+            if (pass === 0) edgeCount++;
+          }
+          if (!any) continue;
+          ctx.globalAlpha = pass === 0 && lit ? DIM_EDGE : 1;
+          ctx.strokeStyle = edgeStyle[t][0];
+          ctx.lineWidth = pass === 1 ? 1.8 : edgeStyle[t][1];
+          ctx.setLineDash(edgeStyle[t][2] || []);
+          ctx.stroke();
         }
-        if (!any) continue;
-        ctx.strokeStyle = edgeStyle[t][0];
-        ctx.lineWidth = edgeStyle[t][1];
-        ctx.setLineDash(edgeStyle[t][2] || []);
-        ctx.stroke();
       }
+      ctx.globalAlpha = 1;
       ctx.setLineDash([]);
 
       // ノード: 状態（色）ごとに 1 つの path で塗る。縁は背景色で細く描いて重なりを分ける
       const st = mastery.state;
       ctx.lineWidth = 1;
       ctx.strokeStyle = colors.bg;
-      for (let c = 0; c < 9; c++) {
-        ctx.beginPath();
-        let any = false;
-        for (let j = 0; j < m; j++) {
-          const i = drawList[j];
-          if (fillClass[i] !== c) continue;
-          ctx.moveTo(sxs[i] + rs[i], sys[i]);
-          ctx.arc(sxs[i], sys[i], rs[i], 0, Math.PI * 2);
-          any = true;
+      for (let pass = 0; pass < (lit ? 2 : 1); pass++) {
+        // pass 0 = 選択中はつながらないノード（薄く）、選択していなければ全部。pass 1 = 浮かび上がらせるノード
+        ctx.globalAlpha = lit && pass === 0 ? DIM_NODE : 1;
+        for (let c = 0; c < 9; c++) {
+          ctx.beginPath();
+          let any = false;
+          for (let j = 0; j < m; j++) {
+            const i = drawList[j];
+            if (fillClass[i] !== c) continue;
+            if (lit && (lit[i] ? pass === 0 : pass === 1)) continue;
+            ctx.moveTo(sxs[i] + rs[i], sys[i]);
+            ctx.arc(sxs[i], sys[i], rs[i], 0, Math.PI * 2);
+            any = true;
+          }
+          if (!any) continue;
+          ctx.fillStyle = c < 6 ? colors.states[c] : colors.reds[c - 6];
+          ctx.fill();
+          ctx.stroke();
         }
-        if (!any) continue;
-        ctx.fillStyle = c < 6 ? colors.states[c] : colors.reds[c - 6];
-        ctx.fill();
-        ctx.stroke();
       }
+      ctx.globalAlpha = 1;
       // 種類の印: 概念 = 二重リング（外側にもう 1 本）、Trap = 破線のリング、要復習 = 赤い外枠
-      ringPath(m, i => graph.kind[i] === kConcept, 2.5);
+      ringPath(m, i => (!lit || lit[i]) && graph.kind[i] === kConcept, 2.5);
       ctx.strokeStyle = colors.ring; ctx.lineWidth = 1.3; ctx.stroke();
-      ringPath(m, i => graph.kind[i] === kTrap, 2.5);
+      ringPath(m, i => (!lit || lit[i]) && graph.kind[i] === kTrap, 2.5);
       ctx.strokeStyle = colors.trapEdge; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2.5]); ctx.stroke();
       ctx.setLineDash([]);
-      ringPath(m, i => st[i] === 1, 1.6, i => graph.kind[i] === kConcept || graph.kind[i] === kTrap ? 5 : 0);
+      ringPath(m, i => (!lit || lit[i]) && st[i] === 1, 1.6, i => graph.kind[i] === kConcept || graph.kind[i] === kTrap ? 5 : 0);
       ctx.strokeStyle = colors.dueRing; ctx.lineWidth = 1.8; ctx.stroke();
+      // 選択したノードの外枠
+      if (lit && focusNode >= 0 && mask[focusNode] && inView[focusNode]) {
+        ctx.beginPath();
+        ctx.arc(sxs[focusNode], sys[focusNode], rs[focusNode] + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = colors.label; ctx.lineWidth = 2; ctx.stroke();
+      }
 
       const labels = drawLabels();
 
@@ -473,7 +507,7 @@
 
     const bundleClass = w => (w <= 0 ? 0 : w <= 2 ? 1 : w <= 5 ? 2 : 3);
     // 束ねた線を、太さ（苦手の数）と種類（概念 / ひっかけ）ごとに 1 つの path にまとめて描く。描いた本数を返す
-    function drawBundles(lod, s, ox, oy) {
+    function drawBundles(lod, s, ox, oy, alpha) {
       const B = bundles[lod], W = bundleWeakCnt[lod];
       let count = 0;
       for (let c = 0; c < 4; c++) {
@@ -492,7 +526,7 @@
           }
           if (!any) continue;
           ctx.strokeStyle = c === 0 ? (t === 1 ? colors.conceptEdge : colors.trapLine) : colors.weakEdge;
-          ctx.globalAlpha = c === 0 ? 0.5 : 1;
+          ctx.globalAlpha = (c === 0 ? 0.5 : 1) * alpha;
           ctx.lineWidth = BUNDLE_WIDTHS[c];
           ctx.setLineDash(t === 2 ? [5, 4] : []);
           ctx.stroke();
@@ -521,7 +555,7 @@
       let curFont = '';
       for (let j = 0; j < n && count < MAX_LABELS; j++) {
         const i = labelOrder[j];
-        if (!mask[i] || !inView[i]) continue;
+        if (!mask[i] || !inView[i] || (focus && !focus[i])) continue;
         const sx = sxs[i], sy = sys[i];
         if (sx < 0 || sx > width || sy < 0 || sy > height) continue;
         const lf = LABEL_FONT[kindName(i)] || LABEL_FONT.question;
@@ -592,6 +626,29 @@
       requestDraw();
     }
     function zoomBy(sx, sy, factor) { setCam(S.zoomAt(cam, sx, sy, factor, limits())); }
+    // シートの一覧から: その問題へ画面を動かし、選択を切り替える。シートに隠れない位置（上側の中央）に置く
+    function jumpTo(i) {
+      if (!(i >= 0 && i < n) || !cam || settle) return;
+      setSheetWide(false);
+      openSheet(i);
+      const sc = Math.max(cam.scale, fitScale * JUMP_MIN_REL);
+      const covered = sheet.hidden ? 0 : Math.min(height * 0.6, sheet.getBoundingClientRect().height);
+      const to = { x: width / 2 - xs[i] * sc, y: Math.max(60, (height - covered) / 2) - ys[i] * sc, scale: sc };
+      const mq = typeof root.matchMedia === 'function' ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      if (mq && mq.matches) { anim = null; debug.animating = false; setCam(to); return; }
+      anim = { from: cam, to, t0: performance.now() };
+      debug.animating = true;
+      interacted = true;
+      requestDraw();
+    }
+    function stepAnim() {
+      const u = Math.min(1, (performance.now() - anim.t0) / JUMP_MS);
+      const e = u * (2 - u); // だんだん遅くなる
+      const a = anim.from, b = anim.to;
+      cam = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e, scale: a.scale + (b.scale - a.scale) * e };
+      if (u >= 1) { anim = null; debug.animating = false; }
+    }
+    function stopAnim() { if (anim) { anim = null; debug.animating = false; } }
 
     // ---- 当たり判定 ----
     // 半径 = max(14 CSS px, いま描いている最大のノード半径) をワールド単位にしたもの。中心がいちばん近いノードを選ぶ。
@@ -606,6 +663,24 @@
     function localXY(e) {
       const r = canvas.getBoundingClientRect();
       return [e.clientX - r.left, e.clientY - r.top];
+    }
+
+    // ---- 選択（周辺を浮かび上がらせる） ----
+    function setFocus(i) {
+      const nearQ = graph.kind[i] === index.kQ && typeof S.nearestQuestions === 'function'
+        ? S.nearestQuestions(graph, index, i, FOCUS_NEAR) : null;
+      focus = S.focusSet(graph, index, i, nearQ);
+      focusNode = i;
+      let c = 0;
+      for (let k = 0; k < n; k++) c += focus[k];
+      debug.focusNode = i; debug.focusCount = c;
+      requestDraw();
+    }
+    function clearFocus() {
+      if (!focus) return;
+      focus = null; focusNode = -1;
+      debug.focusNode = -1; debug.focusCount = 0;
+      requestDraw();
     }
 
     // ---- 詳細シート ----
@@ -628,7 +703,8 @@
       const total = d.questions.length + (d.moreCount || 0);
       html += `<h3 class="graph-qs-head">問題（${esc(total)}）</h3><ul class="graph-qs">`;
       for (const q of d.questions) {
-        html += `<li class="graph-q graph-q-${esc(q.status)}"><span class="graph-q-status">${esc(STATUS_LABEL[q.status] || q.status)}</span>` +
+        const node = qidNode.has(q.qid) ? qidNode.get(q.qid) : -1;
+        html += `<li class="graph-q graph-q-${esc(q.status)}"${node >= 0 ? ` data-node="${node}" role="button" tabindex="0"` : ''}><span class="graph-q-status">${esc(STATUS_LABEL[q.status] || q.status)}</span>` +
           `<span class="graph-q-no">#${esc(q.qid)}</span><span class="graph-q-text">${q.text == null ? '' : esc(q.text)}</span></li>`;
       }
       html += '</ul>';
@@ -636,26 +712,33 @@
       sheetBody.innerHTML = html;
       return true;
     }
+    function setSheetWide(wide) {
+      sheetWide = !!wide;
+      sheet.classList.toggle('graph-sheet-wide', sheetWide);
+      sheetExpand.setAttribute('aria-pressed', String(sheetWide));
+      sheetExpand.textContent = sheetWide ? '縮める' : '広げる';
+    }
     function openSheet(i) {
       if (!renderSheet(i)) return;
       sheetIndex = i;
       debug.lastTap = i;
       sheetBody.scrollTop = 0;
-      backdropArmed = false;
-      backdrop.hidden = false;
       sheet.hidden = false;
+      setFocus(i);
       try { sheet.focus({ preventScroll: true }); } catch (e) { /* 古いブラウザ */ }
     }
     function closeSheet() {
       if (sheetIndex < 0 && sheet.hidden) return;
       sheetIndex = -1;
       sheet.hidden = true;
-      backdrop.hidden = true;
+      setSheetWide(false);
+      clearFocus();
     }
 
     // ---- 入力 ----
     function onPointerDown(e) {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
+      stopAnim();
       try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* 合成イベントなど、捕捉できないとき */ }
       const [x, y] = localXY(e);
       pointers.set(e.pointerId, { x, y });
@@ -712,6 +795,7 @@
     }
     function onWheel(e) {
       e.preventDefault();
+      stopAnim();
       let dy = e.deltaY;
       if (e.deltaMode === 1) dy *= 16;
       else if (e.deltaMode === 2) dy *= height || 800;
@@ -740,13 +824,23 @@
     function onZoomClick(e) {
       const b = e.target.closest('button[data-zoom]');
       if (!b || !cam) return;
+      stopAnim();
       if (b.dataset.zoom === 'relayout') { closeSheet(); startSettle(); return; }
       if (b.dataset.zoom === 'fit') { cam = S.createCamera(width, height, bounds); interacted = false; requestDraw(); }
       else zoomBy(width / 2, height / 2, b.dataset.zoom === 'in' ? 1.6 : 1 / 1.6);
     }
-    function onSheetClick(e) { if (e.target.closest('.graph-sheet-close')) closeSheet(); }
+    function onSheetClick(e) {
+      if (e.target.closest('.graph-sheet-close')) { closeSheet(); return; }
+      if (e.target.closest('.graph-sheet-expand')) { setSheetWide(!sheetWide); return; }
+      const li = e.target.closest('.graph-q[data-node]');
+      if (li) jumpTo(Number(li.dataset.node));
+    }
     function onKeyDown(e) {
-      if (e.key === 'Escape' && !sheet.hidden) { e.preventDefault(); closeSheet(); }
+      if (e.key === 'Escape' && !sheet.hidden) { e.preventDefault(); closeSheet(); return; }
+      if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.closest && sheet.contains(e.target)) {
+        const li = e.target.closest('.graph-q[data-node]');
+        if (li) { e.preventDefault(); jumpTo(Number(li.dataset.node)); }
+      }
     }
     function onVisibility() {
       if (document.hidden) {
@@ -764,10 +858,6 @@
     on(canvas, 'wheel', onWheel, { passive: false });
     on(filterEl, 'click', onFilterClick);
     on(zoomEl, 'click', onZoomClick);
-    // 覆いは「開いた後に覆いの上で押された」ときだけ閉じる。シートを開いたタップの後に iOS が送る互換の click
-    // （覆いの上に届くことがある）では閉じない。タイマーを使わずに済む。
-    on(backdrop, 'pointerdown', () => { backdropArmed = true; });
-    on(backdrop, 'click', () => { const armed = backdropArmed; backdropArmed = false; if (armed) closeSheet(); });
     on(sheet, 'click', onSheetClick);
     on(document, 'keydown', onKeyDown);
     on(document, 'visibilitychange', onVisibility);
@@ -808,6 +898,7 @@
         if (!alive) return;
         alive = false;
         stopSettle();
+        stopAnim();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = 0;
         debug.pending = false;
@@ -830,6 +921,7 @@
       },
       indexOf: id => graph.id.indexOf(id),
       isVisible(i) { if (!cam) return false; ensureMask(currentLod()); return !!mask[i]; },
+      isFocused(i) { return !!(focus && focus[i]); },
       focus(id, rel) {
         if (!cam) return;
         const sc = clamp(fitScale * (rel > 0 ? rel : 1), fitScale * ZOOM_MIN_REL, fitScale * ZOOM_MAX_REL);
@@ -857,6 +949,7 @@
     if (inst) destroy();
     debug.frames = 0; debug.lastTap = -1; debug.lod = 0; debug.book = 'all'; debug.weakOnly = false;
     debug.settled = true; debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
+    debug.focusNode = -1; debug.focusCount = 0; debug.animating = false;
     inst = createInstance(container, deps);
   }
   function refresh() { if (inst) inst.refresh(); }
@@ -872,6 +965,7 @@
   debug.hitAt = (x, y) => (inst ? inst.hitAt(x, y) : -1);
   debug.indexOf = id => (inst ? inst.indexOf(id) : -1);
   debug.isVisible = i => (inst ? inst.isVisible(i) : false);
+  debug.isFocused = i => (inst ? inst.isFocused(i) : false);
   debug.focus = (id, rel) => { if (inst) inst.focus(id, rel); };
   debug.forceDraw = () => (inst ? inst.forceDraw() : 0);
   debug.radiusOf = i => (inst ? inst.radiusOf(i) : 0);

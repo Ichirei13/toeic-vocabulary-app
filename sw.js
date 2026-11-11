@@ -148,6 +148,7 @@ const ASSETS = [
   'src/graph-filter.js',
   'src/graph-geometry.js',
   'src/graph-detail.js',
+  'src/graph-near.js',
   'js/graph-view.js',
   'css/graph.css',
   'vendor/d3-dispatch.min.js',

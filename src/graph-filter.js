@@ -196,5 +196,33 @@
     return out;
   }
 
-  return { visibleMask, lodForScale, kindsAtLod, LOD_SCALES, buildIndex, buildBundles, bundleWeak };
+  // ノード i をタップしたときに浮かび上がらせる集合（1 のノードを通常の濃さで描き、ほかを薄くする）。
+  //   問題: 自分・概念・ひっかけ・ルール・章 ＋ extraQuestionNodes（近い問題。呼び出し側が渡す）
+  //   概念・ひっかけ: 自分・配下の問題・それらの章
+  //   ルール・章・本: 自分・配下の問題・それらの概念とひっかけ
+  function focusSet(graph, index, i, extraQuestionNodes) {
+    const f = new Uint8Array(index.n);
+    if (!(Number.isInteger(i) && i >= 0 && i < index.n)) return f;
+    f[i] = 1;
+    const k = graph.kind[i];
+    const addHubs = q => { for (let h = index.hubStart[q]; h < index.hubStart[q + 1]; h++) f[index.hubs[h]] = 1; };
+    if (k === index.kQ) {
+      addHubs(i);
+      if (index.ruleOf[i] !== -1) f[index.ruleOf[i]] = 1;
+      if (index.chapterOf[i] !== -1) f[index.chapterOf[i]] = 1;
+      if (extraQuestionNodes) for (const q of extraQuestionNodes) if (Number.isInteger(q) && q >= 0 && q < index.n) f[q] = 1;
+      return f;
+    }
+    const hub = k === index.kCon || k === index.kTrap;
+    for (let m = graph.memberStart[i]; m < graph.memberStart[i + 1]; m++) {
+      const q = index.qNode[graph.members[m]];
+      if (!(q >= 0)) continue;
+      f[q] = 1;
+      if (hub) { if (index.chapterOf[q] !== -1) f[index.chapterOf[q]] = 1; }
+      else addHubs(q);
+    }
+    return f;
+  }
+
+  return { visibleMask, lodForScale, kindsAtLod, LOD_SCALES, buildIndex, buildBundles, bundleWeak, focusSet };
 });

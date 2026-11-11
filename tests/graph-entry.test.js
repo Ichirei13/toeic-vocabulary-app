@@ -1,6 +1,6 @@
 // 文法グラフの入口（復習ページのカード・PC のサイドバーのタブ・#graph）と、グラフ用ファイルの遅延読み込みの検証。
 // 実行: NODE_PATH=$(npm root -g) node --test tests/graph-entry.test.js
-// グラフ用の 12 ファイルは起動時には読まず、グラフの画面を開いたときに home.js の loadGraphAssets() が差し込む。
+// グラフ用の 13 ファイルは起動時には読まず、グラフの画面を開いたときに home.js の loadGraphAssets() が差し込む。
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -24,6 +24,7 @@ const GRAPH_FILES = [
   'src/graph-filter.js',
   'src/graph-geometry.js',
   'src/graph-detail.js',
+  'src/graph-near.js',
   'js/graph-view.js',
   // 力学用（読めなくてもグラフは開く）。graph-view.js の後に差し込まれる
   'vendor/d3-dispatch.min.js',

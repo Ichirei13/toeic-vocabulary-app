@@ -23,6 +23,7 @@ ${extraHead}
 <script src="/src/graph-filter.js"></script>
 <script src="/src/graph-geometry.js"></script>
 <script src="/src/graph-detail.js"></script>
+<script src="/src/graph-near.js"></script>
 <script src="/vendor/d3-dispatch.min.js"></script>
 <script src="/vendor/d3-quadtree.min.js"></script>
 <script src="/vendor/d3-timer.min.js"></script>
@@ -471,7 +472,7 @@ test('ピンチ（2 本指の Pointer Events）でズームし、シートは開
   assert.equal(await sheetOpen(page), false);
 });
 
-test('ノードをタップするとシートが開く（概念は desc、Trap は advice、問題一覧）。Esc・外側タップ・閉じるボタンで閉じる', async t => {
+test('ノードをタップするとシートが開く（概念は desc、Trap は advice、問題一覧）。Esc・何もない場所のタップ・閉じるボタンで閉じる', async t => {
   const page = await open(t);
   await mountAndWait(page);
   const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
@@ -499,8 +500,9 @@ test('ノードをタップするとシートが開く（概念は desc、Trap �
   assert.equal(r.tap, ti);
   const advice = await page.evaluate(i => GRAMMAR_GRAPH.text[i].advice, ti);
   assert.ok(r.text.includes(advice.slice(0, 20)), 'Trap の advice が出ていない');
-  // 外側（背景の覆い）をタップすると閉じる
-  await page.mouse.click(187, 120);
+  // 外側（Canvas の何もない場所）をタップすると閉じる
+  const blank = await emptyPoint(page);
+  await page.mouse.click(blank[0], blank[1]);
   assert.equal(await sheetOpen(page), false);
   // 閉じるボタン
   await page.mouse.click(x, y);
@@ -999,17 +1001,124 @@ test('開いているシートのノードが refresh で無効になったら�
   assert.equal(await sheetOpen(page), false);
 });
 
-test('シートを開いた直後の互換 click（覆いの上で pointerdown がない click）では閉じない', async t => {
+test('シートを開いた直後の互換 click（pointer イベントのない click）では閉じない', async t => {
   const page = await open(t);
   await mountAndWait(page);
-  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
-  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), ci);
+  const [x, y] = await page.evaluate(() => GraphView._debug.screenOf(GRAMMAR_GRAPH.id.findIndex(s => s.startsWith('con:'))));
   await page.mouse.click(x, y);
-  await waitFor(page, () => { const s = document.querySelector('#host .graph-sheet'); return s && !s.hidden; });
-  await page.evaluate(() => document.querySelector('#host .graph-sheet-backdrop').dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 187, clientY: 120 })));
-  assert.equal(await sheetOpen(page), true, 'pointerdown なしの click で閉じた');
-  await page.mouse.click(187, 120); // 本当に覆いを押したら閉じる
+  assert.equal(await sheetOpen(page), true);
+  await page.evaluate(() => document.querySelector('#host canvas').dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 })));
+  assert.equal(await sheetOpen(page), true);
+});
+
+// Canvas の中で、何のノードにも帯にも当たらない点（hitAt が -1）
+const emptyPoint = page => page.evaluate(() => {
+  const c = document.querySelector('#host canvas').getBoundingClientRect();
+  for (let y = c.top + 120; y < c.bottom - 20; y += 10) for (let x = c.left + 4; x < c.right - 4; x += 10) if (GraphView._debug.hitAt(x, y) === -1) return [x, y];
+  return null;
+});
+const firstOf = (page, prefix) => page.evaluate(p => GRAMMAR_GRAPH.id.findIndex(s => s.startsWith(p)), prefix);
+async function tapNode(page, i) {
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), i);
+  await page.mouse.click(x, y);
+}
+
+test('周辺: 概念をタップすると、配下の問題が全体表示でも出て、ほかのノードは薄くなる。何もない場所のタップで戻る', async t => {
+  const page = await open(t, { viewport: { width: 1280, height: 800 } });
+  await mountAndWait(page);
+  const con = await firstOf(page, 'con:');
+  const before = await page.evaluate(() => GraphView._debug.drawnKinds[5]);
+  assert.equal(before, 0, '記録が空なら、全体表示に問題は出ない');
+  const f = await frames(page);
+  await tapNode(page, con);
+  await nextFrame(page, f);
+  const d = await page.evaluate(() => ({ node: GraphView._debug.focusNode, count: GraphView._debug.focusCount, questions: GraphView._debug.drawnKinds[5], lod: GraphView._debug.lod }));
+  assert.equal(d.node, con);
+  assert.equal(d.lod, 0);
+  assert.ok(d.questions > 0, '配下の問題が出ていない');
+  assert.ok(d.count > d.questions, '概念と章も含まれるはず');
+  // つながらない本のノードは、背景に近い色になる（薄い）
+  const other = await page.evaluate(con => {
+    const G = GRAMMAR_GRAPH, D = GraphView._debug;
+    for (let i = 0; i < G.id.length; i++) if (G.kinds[G.kind[i]] === 'book' && !D.isFocused(i)) return i;
+    return -1;
+  }, con);
+  assert.ok(other >= 0);
+  const [ox, oy] = await page.evaluate(i => GraphView._debug.screenOf(i), other);
+  const px = await page.evaluate(([x, y]) => window.__px(x, y), [ox, oy]);
+  const blank = await emptyPoint(page);
+  const bg = await page.evaluate(([x, y]) => window.__px(x, y), blank);
+  assert.ok(Math.abs(px[0] - bg[0]) < 40 && Math.abs(px[1] - bg[1]) < 40 && Math.abs(px[2] - bg[2]) < 40, `薄くなっていない: ${px} / 背景 ${bg}`);
+  // パンできる（覆いがない）
+  const cam0 = await page.evaluate(() => GraphView._debug.camera());
+  await page.mouse.move(blank[0], blank[1]); await page.mouse.down(); await page.mouse.move(blank[0] + 60, blank[1] + 40, { steps: 4 }); await page.mouse.up();
+  const cam1 = await page.evaluate(() => GraphView._debug.camera());
+  assert.notEqual(cam1.x, cam0.x, 'シートを開いたままパンできない');
+  assert.equal(await sheetOpen(page), true, 'ドラッグでシートが閉じた');
+  // 何もない場所のタップで閉じて、元に戻る
+  const blank2 = await emptyPoint(page);
+  await page.mouse.click(blank2[0], blank2[1]);
   assert.equal(await sheetOpen(page), false);
+  assert.equal(await page.evaluate(() => GraphView._debug.focusNode), -1);
+});
+
+test('周辺: 問題をタップすると、近い問題（最大 30 問）も浮かび上がる', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const pick = await pickLinkedQuestion(page);
+  let f = await frames(page);
+  await page.evaluate(q => GraphView._debug.focus(q, 9), pick.q);
+  await nextFrame(page, f);
+  f = await frames(page);
+  await tapNode(page, pick.q);
+  await nextFrame(page, f);
+  const d = await page.evaluate(p => ({
+    node: GraphView._debug.focusNode,
+    concept: GraphView._debug.isFocused(p.concept), trap: GraphView._debug.isFocused(p.trap),
+    questions: GRAMMAR_GRAPH.id.filter((s, i) => s.startsWith('q:') && GraphView._debug.isFocused(i)).length,
+  }), pick);
+  assert.equal(d.node, pick.q);
+  assert.equal(d.concept, true);
+  assert.equal(d.trap, true);
+  assert.ok(d.questions >= 2 && d.questions <= 31, `自分 + 近い問題（最大 30）: ${d.questions}`);
+});
+
+test('シート: 半分の高さで開き、「広げる」で広がる。問題をタップすると、その場所へ動いて選択が切り替わり、動き終わると止まる', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const con = await firstOf(page, 'con:');
+  await tapNode(page, con);
+  const h0 = await page.evaluate(() => document.querySelector('#host .graph-sheet').getBoundingClientRect().height);
+  assert.ok(h0 <= 812 * 0.45, `半分より高い: ${h0}`);
+  await page.locator('#host .graph-sheet-expand').click();
+  const h1 = await page.evaluate(() => document.querySelector('#host .graph-sheet').getBoundingClientRect().height);
+  assert.ok(h1 > h0, '広がっていない');
+  await page.locator('#host .graph-sheet-expand').click();
+  const target = Number(await page.locator('#host .graph-q[data-node]').first().getAttribute('data-node'));
+  const cam0 = await page.evaluate(() => GraphView._debug.camera());
+  await page.locator('#host .graph-q[data-node]').first().click();
+  await waitFor(page, () => GraphView._debug.animating === false && GraphView._debug.pending === false);
+  const d = await page.evaluate(() => ({ node: GraphView._debug.focusNode, cam: GraphView._debug.camera() }));
+  assert.equal(d.node, target, '選択が問題に切り替わっていない');
+  assert.ok(d.cam.x !== cam0.x || d.cam.y !== cam0.y, '画面が動いていない');
+  const [sx, sy] = await page.evaluate(i => GraphView._debug.screenOf(i), target);
+  assert.ok(sx > 100 && sx < 275, `横の中央に来ていない: ${sx}`);
+  assert.ok(sy > 60 && sy < 812 * 0.6, `シートに隠れている: ${sy}`);
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
+  await new Promise(r => setTimeout(r, 900));
+  assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 }, '動き終わった後も描き続けている');
+});
+
+test('シート: 「視差効果を減らす」では、アニメーションなしで切り替わる', async t => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, reducedMotion: 'reduce' });
+  t.after(() => context.close());
+  const page = await context.newPage();
+  await page.addInitScript(COUNT_SCRIPT);
+  await page.goto(base + '/__graph_test.html');
+  await mountAndWait(page);
+  await tapNode(page, await firstOf(page, 'con:'));
+  await page.locator('#host .graph-q[data-node]').first().click();
+  assert.equal(await page.evaluate(() => GraphView._debug.animating), false);
 });
 
 test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async t => {

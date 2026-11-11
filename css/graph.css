@@ -251,12 +251,6 @@
 .graph-zoom button[data-zoom="relayout"] { font-size: 11px; }
 
 /* ---- 詳細シート（このビュー専用の軽いシート） ---- */
-.graph-sheet-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.28);
-  z-index: 2;
-}
 .graph-sheet {
   position: absolute;
   left: 0;
@@ -265,7 +259,7 @@
   z-index: 3;
   display: flex;
   flex-direction: column;
-  max-height: 72%;
+  max-height: 42%;
   margin: 0 auto;
   max-width: 640px;
   background: var(--graph-surface);
@@ -274,8 +268,21 @@
   box-shadow: var(--graph-shadow);
   outline: none;
 }
-.graph-sheet[hidden],
-.graph-sheet-backdrop[hidden] { display: none; }
+.graph-sheet[hidden] { display: none; }
+/* シートは背景を覆わない下部パネル。既定は半分の高さで、グラフを触りながら読める */
+.graph-sheet.graph-sheet-wide { max-height: 72%; }
+.graph-sheet-expand {
+  flex: none;
+  margin-right: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--graph-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--graph-label);
+  font-size: 12px;
+}
+.graph-q[data-node] { cursor: pointer; }
+.graph-q[data-node]:focus-visible { outline: 2px solid var(--graph-ring); outline-offset: 2px; }
 .graph-sheet-head {
   display: flex;
   align-items: flex-start;

@@ -1369,6 +1369,7 @@ const GRAPH_SCRIPTS = [
   'src/graph-filter.js',
   'src/graph-geometry.js',
   'src/graph-detail.js',
+  'src/graph-near.js',
   'js/graph-view.js',
 ];
 // 力学用（d3-force と力の定義）。読めなくてもグラフは固定配置で開くので、失敗しても止めない
