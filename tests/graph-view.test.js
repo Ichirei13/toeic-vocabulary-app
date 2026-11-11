@@ -178,6 +178,7 @@ test('苦手（概念と Trap につながる問題 1 問）を渡すと、概�
     window.__weak = { [p.qid]: { streak: 0, due: Date.now() + 86400000 } };
   }, pick);
   await mountAndWait(page);
+  await settled(page); // 苦手があるので力学が回る。色は収まってから読む
   for (const i of [pick.concept, pick.trap]) {
     const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), i);
     const px = await page.evaluate(([x, y]) => window.__px(x, y), [x, y]);
@@ -226,15 +227,32 @@ test('力学: 苦手があると数フレームかけて収まり、その後 1 
 test('力学: 収まるまでタップは無視され、収まった後は新しい位置でタップできる', async t => {
   const page = await open(t);
   const picked = await seedWeak(page, 40);
-  await page.evaluate(() => window.__mount());
-  // 収まる前: 画面の中央をタップしてもシートは開かない
-  const settledAtTap = await page.evaluate(() => GraphView._debug.settled);
-  if (!settledAtTap) {
-    await page.mouse.click(187, 400);
-    assert.equal(await sheetOpen(page), false, '力学の途中でシートが開いた');
-  }
+  // マウントと同じ同期の中で、全体表示で見えている本ノードを押す（この間は必ず力学の途中）
+  const during = await page.evaluate(() => {
+    window.__mount();
+    const D = GraphView._debug, G = GRAMMAR_GRAPH;
+    const book = G.kinds.indexOf('book');
+    let b = -1;
+    for (let i = 0; i < G.id.length; i++) if (G.kind[i] === book) { b = i; break; }
+    const [x, y] = D.screenOf(b);
+    const cv = document.querySelector('#host canvas');
+    const ev = type => cv.dispatchEvent(new PointerEvent(type, { pointerId: 1, pointerType: 'mouse', button: 0, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+    const hit = D.hitAt(x, y);
+    ev('pointerdown'); ev('pointerup');
+    const s = document.querySelector('#host .graph-sheet');
+    return { settled: D.settled, hit, b, opened: !!s && !s.hidden, lastTap: D.lastTap };
+  });
+  assert.equal(during.settled, false, '力学の途中で押せていない');
+  assert.equal(during.hit, during.b, '本ノードに当たっていない（ガードなしなら開くはずの位置）');
+  assert.equal(during.opened, false, '力学の途中でシートが開いた');
+  assert.equal(during.lastTap, -1);
   await settled(page);
-  // 問題ノードは近景（寄ったとき）でしか描かれず、当たりもしない。新しい位置に寄ってから確かめる
+  // 収まった後は、同じノードの新しい位置で開く
+  const [bx, by] = await page.evaluate(i => GraphView._debug.screenOf(i), during.b);
+  await page.mouse.click(bx, by);
+  assert.equal(await sheetOpen(page), true, '収まった後にタップしてもシートが開かない');
+  assert.equal(await page.evaluate(() => GraphView._debug.lastTap), during.b);
+  // 苦手の問題は近景でしか描かれない。新しい位置に寄ってから当たることも確かめる
   await page.evaluate(i => GraphView._debug.focus(i, 10), picked[0]);
   const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), picked[0]);
   assert.equal(await page.evaluate(([x, y]) => GraphView._debug.hitAt(x, y), [x, y]), picked[0], '苦手の問題が新しい位置で当たらない');
