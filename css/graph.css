@@ -10,6 +10,9 @@
   --graph-unseen: #b8bec7;
   --graph-due: #e5484d;
   --graph-weak: #e5484d;
+  --graph-weak-1: #f29a9d;   /* 苦手の割合 1 割未満 */
+  --graph-weak-2: #ec6f74;   /* 3 割未満 */
+  --graph-weak-edge: rgba(229, 72, 77, 0.8);  /* 苦手のある束ねた線 */
   --graph-few: #7cc4f0;
   --graph-mid: #f2c94c;
   --graph-good: #34c759;
@@ -36,6 +39,9 @@
     --graph-unseen: #5d646d;
     --graph-due: #ff5a5f;
     --graph-weak: #ff5a5f;
+    --graph-weak-1: #a34448;
+    --graph-weak-2: #d14f54;
+    --graph-weak-edge: rgba(255, 90, 95, 0.85);
     --graph-few: #5ab8f0;
     --graph-mid: #f5cf57;
     --graph-good: #3ccf6e;
@@ -67,6 +73,9 @@
   --graph-unseen: #5d646d;
   --graph-due: #ff5a5f;
   --graph-weak: #ff5a5f;
+  --graph-weak-1: #a34448;
+  --graph-weak-2: #d14f54;
+  --graph-weak-edge: rgba(255, 90, 95, 0.85);
   --graph-few: #5ab8f0;
   --graph-mid: #f5cf57;
   --graph-good: #3ccf6e;
@@ -91,6 +100,9 @@
   --graph-unseen: #b8bec7;
   --graph-due: #e5484d;
   --graph-weak: #e5484d;
+  --graph-weak-1: #f29a9d;   /* 苦手の割合 1 割未満 */
+  --graph-weak-2: #ec6f74;   /* 3 割未満 */
+  --graph-weak-edge: rgba(229, 72, 77, 0.8);  /* 苦手のある束ねた線 */
   --graph-few: #7cc4f0;
   --graph-mid: #f2c94c;
   --graph-good: #34c759;
@@ -363,3 +375,25 @@
 .graph-q-no { flex: 0 0 auto; color: var(--graph-label-muted); font-variant-numeric: tabular-nums; }
 .graph-q-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .graph-more { margin: 8px 0 0; color: var(--graph-label-muted); font-size: 12px; }
+
+/* 凡例（Canvas の上に置く。操作は通す） */
+.graph-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: var(--graph-surface);
+  border: 1px solid var(--graph-border);
+  color: var(--graph-label-muted);
+  font-size: 11px;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.graph-legend-item { display: flex; align-items: center; gap: 6px; }
+.graph-legend-size { width: 12px; height: 12px; border-radius: 50%; background: var(--graph-unseen); flex: none; }
+.graph-legend-red { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(90deg, var(--graph-weak-1), var(--graph-weak)); flex: none; }

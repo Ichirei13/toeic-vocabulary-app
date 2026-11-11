@@ -354,3 +354,85 @@ test('実データ: マスク計算の速さ（実測を出力し、緩い上限
   console.log(`visibleMask on real graph: ${per.toFixed(3)} ms/call`);
   assert.ok(per < 50, `too slow: ${per} ms`);
 });
+
+const { makeFixture, makeMastery } = require('./helpers/graph-fixture.js');
+
+test('buildIndex: 親・概念/ひっかけ・章・ルール・序数→ノード', () => {
+  const g = makeFixture();
+  const ix = F.buildIndex(g);
+  assert.strictEqual(ix.n, 16);
+  assert.strictEqual(ix.nq, 6);
+  assert.deepStrictEqual([...ix.qNode], [3, 4, 6, 7, 10, 11]);
+  assert.strictEqual(ix.parent[3], 2);
+  assert.strictEqual(ix.parent[0], -1);
+  assert.strictEqual(ix.chapterOf[3], 1);
+  assert.strictEqual(ix.ruleOf[3], 2);
+  assert.strictEqual(ix.chapterOf[6], 5);
+  assert.strictEqual(ix.ruleOf[6], -1);
+  const hubsOf = q => [...ix.hubs.slice(ix.hubStart[q], ix.hubStart[q + 1])].sort((a, b) => a - b);
+  assert.deepStrictEqual(hubsOf(10), [12, 14]);
+  assert.deepStrictEqual(hubsOf(11), [14, 15]);
+  assert.deepStrictEqual(hubsOf(7), []);
+  assert.deepStrictEqual(hubsOf(0), []);
+});
+
+test('buildIndex: 範囲外の端点を持つエッジは無視する', () => {
+  const g = makeFixture();
+  g.edges.push(99, 3, 0, 3, 99, 1);
+  const ix = F.buildIndex(g);
+  assert.strictEqual(ix.parent[3], 2);
+  assert.strictEqual(ix.hubStart[4] - ix.hubStart[3], 1);
+});
+
+test('buildBundles: 章の単位で束ねる', () => {
+  const g = makeFixture();
+  const b = F.buildBundles(g, F.buildIndex(g), 'chapter');
+  assert.strictEqual(b.count, 6);
+  assert.deepStrictEqual([...b.a], [1, 1, 5, 9, 9, 9]);
+  assert.deepStrictEqual([...b.b], [12, 15, 13, 12, 14, 15]);
+  assert.deepStrictEqual([...b.type], [1, 2, 1, 1, 1, 2]);
+  const qs = j => [...b.questions.slice(b.start[j], b.start[j + 1])];
+  assert.deepStrictEqual(qs(0), [3]);
+  assert.deepStrictEqual(qs(4), [10, 11]);
+  assert.deepStrictEqual(qs(5), [11]);
+});
+
+test('buildBundles: ルールの単位。ルールを持たない問題は章の束に入る', () => {
+  const g = makeFixture();
+  const b = F.buildBundles(g, F.buildIndex(g), 'rule');
+  assert.deepStrictEqual([...b.a], [2, 2, 5, 9, 9, 9]);
+  assert.deepStrictEqual([...b.b], [12, 15, 13, 12, 14, 15]);
+});
+
+test('bundleWeak: 束ごとの苦手の問題数', () => {
+  const g = makeFixture();
+  const b = F.buildBundles(g, F.buildIndex(g), 'chapter');
+  const m = makeMastery(g, { 10: 1, 11: 1, 3: 1 });
+  assert.deepStrictEqual([...F.bundleWeak(b, m.weak)], [1, 0, 0, 1, 2, 1]);
+  assert.deepStrictEqual([...F.bundleWeak(b, new Int32Array(16))], [0, 0, 0, 0, 0, 0]);
+});
+
+test('visibleMask: showWeakQuestions は、苦手の問題だけを LOD に関係なく残す', () => {
+  const g = makeFixture();
+  const stats = { 6: { a: 2, c: 0 } };
+  const weak = { 6: { due: Date.now() + 1e9 } };
+  const m = M.computeMastery(g, stats, weak, () => false);
+  const far = F.visibleMask(g, m, { lod: 0, showWeakQuestions: true });
+  assert.strictEqual(far[11], 1, '苦手の q:6 が遠景で残っていない');
+  assert.strictEqual(far[10], 0, '苦手でない q:5 が遠景で残っている');
+  assert.strictEqual(far[2], 0, 'ルールは遠景では出ない');
+  assert.strictEqual(F.visibleMask(g, m, { lod: 0 })[11], 0, '既定では残さない');
+  // 本の絞り込みは通す（別の本の苦手は残さない）
+  assert.strictEqual(F.visibleMask(g, m, { lod: 0, showWeakQuestions: true, book: 'kin' })[11], 0);
+});
+
+test('visibleMask: forceShow のノードは LOD に関係なく残す。本の絞り込みは通す', () => {
+  const g = makeFixture();
+  const m = M.computeMastery(g, {}, {}, () => false);
+  const force = new Uint8Array(16); force[3] = 1; force[10] = 1;
+  const far = F.visibleMask(g, m, { lod: 0, forceShow: force });
+  assert.strictEqual(far[3], 1);
+  assert.strictEqual(far[10], 1);
+  assert.strictEqual(far[4], 0);
+  assert.strictEqual(F.visibleMask(g, m, { lod: 0, forceShow: force, book: 'kin' })[10], 0);
+});

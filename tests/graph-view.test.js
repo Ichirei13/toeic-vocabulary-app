@@ -316,6 +316,63 @@ test('力学: 「配置し直す」でもう一度回り、収まると止まる
   assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 120);
 });
 
+test('束ねた線: 記録が空でも、全体表示で章と概念・ひっかけの間に線が出る', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const d = await page.evaluate(() => ({ lod: GraphView._debug.lod, bundles: GraphView._debug.lastDrawnBundles }));
+  assert.equal(d.lod, 0);
+  assert.ok(d.bundles >= 50, `束ねた線が少ない: ${d.bundles}`);
+  assert.ok(d.bundles <= 248, `章の束の総数（248）を超えている: ${d.bundles}`);
+});
+
+test('束ねた線: 近景では描かず、問題ごとの線になる', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const f = await frames(page);
+  await page.evaluate(() => GraphView._debug.focus(null, 9));
+  await nextFrame(page, f);
+  assert.equal(await page.evaluate(() => GraphView._debug.lod), 2);
+  assert.equal(await page.evaluate(() => GraphView._debug.lastDrawnBundles), 0);
+});
+
+test('苦手の量: 苦手の問題は全体表示でも描かれ、苦手のある概念は大きく、苦手のない概念は基準のまま', async t => {
+  const page = await open(t);
+  const picked = await seedWeak(page, 40);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  await new Promise(r => setTimeout(r, 200));
+  const d = await page.evaluate(picked => ({
+    lod: GraphView._debug.lod,
+    questions: GraphView._debug.drawnKinds[5],
+    visible: picked.filter(i => GraphView._debug.isVisible(i)).length,
+  }), picked);
+  assert.equal(d.lod, 0);
+  assert.equal(d.visible, 40, '苦手の問題が全体表示で隠れている');
+  assert.ok(d.questions >= 1 && d.questions <= 40);
+  // 苦手の問題につながる概念・ひっかけ（edges の type 1・2）と、つながらないもの
+  const r = await page.evaluate(picked => {
+    const G = GRAMMAR_GRAPH, D = GraphView._debug, E = G.edges, set = new Set(picked), hubs = new Set();
+    for (let k = 0; k + 2 < E.length; k += 3) if ((E[k + 2] === 1 || E[k + 2] === 2) && set.has(E[k])) hubs.add(E[k + 1]);
+    const touched = [...hubs].map(i => D.radiusOf(i));
+    const untouched = [];
+    for (let i = 0; i < G.id.length; i++) {
+      const k = G.kinds[G.kind[i]];
+      if ((k === 'concept' || k === 'trap') && !hubs.has(i)) untouched.push(D.radiusOf(i));
+    }
+    return { touched, untouched };
+  }, picked);
+  assert.ok(r.touched.length >= 1, '苦手の問題がつながる概念・ひっかけがない');
+  assert.ok(r.touched.every(v => v > 6.5), `苦手のある概念・ひっかけが基準の大きさのまま: ${r.touched}`);
+  assert.ok(r.untouched.length >= 1, '苦手のつながらない概念・ひっかけがない');
+  assert.ok(r.untouched.every(v => Math.abs(v - 6.5) < 1e-6), `苦手のない概念・ひっかけの大きさが変わっている: ${r.untouched}`);
+});
+
+test('凡例が出ている', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  assert.match(await page.locator('#host .graph-legend').innerText(), /苦手/);
+});
+
 test('記録が空（{}）や壊れた記録でも例外なく、描いたノードはすべて灰色', async t => {
   const page = await open(t);
   await page.evaluate(() => { window.__stats = { 1: null, 2: 'x', 3: { a: 'NaN' } }; window.__weak = {}; });

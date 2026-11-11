@@ -66,6 +66,10 @@
     const visibleKinds = kindsAtLod(opts.lod == null ? 2 : opts.lod, kinds);
     for (let j = 0; j < visibleKinds.length; j++) kindOk[visibleKinds[j]] = 1;
     const bookKind = kinds.indexOf('book');
+    // LOD の例外: 苦手の問題（showWeakQuestions）と、指定されたノード（forceShow）は、種類が LOD の外でも残す
+    const qKind = kinds.indexOf('question');
+    const forceShow = opts.forceShow && opts.forceShow.length >= n ? opts.forceShow : null;
+    const showWeakQ = !!opts.showWeakQuestions;
 
     // 本の絞り込み: 選んだ本の book ノードのメンバー = その本の問題。
     // inBook[序数] = 1 の問題を 1 問以上もつノードだけが残る（他の本の book ノードはメンバーが重ならず落ちる）。
@@ -87,7 +91,10 @@
     const dueCnt = mastery && mastery.due;
 
     for (let i = 0; i < n; i++) {
-      if (!kindOk[kind[i]]) continue;
+      if (!kindOk[kind[i]]) {
+        const forced = (forceShow && forceShow[i]) || (showWeakQ && kind[i] === qKind && weakCnt && weakCnt[i] > 0);
+        if (!forced) continue;
+      }
       if (weakOnly && !(weakCnt && dueCnt && (weakCnt[i] > 0 || dueCnt[i] > 0))) continue;
       if (filterBook) {
         let hit = false;
@@ -103,5 +110,91 @@
     return mask;
   }
 
-  return { visibleMask, lodForScale, kindsAtLod, LOD_SCALES };
+  // グラフの索引（マウント時に 1 回作る）。辺を辿る計算（束ねた線・周辺・近さ）はすべてこれを使う。
+  function buildIndex(graph) {
+    const n = graph.id.length, nq = graph.qids.length;
+    const kinds = graph.kinds || DEFAULT_KINDS;
+    const K = name => kinds.indexOf(name);
+    const kQ = K('question'), kCh = K('chapter'), kRule = K('rule'), kCon = K('concept'), kTrap = K('trap'), kBook = K('book');
+    const kind = graph.kind;
+    const E = graph.edges || [];
+    const ok = (a, b) => a >= 0 && a < n && b >= 0 && b < n;
+
+    const parent = new Int32Array(n).fill(-1);
+    const hubStart = new Int32Array(n + 1);
+    for (let k = 0; k + 2 < E.length; k += 3) {
+      const a = E[k], b = E[k + 1], t = E[k + 2];
+      if (!ok(a, b)) continue;
+      if (t === 0) parent[b] = a;
+      else if (t === 1 || t === 2) hubStart[a + 1]++;
+    }
+    for (let i = 0; i < n; i++) hubStart[i + 1] += hubStart[i];
+    const hubs = new Int32Array(hubStart[n]);
+    const fill = hubStart.slice(0, n);
+    for (let k = 0; k + 2 < E.length; k += 3) {
+      const a = E[k], b = E[k + 1], t = E[k + 2];
+      if (ok(a, b) && (t === 1 || t === 2)) hubs[fill[a]++] = b;
+    }
+
+    // 序数 → 問題ノード（問題ノードの members は自分の序数だけ）と、問題ノードの章・ルール
+    const qNode = new Int32Array(nq).fill(-1);
+    const chapterOf = new Int32Array(n).fill(-1), ruleOf = new Int32Array(n).fill(-1);
+    for (let i = 0; i < n; i++) {
+      if (kind[i] !== kQ) continue;
+      const o = graph.members[graph.memberStart[i]];
+      if (o >= 0 && o < nq && qNode[o] === -1) qNode[o] = i;
+      let j = parent[i], guard = 0;
+      while (j !== -1 && guard++ < 8) {
+        if (kind[j] === kRule && ruleOf[i] === -1) ruleOf[i] = j;
+        if (kind[j] === kCh) { chapterOf[i] = j; break; }
+        j = parent[j];
+      }
+    }
+    return { n, nq, parent, hubStart, hubs, qNode, chapterOf, ruleOf, kQ, kCh, kRule, kCon, kTrap, kBook };
+  }
+
+  // 概念・ひっかけへの線を、章（level = 'chapter'）またはルール（'rule'）の単位で束ねる。
+  // ルールを持たない問題は、'rule' でも章の束に入る。束は (a, b) の昇順。
+  function buildBundles(graph, index, level) {
+    const n = index.n;
+    const map = new Map(); // a * n + b → 問題ノードの配列
+    for (let o = 0; o < index.nq; o++) {
+      const q = index.qNode[o];
+      if (q < 0) continue;
+      const g = level === 'rule' && index.ruleOf[q] !== -1 ? index.ruleOf[q] : index.chapterOf[q];
+      if (g < 0) continue;
+      for (let k = index.hubStart[q]; k < index.hubStart[q + 1]; k++) {
+        const key = g * n + index.hubs[k];
+        let list = map.get(key);
+        if (!list) map.set(key, list = []);
+        list.push(q);
+      }
+    }
+    const keys = [...map.keys()].sort((x, y) => x - y);
+    const count = keys.length;
+    const a = new Int32Array(count), b = new Int32Array(count), type = new Uint8Array(count), start = new Int32Array(count + 1);
+    const qs = [];
+    for (let j = 0; j < count; j++) {
+      a[j] = Math.floor(keys[j] / n);
+      b[j] = keys[j] % n;
+      type[j] = graph.kind[b[j]] === index.kTrap ? 2 : 1;
+      for (const q of map.get(keys[j])) qs.push(q);
+      start[j + 1] = qs.length;
+    }
+    return { count, a, b, type, start, questions: Int32Array.from(qs) };
+  }
+
+  // 束ごとの、苦手の問題の数。nodeWeak はノード添字で引く（mastery.weak）
+  function bundleWeak(bundles, nodeWeak) {
+    const out = new Int32Array(bundles.count);
+    if (!nodeWeak) return out;
+    for (let j = 0; j < bundles.count; j++) {
+      let w = 0;
+      for (let k = bundles.start[j]; k < bundles.start[j + 1]; k++) if (nodeWeak[bundles.questions[k]] > 0) w++;
+      out[j] = w;
+    }
+    return out;
+  }
+
+  return { visibleMask, lodForScale, kindsAtLod, LOD_SCALES, buildIndex, buildBundles, bundleWeak };
 });

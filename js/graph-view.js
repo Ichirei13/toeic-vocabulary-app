@@ -44,17 +44,23 @@
   const COLOR_VARS = {
     bg: '--graph-bg', edge: '--graph-edge', conceptEdge: '--graph-concept-edge', trapEdge: '--graph-trap-edge', trapLine: '--graph-trap-line',
     label: '--graph-label', halo: '--graph-label-halo', ring: '--graph-ring', dueRing: '--graph-due-ring',
+    weakEdge: '--graph-weak-edge',
   };
   const FALLBACK = {
     bg: '#f6f7f9', edge: 'rgba(60,60,67,0.2)', conceptEdge: 'rgba(88,86,214,0.5)', trapEdge: '#e8890c', trapLine: 'rgba(232,137,12,0.5)',
     label: '#1c1c1e', halo: '#f6f7f9', ring: '#3a3a3c', dueRing: '#9f1d22',
     states: ['#b8bec7', '#e5484d', '#e5484d', '#7cc4f0', '#f2c94c', '#34c759'],
+    weakEdge: 'rgba(229,72,77,0.8)', reds: ['#f29a9d', '#ec6f74', '#e5484d'],
   };
+  const BUNDLE_MIN_Q = 2;                     // 苦手が 0 で問題数がこれ以下の束は、遠景・中景では描かない
+  const BUNDLE_WIDTHS = [0.8, 1.6, 2.6, 3.8]; // 束の太さ: 苦手 0 / 1〜2 / 3〜5 / 6 以上
+  const SIZE_BOOST_STEP = 0.25, SIZE_BOOST_MAX = 1.2; // 大きさ = 1 + min(上限, 段 × √苦手の数)
+  const RED_VARS = ['--graph-weak-1', '--graph-weak-2', '--graph-weak']; // 赤の濃さ（苦手の割合 1 割未満 / 3 割未満 / それ以上）
   const STATUS_LABEL = { weak: '苦手', wrong: '誤答あり', unseen: '未解答', correct: '正解' };
 
   // テスト用の観測値。frames はマウントごとに 0 から数える。listeners は今登録中のリスナー・オブザーバーの数
   const debug = {
-    frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastLabels: 0,
+    frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0,
     drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, book: 'all', weakOnly: false, lastTap: -1,
     settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
   };
@@ -74,7 +80,7 @@
 
   function createInstance(container, deps) {
     const S = root.StudyCore;
-    if (!S || typeof S.computeMastery !== 'function' || typeof S.createCamera !== 'function' || typeof S.buildDetail !== 'function') {
+    if (!S || typeof S.computeMastery !== 'function' || typeof S.createCamera !== 'function' || typeof S.buildDetail !== 'function' || typeof S.buildIndex !== 'function') {
       throw new Error('GraphView: StudyCore (src/mastery.js, graph-filter.js, graph-geometry.js, graph-detail.js) が読み込まれていない');
     }
     if (!container || !deps || !deps.graph) throw new Error('GraphView.mount: container と deps.graph が必要');
@@ -118,6 +124,14 @@
       if (t >= 0 && t <= 2 && E[k] >= 0 && E[k] < n && E[k + 1] >= 0 && E[k + 1] < n) edgeLists[t].push(E[k], E[k + 1]);
     }
     const edgesByType = edgeLists.map(a => Int32Array.from(a));
+
+    // 索引と束ねた線（マウント時に 1 回）。bundles[0] = 章の単位（遠景）、[1] = ルールの単位（中景）
+    const index = S.buildIndex(graph);
+    const bundles = [S.buildBundles(graph, index, 'chapter'), S.buildBundles(graph, index, 'rule')];
+    let bundleWeakCnt = [new Int32Array(bundles[0].count), new Int32Array(bundles[1].count)];
+    const sizeBoost = new Float32Array(n).fill(1); // 苦手の数に応じた大きさの倍率
+    const fillClass = new Uint8Array(n);           // 0〜5 = 状態の色、6〜8 = 赤の濃さ
+    const baseLabel = labelText.slice();           // 数を付ける前のラベル
 
     // 描画中に使い回す配列
     const inView = new Uint8Array(n);
@@ -163,6 +177,10 @@
       '</div>' +
       '<div class="graph-stage">' +
         '<canvas class="graph-canvas" aria-label="文法のつながりのグラフ。ノードをタップすると詳細が開きます"></canvas>' +
+        '<div class="graph-legend" aria-hidden="true">' +
+          '<span class="graph-legend-item"><i class="graph-legend-size"></i>大きさ・線の太さ = 苦手の数</span>' +
+          '<span class="graph-legend-item"><i class="graph-legend-red"></i>赤の濃さ = 苦手の割合</span>' +
+        '</div>' +
         '<div class="graph-zoom" role="group" aria-label="拡大と縮小">' +
           '<button type="button" data-zoom="in" aria-label="拡大">＋</button>' +
           '<button type="button" data-zoom="out" aria-label="縮小">－</button>' +
@@ -200,6 +218,7 @@
       const get = (name, fb) => { const v = cs.getPropertyValue(name).trim(); return v || fb; };
       const c = { states: STATE_VARS.map((v, k) => get(v, FALLBACK.states[k])) };
       for (const key in COLOR_VARS) c[key] = get(COLOR_VARS[key], FALLBACK[key]);
+      c.reds = RED_VARS.map((v, k) => get(v, FALLBACK.reds[k]));
       colors = c;
     }
 
@@ -233,12 +252,27 @@
       weak = safeObj(deps.getWeak);
       mastery = S.computeMastery(graph, stats, weak, deps.isDue);
       masteryVer++;
+      bundleWeakCnt = bundles.map(b => S.bundleWeak(b, mastery.weak));
+      for (let i = 0; i < n; i++) {
+        const w = mastery.weak[i], k = graph.kind[i], st = mastery.state[i];
+        const grows = k === kConcept || k === kTrap || k === kChapter || k === kRule;
+        sizeBoost[i] = grows && w > 0 ? 1 + Math.min(SIZE_BOOST_MAX, SIZE_BOOST_STEP * Math.sqrt(w)) : 1;
+        if (st === 1 || st === 2) {
+          // 赤は、配下に占める苦手の割合で 3 段階。問題そのものはいちばん濃い
+          const ratio = k === kQuestion ? 1 : mastery.total[i] > 0 ? w / mastery.total[i] : 0;
+          fillClass[i] = ratio < 0.1 ? 6 : ratio < 0.3 ? 7 : 8;
+        } else {
+          fillClass[i] = st;
+        }
+        const text = w > 0 && k !== kQuestion ? baseLabel[i] + ' ' + w : baseLabel[i];
+        if (text !== labelText[i]) { labelText[i] = text; labelW[i] = NaN; } // 幅は次に置くときに測り直す
+      }
     }
     function ensureMask(lod) {
       const key = lod + '|' + book + '|' + (weakOnly ? 1 : 0) + '|' + masteryVer;
       if (key === maskKey) return;
       maskKey = key;
-      mask = S.visibleMask(graph, mastery, { book, weakOnly, lod });
+      mask = S.visibleMask(graph, mastery, { book, weakOnly, lod, showWeakQuestions: true });
       for (let i = 0; i < n; i++) hitXs[i] = mask[i] ? xs[i] : NaN;
     }
     const relZoom = () => cam.scale / fitScale;
@@ -364,7 +398,7 @@
         inView[i] = 1;
         if (!mask[i]) continue;
         drawList[m++] = i;
-        sxs[i] = xs[i] * s + ox; sys[i] = ys[i] * s + oy; rs[i] = baseR[i] * rf;
+        sxs[i] = xs[i] * s + ox; sys[i] = ys[i] * s + oy; rs[i] = baseR[i] * sizeBoost[i] * rf;
         kc[graph.kind[i]]++;
       }
 
@@ -377,6 +411,8 @@
         [colors.conceptEdge, 1, [1.5, 3]],
         [colors.trapLine, 1.2, [5, 4]],
       ];
+      // 概念・ひっかけの線: 遠景・中景は束ねた線。そのうえで、見えている苦手の問題の線は下のループが描く
+      const bundleCount = lod < 2 ? drawBundles(lod, s, ox, oy) : 0;
       for (let t = 0; t < 3; t++) {
         const list = edgesByType[t];
         ctx.beginPath();
@@ -401,18 +437,18 @@
       const st = mastery.state;
       ctx.lineWidth = 1;
       ctx.strokeStyle = colors.bg;
-      for (let c = 0; c < 6; c++) {
+      for (let c = 0; c < 9; c++) {
         ctx.beginPath();
         let any = false;
         for (let j = 0; j < m; j++) {
           const i = drawList[j];
-          if (st[i] !== c) continue;
+          if (fillClass[i] !== c) continue;
           ctx.moveTo(sxs[i] + rs[i], sys[i]);
           ctx.arc(sxs[i], sys[i], rs[i], 0, Math.PI * 2);
           any = true;
         }
         if (!any) continue;
-        ctx.fillStyle = colors.states[c];
+        ctx.fillStyle = c < 6 ? colors.states[c] : colors.reds[c - 6];
         ctx.fill();
         ctx.stroke();
       }
@@ -429,9 +465,42 @@
 
       debug.lastDrawnNodes = m;
       debug.lastDrawnEdges = edgeCount;
+      debug.lastDrawnBundles = bundleCount;
       debug.lastLabels = labels;
       debug.lod = lod;
       debug.lastFrameMs = performance.now() - t0;
+    }
+
+    const bundleClass = w => (w <= 0 ? 0 : w <= 2 ? 1 : w <= 5 ? 2 : 3);
+    // 束ねた線を、太さ（苦手の数）と種類（概念 / ひっかけ）ごとに 1 つの path にまとめて描く。描いた本数を返す
+    function drawBundles(lod, s, ox, oy) {
+      const B = bundles[lod], W = bundleWeakCnt[lod];
+      let count = 0;
+      for (let c = 0; c < 4; c++) {
+        for (let t = 1; t <= 2; t++) {
+          ctx.beginPath();
+          let any = false;
+          for (let j = 0; j < B.count; j++) {
+            if (B.type[j] !== t || bundleClass(W[j]) !== c) continue;
+            const a = B.a[j], b = B.b[j];
+            if (!mask[a] || !mask[b] || !(inView[a] || inView[b])) continue;
+            if (c === 0 && B.start[j + 1] - B.start[j] <= BUNDLE_MIN_Q) continue;
+            ctx.moveTo(xs[a] * s + ox, ys[a] * s + oy);
+            ctx.lineTo(xs[b] * s + ox, ys[b] * s + oy);
+            any = true;
+            count++;
+          }
+          if (!any) continue;
+          ctx.strokeStyle = c === 0 ? (t === 1 ? colors.conceptEdge : colors.trapLine) : colors.weakEdge;
+          ctx.globalAlpha = c === 0 ? 0.5 : 1;
+          ctx.lineWidth = BUNDLE_WIDTHS[c];
+          ctx.setLineDash(t === 2 ? [5, 4] : []);
+          ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+      ctx.setLineDash([]);
+      return count;
     }
 
     function ringPath(m, pick, gap, extra) {
@@ -769,6 +838,7 @@
         setCam({ x: width / 2 - wx * sc, y: height / 2 - wy * sc, scale: sc });
       },
       forceDraw() { draw(); return debug.lastFrameMs; },
+      radiusOf(i) { return i >= 0 && i < n ? baseR[i] * sizeBoost[i] : 0; },
       worldOf(i) { return i >= 0 && i < n ? [xs[i], ys[i]] : null; },
     };
     } catch (err) {
@@ -804,6 +874,7 @@
   debug.isVisible = i => (inst ? inst.isVisible(i) : false);
   debug.focus = (id, rel) => { if (inst) inst.focus(id, rel); };
   debug.forceDraw = () => (inst ? inst.forceDraw() : 0);
+  debug.radiusOf = i => (inst ? inst.radiusOf(i) : 0);
   debug.worldOf = i => (inst ? inst.worldOf(i) : null);
 
   root.GraphView = { mount, refresh, destroy, _debug: debug };
