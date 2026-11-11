@@ -566,6 +566,8 @@ function recordCurrentBookPreset(updateLastBook = false) {
 // 参考書ごとの途中セッション保存（他の参考書に行っても前の参考書の続きを保持できるようにする）
 // 保存する形は settings.js の sessionSnapshot と同じ。違うのは本ごとのキー（'grammar:kin' など）で持つ点
 function saveBookSessionSnapshot() {
+  // 近い問題の出題中は、本ごとの続きを書き換えない（settings.js の sessionSnapshot と同じ扱い）
+  if (state.app === 'grammar' && state.nearDrill) return;
   const bookSessions = loadJSON(BOOK_SESSIONS_KEY, {});
   if (state.app === 'grammar') {
     const key = `grammar:${state.grammarBook || 'all'}`;
@@ -599,6 +601,7 @@ function restoreBookSessionSnapshot(kind, bookId) {
   if (pool.length === 0 || pool.some(x => !x) || index < 0 || index >= pool.length) return false;
   const score = Number.isInteger(saved.score) ? saved.score : 0;
   const answered = Number.isInteger(saved.answered) ? saved.answered : 0;
+  if (kind === 'grammar') clearNearDrill(); // 本の続きに戻すので、近い問題の出題は終わり
   resetReview();
   if (kind === 'grammar') {
     Object.assign(state, { grammarPool: pool, currentGrammarIndex: index, grammarScore: score, grammarAnsweredCount: answered });
@@ -1496,6 +1499,7 @@ async function showGraphPage() {
       getWeak: () => state.grammarWeakData,
       getQuestion: id => GRAMMAR_BY_ID.get(id),
       isDue,
+      onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },
     });
   } catch (e) {
     showError('グラフを表示できませんでした。');

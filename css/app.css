@@ -2160,3 +2160,29 @@ body {
   color: #8b949e !important;
 }
 
+
+/* グラフの「近い問題を解く」の出題中に、演習画面の上に出す表示 */
+.near-drill-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(120, 120, 128, 0.14);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.near-drill-banner[hidden] { display: none; }
+.near-drill-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.near-drill-exit {
+  flex: none;
+  padding: 5px 12px;
+  border: 1px solid rgba(120, 120, 128, 0.4);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+}
+.near-drill-back { margin-top: 14px; }

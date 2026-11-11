@@ -1,6 +1,6 @@
 // 文法グラフの画面（Canvas 2D）。window.GraphView を 1 つだけ公開し、アプリの state などのグローバルには触れない。
 // 必要なものは mount(container, deps) の deps で受け取る:
-//   deps = { graph, getStats: ()=>object, getWeak: ()=>object, getQuestion: (qid)=>object|undefined, isDue: (entry)=>boolean }
+//   deps = { graph, getStats: ()=>object, getWeak: ()=>object, getQuestion: (qid)=>object|undefined, isDue: (entry)=>boolean, onStartDrill?: (ids, label) => void }
 // 計算は src/ の純関数（StudyCore.computeMastery / visibleMask / lodForScale / createCamera / zoomAt / panBy /
 // visibleIndices / buildGrid / hitTest / buildDetail）に任せ、ここは DOM・入力・描画だけを持つ。
 //
@@ -163,6 +163,7 @@
     let focus = null, focusNode = -1; // 選択中: 浮かび上がらせるノード（Uint8Array）と、選択したノード
     let anim = null;                  // 移動のアニメーション中だけ { from, to, t0 }
     let sheetWide = false;            // シートを広げているか（既定は半分の高さ）
+    let sheetPick = null;             // 開いているシートの「近い問題」の選び（押したときにそのまま渡す）
     const pointers = new Map(); // pointerId -> { x, y }
     let gesture = null;         // { moved, pinched, lastDist, lastMid }
     const subs = [];
@@ -700,6 +701,14 @@
         '</dl>';
       if (d.desc) html += `<p class="graph-desc">${richText(d.desc)}</p>`;
       if (d.advice) html += `<p class="graph-advice"><span class="graph-advice-label">対策</span>${richText(d.advice)}</p>`;
+      sheetPick = null;
+      if (typeof deps.onStartDrill === 'function' && typeof S.pickNear === 'function') {
+        const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
+        if (pick.ids.length > 0) {
+          sheetPick = { ids: pick.ids, label: d.title };
+          html += `<button type="button" class="graph-drill-btn">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
+        }
+      }
       const total = d.questions.length + (d.moreCount || 0);
       html += `<h3 class="graph-qs-head">問題（${esc(total)}）</h3><ul class="graph-qs">`;
       for (const q of d.questions) {
@@ -730,6 +739,7 @@
     function closeSheet() {
       if (sheetIndex < 0 && sheet.hidden) return;
       sheetIndex = -1;
+      sheetPick = null;
       sheet.hidden = true;
       setSheetWide(false);
       clearFocus();
@@ -832,6 +842,11 @@
     function onSheetClick(e) {
       if (e.target.closest('.graph-sheet-close')) { closeSheet(); return; }
       if (e.target.closest('.graph-sheet-expand')) { setSheetWide(!sheetWide); return; }
+      if (e.target.closest('.graph-drill-btn')) {
+        const p = sheetPick;
+        if (p) deps.onStartDrill(p.ids.slice(), p.label); // 呼び出し側が画面を切り替える（この後 destroy されうる）
+        return;
+      }
       const li = e.target.closest('.graph-q[data-node]');
       if (li) jumpTo(Number(li.dataset.node));
     }

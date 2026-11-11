@@ -1169,3 +1169,25 @@ test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async
     }
   }
 });
+
+test('出題ボタン: onStartDrill を渡したときだけ出て、押すと問題 id（30 以内・重複なし）と名前が渡る', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  await tapNode(page, await firstOf(page, 'con:'));
+  assert.equal(await page.locator('#host .graph-drill-btn').count(), 0, 'onStartDrill がないのにボタンが出た');
+  await page.evaluate(() => {
+    GraphView.destroy();
+    window.__drill = null;
+    const deps = window.__deps();
+    deps.onStartDrill = (ids, label) => { window.__drill = { ids, label }; };
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+  await tapNode(page, await firstOf(page, 'con:'));
+  await page.locator('#host .graph-drill-btn').click();
+  const d = await page.evaluate(() => window.__drill);
+  assert.ok(d && d.ids.length >= 1 && d.ids.length <= 30);
+  assert.equal(new Set(d.ids).size, d.ids.length);
+  assert.equal(typeof d.label, 'string');
+  assert.ok(d.label.length > 0);
+});

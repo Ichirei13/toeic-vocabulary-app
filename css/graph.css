@@ -404,3 +404,16 @@
 .graph-legend-item { display: flex; align-items: center; gap: 6px; }
 .graph-legend-size { width: 12px; height: 12px; border-radius: 50%; background: var(--graph-unseen); flex: none; }
 .graph-legend-red { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(90deg, var(--graph-weak-1), var(--graph-weak)); flex: none; }
+
+.graph-drill-btn {
+  display: block;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--graph-chip-on-bg);
+  color: var(--graph-chip-on-text);
+  font-size: 14px;
+  font-weight: 600;
+}

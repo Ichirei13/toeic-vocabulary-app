@@ -282,6 +282,7 @@ let state = {
   grammarRule: null, // 金のルール番号で絞り込み中なら数値
   guideChapter: 'all',
   grammarPool: [],
+  nearDrill: null, // グラフの「近い問題を解く」の出題中だけ { label }。通常の出題の続きとは別に持つ
   currentGrammarIndex: 0,
   grammarScore: 0,
   grammarAnsweredCount: 0,

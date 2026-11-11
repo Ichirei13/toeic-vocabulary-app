@@ -351,6 +351,7 @@ function updateFooter() {
   document.getElementById('progress-fill').style.width = pool.length > 0 ? `${done / pool.length * 100}%` : '0';
 
   updateBackButton();
+  updateNearDrillBanner();
 
   // 表示が変わるたびに呼ばれるので、ここで設定と進み具合を保存しておく
   saveSettings();
