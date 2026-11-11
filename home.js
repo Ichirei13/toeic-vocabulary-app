@@ -1371,6 +1371,24 @@ const GRAPH_SCRIPTS = [
   'src/graph-detail.js',
   'js/graph-view.js',
 ];
+// 力学用（d3-force と力の定義）。読めなくてもグラフは固定配置で開くので、失敗しても止めない
+const GRAPH_FORCE_SCRIPTS = [
+  'vendor/d3-dispatch.min.js',
+  'vendor/d3-quadtree.min.js',
+  'vendor/d3-timer.min.js',
+  'vendor/d3-force.min.js',
+  'src/graph-force.js',
+];
+let graphForcePromise = null; // 失敗したら捨てて、次に開いたときにやり直す
+function loadGraphForceAssets() {
+  if (graphForcePromise) return graphForcePromise;
+  const p = (async () => {
+    for (const url of GRAPH_FORCE_SCRIPTS) await insertGraphAsset(url);
+  })();
+  graphForcePromise = p;
+  p.catch(() => { if (graphForcePromise === p) graphForcePromise = null; });
+  return p;
+}
 let graphAssetsPromise = null; // 読み込み中・読み込み済みの Promise（失敗したら捨てて、次に開いたときにやり直す）
 let graphOpenToken = 0;        // 開くたびに増やす。読み込みを待つ間に画面を離れたら、古い番号のマウントは捨てる
 let graphReturnPage = 'review';
@@ -1467,6 +1485,7 @@ async function showGraphPage() {
     if (token === graphOpenToken && currentAppPage === 'graph') showError('グラフの読み込みに失敗しました（オフラインで未取得の可能性があります）');
     return;
   }
+  try { await loadGraphForceAssets(); } catch (e) { /* 力学なし（固定配置）で開く */ }
   if (token !== graphOpenToken || currentAppPage !== 'graph') return; // 待っている間に別のページへ移った
   loading.hidden = true;
   try {

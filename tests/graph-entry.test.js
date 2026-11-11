@@ -1,6 +1,6 @@
 // 文法グラフの入口（復習ページのカード・PC のサイドバーのタブ・#graph）と、グラフ用ファイルの遅延読み込みの検証。
 // 実行: NODE_PATH=$(npm root -g) node --test tests/graph-entry.test.js
-// グラフ用の 7 ファイルは起動時には読まず、グラフの画面を開いたときに home.js の loadGraphAssets() が差し込む。
+// グラフ用の 12 ファイルは起動時には読まず、グラフの画面を開いたときに home.js の loadGraphAssets() が差し込む。
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -25,6 +25,12 @@ const GRAPH_FILES = [
   'src/graph-geometry.js',
   'src/graph-detail.js',
   'js/graph-view.js',
+  // 力学用（読めなくてもグラフは開く）。graph-view.js の後に差し込まれる
+  'vendor/d3-dispatch.min.js',
+  'vendor/d3-quadtree.min.js',
+  'vendor/d3-timer.min.js',
+  'vendor/d3-force.min.js',
+  'src/graph-force.js',
 ];
 const PHONE = { width: 375, height: 812 };
 const PC = { width: 1280, height: 800 };
@@ -116,7 +122,7 @@ test('復習ページのカードでグラフが開き、戻ると復習ペー�
   assert.deepEqual(await tagCounts(page), GRAPH_FILES.map(() => 1), 'タグが重複した');
   assert.deepEqual(requested.sort(), [...GRAPH_FILES].sort(), '2 回目以降も取り直した');
   // 差し込む順番（設計どおり、依存の順）
-  const order = await page.evaluate(() => [...document.querySelectorAll('script[src]')].map(s => s.getAttribute('src')).filter(s => /grammar_graph|mastery|graph-/.test(s)));
+  const order = await page.evaluate(() => [...document.querySelectorAll('script[src]')].map(s => s.getAttribute('src')).filter(s => /grammar_graph|mastery|graph-|vendor\//.test(s)));
   assert.deepEqual(order, GRAPH_FILES.filter(f => f.endsWith('.js')));
 });
 
@@ -357,4 +363,14 @@ test('PC: グラフの画面で「グラフ」タブをもう一度押しても�
   assert.equal(await page.evaluate(() => GraphView._debug.listeners), marker, 'リスナー数が変わった');
   assert.equal(await activePage(page), 'graph-page');
   assert.equal(await tab.getAttribute('aria-selected'), 'true');
+});
+
+test('力学用のファイルが読めなくても、グラフは固定配置で開く', async t => {
+  const { page } = await open(t, {
+    beforeGoto: async page => { await page.route('**/vendor/**', route => route.abort()); },
+  });
+  await openReviewCard(page);
+  await drawn(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settled), true);
+  assert.equal(await page.evaluate(() => typeof d3), 'undefined');
 });

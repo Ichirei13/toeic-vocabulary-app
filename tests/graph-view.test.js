@@ -23,6 +23,11 @@ ${extraHead}
 <script src="/src/graph-filter.js"></script>
 <script src="/src/graph-geometry.js"></script>
 <script src="/src/graph-detail.js"></script>
+<script src="/vendor/d3-dispatch.min.js"></script>
+<script src="/vendor/d3-quadtree.min.js"></script>
+<script src="/vendor/d3-timer.min.js"></script>
+<script src="/vendor/d3-force.min.js"></script>
+<script src="/src/graph-force.js"></script>
 <script src="/js/graph-view.js"></script>
 <script>
   window.__stats = {};
@@ -108,6 +113,22 @@ async function mountAndWait(page) {
   await page.evaluate(() => window.__mount());
   await waitFor(page, () => GraphView._debug.frames >= 1);
 }
+// 苦手を count 問入れる（グラフの問題を先頭から）。期限は未来（復習期限ではない）
+async function seedWeak(page, count) {
+  return page.evaluate(c => {
+    const G = GRAMMAR_GRAPH, stats = {}, weak = {}, picked = [];
+    for (let i = 0; i < G.id.length && picked.length < c; i++) {
+      if (G.kinds[G.kind[i]] !== 'question') continue;
+      stats[G.qid[i]] = { a: 2, c: 0 };
+      weak[G.qid[i]] = { streak: 0, due: Date.now() + 86400000 };
+      picked.push(i);
+    }
+    window.__stats = stats; window.__weak = weak;
+    return picked;
+  }, count);
+}
+const settled = page => waitFor(page, () => GraphView._debug.settled === true && GraphView._debug.frames >= 1, undefined, 15000);
+
 // 新しいフレームが描かれるのを待つ（before = 待つ前のフレーム数）
 const nextFrame = (page, before) => waitFor(page, b => GraphView._debug.frames > b, before);
 const sheetOpen = page => page.evaluate(() => {
@@ -170,6 +191,111 @@ test('苦手（概念と Trap につながる問題 1 問）を渡すと、概�
   const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), pick.q);
   const px = await page.evaluate(([x, y]) => window.__px(x, y), [x, y]);
   assert.ok(isRed(px), `問題ノードが赤くない: ${px}`);
+});
+
+test('力学: 苦手があると数フレームかけて収まり、その後 1 秒は rAF もタイマーも呼ばれない', async t => {
+  const page = await open(t);
+  const picked = await seedWeak(page, 40);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  const d = await page.evaluate(() => ({ ticks: GraphView._debug.settleTicks, ms: GraphView._debug.settleMs, frames: GraphView._debug.frames }));
+  assert.equal(d.ticks, 120, '決めた回数だけ回っていない');
+  assert.ok(d.frames >= 2, '途中の様子が描かれていない');
+  await new Promise(r => setTimeout(r, 300)); // 収まった後の最後の 1 フレームを待つ
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
+  await new Promise(r => setTimeout(r, 1100));
+  assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 });
+  // 苦手の問題は、つながる概念・ひっかけに近づいている（ビルド済みの座標との比較）
+  const moved = await page.evaluate(picked => {
+    const G = GRAMMAR_GRAPH, e = G.edges, D = GraphView._debug;
+    let nearer = 0, total = 0;
+    for (let k = 0; k < e.length; k += 3) {
+      if (e[k + 2] === 0 || !picked.includes(e[k])) continue;
+      const q = e[k], h = e[k + 1];
+      const before = Math.hypot(G.x[q] - G.x[h], G.y[q] - G.y[h]);
+      const a = D.worldOf(q), b = D.worldOf(h);
+      total++;
+      if (Math.hypot(a[0] - b[0], a[1] - b[1]) < before) nearer++;
+    }
+    return { nearer, total };
+  }, picked);
+  assert.ok(moved.total > 0);
+  assert.ok(moved.nearer / moved.total > 0.8, `概念・ひっかけに近づいた線が少ない: ${moved.nearer}/${moved.total}`);
+});
+
+test('力学: 収まるまでタップは無視され、収まった後は新しい位置でタップできる', async t => {
+  const page = await open(t);
+  const picked = await seedWeak(page, 40);
+  await page.evaluate(() => window.__mount());
+  // 収まる前: 画面の中央をタップしてもシートは開かない
+  const settledAtTap = await page.evaluate(() => GraphView._debug.settled);
+  if (!settledAtTap) {
+    await page.mouse.click(187, 400);
+    assert.equal(await sheetOpen(page), false, '力学の途中でシートが開いた');
+  }
+  await settled(page);
+  // 問題ノードは近景（寄ったとき）でしか描かれず、当たりもしない。新しい位置に寄ってから確かめる
+  await page.evaluate(i => GraphView._debug.focus(i, 10), picked[0]);
+  const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), picked[0]);
+  assert.equal(await page.evaluate(([x, y]) => GraphView._debug.hitAt(x, y), [x, y]), picked[0], '苦手の問題が新しい位置で当たらない');
+});
+
+test('力学: 苦手が 300 問以上でも収まり、座標はすべて有限', async t => {
+  const page = await open(t);
+  await seedWeak(page, 320);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  const ok = await page.evaluate(() => {
+    const D = GraphView._debug;
+    for (let i = 0; i < GRAMMAR_GRAPH.id.length; i++) { const p = D.worldOf(i); if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) return false; }
+    return true;
+  });
+  assert.equal(ok, true);
+  console.log('# 力学（苦手 320 問、375×812）', await page.evaluate(() => ({ ms: Math.round(GraphView._debug.settleMs), maxFrameMs: Math.round(GraphView._debug.settleMaxFrameMs) })));
+});
+
+test('力学: 途中で destroy しても、rAF もリスナーも残らず例外も出ない', async t => {
+  const page = await open(t);
+  await seedWeak(page, 40);
+  await page.evaluate(() => { window.__mount(); GraphView.destroy(); window.__cnt.raf = 0; });
+  await new Promise(r => setTimeout(r, 500));
+  const r = await page.evaluate(() => ({ raf: window.__cnt.raf, listeners: GraphView._debug.listeners, canvases: document.querySelectorAll('canvas').length }));
+  assert.deepEqual(r, { raf: 0, listeners: 0, canvases: 0 });
+});
+
+test('力学: d3 がなくても固定配置で開く（settled は最初から true、1 回だけ描く）', async t => {
+  const page = await open(t);
+  await seedWeak(page, 40);
+  await page.evaluate(() => { window.d3 = undefined; window.__cnt.raf = 0; window.__mount(); });
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+  await new Promise(r => setTimeout(r, 400));
+  const r = await page.evaluate(() => ({ settled: GraphView._debug.settled, ticks: GraphView._debug.settleTicks, frames: GraphView._debug.frames, raf: window.__cnt.raf }));
+  assert.deepEqual(r, { settled: true, ticks: 0, frames: 1, raf: 1 });
+});
+
+test('力学: 「視差効果を減らす」では途中を描かず、完成形だけ描く', async t => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 }, reducedMotion: 'reduce' });
+  t.after(() => context.close());
+  const page = await context.newPage();
+  await page.addInitScript(COUNT_SCRIPT);
+  await page.goto(base + '/__graph_test.html');
+  await seedWeak(page, 40);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  await new Promise(r => setTimeout(r, 300));
+  const frames = await page.evaluate(() => GraphView._debug.frames);
+  assert.ok(frames <= 2, `途中のフレームを描いている: ${frames}`);
+});
+
+test('力学: 「配置し直す」でもう一度回り、収まると止まる', async t => {
+  const page = await open(t);
+  await seedWeak(page, 40);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  await page.locator('#host button[data-zoom="relayout"]').click();
+  assert.equal(await page.evaluate(() => GraphView._debug.settled), false);
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 120);
 });
 
 test('記録が空（{}）や壊れた記録でも例外なく、描いたノードはすべて灰色', async t => {
@@ -394,6 +520,7 @@ test('絞り込み（本・苦手のみ）で描くノード数が変わり、ar
     window.__weak = { [p.qid]: { streak: 0, due: Date.now() + 86400000 } };
   }, pick);
   await mountAndWait(page);
+  await settled(page); // 苦手があるので開いたとき力学が回る。絞り込みの確認は収まってから
   const all = await page.evaluate(() => GraphView._debug.lastDrawnNodes);
   let f = await frames(page);
   await page.click('#host .graph-chip[data-book="kin"]');
@@ -481,7 +608,13 @@ test('入力の直後（描画の保留中）に destroy しても、そのフ�
   assert.equal(await frames(page), f);
 });
 
-test('document.hidden のあいだは rAF を要求せず、見えるようになったら 1 回描く', async t => {
+const setHidden = (page, hidden) => page.evaluate(h => {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => h });
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (h ? 'hidden' : 'visible') });
+  document.dispatchEvent(new Event('visibilitychange'));
+}, hidden);
+
+async function hiddenCase(t) {
   const page = await open(t);
   await mountAndWait(page);
   const f = await frames(page);
@@ -507,6 +640,28 @@ test('document.hidden のあいだは rAF を要求せず、見えるように�
   await new Promise(r => setTimeout(r, 100));
   assert.equal(await frames(page), f + 1);
   assert.equal(await page.evaluate(() => window.__cnt.raf), 1);
+}
+test('document.hidden のあいだは rAF を要求せず、見えるようになったら 1 回描く', hiddenCase);
+
+test('document.hidden のあいだは力学も進まず、見えるようになったら最後まで進んで収まる', async t => {
+  const page = await open(t);
+  await seedWeak(page, 40);
+  // マウントと同じ同期の中で隠す（最初のフレームの前）。保留中の rAF は取り消され、力学は 1 tick も進まない
+  const r = await page.evaluate(() => {
+    window.__mount();
+    window.__cnt.raf = 0;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    return { pending: GraphView._debug.pending, settled: GraphView._debug.settled };
+  });
+  assert.deepEqual(r, { pending: false, settled: false });
+  await new Promise(r => setTimeout(r, 200));
+  const hidden = await page.evaluate(() => ({ raf: window.__cnt.raf, ticks: GraphView._debug.settleTicks, frames: GraphView._debug.frames, settled: GraphView._debug.settled }));
+  assert.deepEqual(hidden, { raf: 0, ticks: 0, frames: 0, settled: false });
+  await setHidden(page, false);
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 120);
 });
 
 test('テーマ（data-theme・端末のダークモード）を切り替えると色を読み直す', async t => {

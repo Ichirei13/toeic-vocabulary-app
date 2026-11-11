@@ -7,6 +7,7 @@
 // 軽さの約束（設計書 §2）:
 //   - タイマーなし・常時ループなし。入力・絞り込み・refresh・リサイズ・テーマ変更で「汚れた」ときだけ
 //     requestAnimationFrame を 1 回要求する（保留中は 1 つまで）。document.hidden のあいだは要求しない。
+//     例外は 2 つで、どちらも終わったら必ず止まる: 開いたときの力学（決めた回数だけ）と、移動のアニメーション（約 0.3 秒）。
 //   - 色は CSS 変数（css/graph.css）からマウント時とテーマ変更時にだけ読む。描画のたびに getComputedStyle を呼ばない。
 //   - ラベルの幅はノードごとに 1 回だけ測ってキャッシュする。描画中に文字列を作り直さない。
 //   - destroy() は保留中の rAF・すべてのリスナー／オブザーバー・DOM を解放する。
@@ -18,6 +19,7 @@
   const HIT_MIN_PX = 14;       // 当たり判定の最小半径（CSS px）。見た目より大きめにとる
   const MAX_LABELS = 80;       // 1 フレームに描くラベルの上限
   const DPR_MAX = 2;
+  const SETTLE_BUDGET_MS = 8;  // 力学: 1 フレームに使う計算時間の上限
   const ZOOM_MIN_REL = 0.8;    // 全体表示の倍率（fitScale）に対する下限・上限
   const ZOOM_MAX_REL = 14;
   const VIEW_MARGIN = 24;      // 画面外の間引きで四方に足す余白（CSS px）。ノードの半径より大きく
@@ -54,6 +56,7 @@
   const debug = {
     frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastLabels: 0,
     drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, book: 'all', weakOnly: false, lastTap: -1,
+    settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
   };
   let inst = null;
 
@@ -92,8 +95,9 @@
       if (ys[i] > maxY) maxY = ys[i];
       baseR[i] = BASE_R[kindName(i)] || 3;
     }
-    const bounds = { minX, maxX, minY, maxY };
+    let bounds = { minX, maxX, minY, maxY };
     const kConcept = kinds.indexOf('concept'), kTrap = kinds.indexOf('trap');
+    const kQuestion = kinds.indexOf('question'), kChapter = kinds.indexOf('chapter'), kRule = kinds.indexOf('rule');
     // ラベル: 表示用の文字列は今ここで 1 回だけ作る。幅は初めて置くときに測ってキャッシュ（NaN = 未計測）
     const labelText = new Array(n);
     for (let i = 0; i < n; i++) {
@@ -133,6 +137,7 @@
     let mask = null, maskKey = '';
     let colors = null;
     let sheetIndex = -1;
+    let settle = null;          // 力学の実行中だけ { sim, nodes, left, t0, maxFrame, quiet }
     let backdropArmed = false; // 開いた後に覆いで pointerdown があったか
     const pointers = new Map(); // pointerId -> { x, y }
     let gesture = null;         // { moved, pinched, lastDist, lastMid }
@@ -162,6 +167,7 @@
           '<button type="button" data-zoom="in" aria-label="拡大">＋</button>' +
           '<button type="button" data-zoom="out" aria-label="縮小">－</button>' +
           '<button type="button" data-zoom="fit" aria-label="全体を表示">全体</button>' +
+          '<button type="button" data-zoom="relayout" aria-label="配置し直す">再配置</button>' +
         '</div>' +
       '</div>' +
       '<div class="graph-sheet-backdrop" hidden></div>' +
@@ -207,7 +213,17 @@
     function onFrame() {
       rafId = 0;
       debug.pending = false;
-      if (!alive || document.hidden) return; // dirty は残し、見えるようになったら描く
+      if (!alive || document.hidden) return; // dirty は残し、見えるようになったら描く（力学の続きもそこから）
+      if (settle) {
+        const quiet = settle.quiet;
+        stepSettle();
+        if (settle) {
+          // まだ続く。「視差効果を減らす」のときは途中を描かない
+          if (!quiet) draw();
+          requestDraw();
+          return;
+        }
+      }
       draw();
     }
 
@@ -239,6 +255,85 @@
       const maxHitPx = Math.max(HIT_MIN_PX, BASE_R.book * R_FACTOR_MAX);
       const cell = clamp((2 * maxHitPx) / (fitScale * ZOOM_MIN_REL), 8, 400);
       grid = S.buildGrid(xs, ys, cell);
+    }
+
+    // ---- 力学（開いたときと「配置し直す」のときだけ。決めた回数で必ず止まる） ----
+    function updateBounds() {
+      let a = Infinity, b = -Infinity, c = Infinity, d = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (xs[i] < a) a = xs[i];
+        if (xs[i] > b) b = xs[i];
+        if (ys[i] < c) c = ys[i];
+        if (ys[i] > d) d = ys[i];
+      }
+      minX = a; maxX = b; minY = c; maxY = d;
+      bounds = { minX, maxX, minY, maxY };
+    }
+    // 範囲が変わったら全体表示の倍率を取り直す。まだ触っていなければ、全体表示のまま追いかける
+    function refit() {
+      if (!(width > 0 && height > 0)) return;
+      const fit = S.createCamera(width, height, bounds);
+      fitScale = fit.scale;
+      if (!interacted) cam = fit;
+    }
+    function resetPositions() {
+      for (let i = 0; i < n; i++) { xs[i] = +graph.x[i]; ys[i] = +graph.y[i]; }
+    }
+    function canSettle() {
+      const d3 = root.d3;
+      return !!(d3 && typeof d3.forceSimulation === 'function' && typeof S.createSimulation === 'function');
+    }
+    function stopSettle() {
+      if (!settle) return;
+      settle.sim.stop();
+      settle = null;
+    }
+    // 収まった（または回さなかった）後の後始末。fromFrame = onFrame の中から呼ばれた（直後に描くので要求しない）
+    function finishSettle(fromFrame) {
+      updateBounds();
+      refit();
+      maskKey = '';                 // 当たり判定用の座標（hitXs）を作り直させる
+      if (width > 0 && height > 0) buildGrid();
+      debug.settled = true;
+      if (!fromFrame) requestDraw();
+    }
+    function startSettle() {
+      stopSettle();
+      resetPositions();
+      debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
+      const weakQ = new Uint8Array(n);
+      let anyWeak = false;
+      for (let i = 0; i < n; i++) if (graph.kind[i] === kQuestion && mastery.weak[i] > 0) { weakQ[i] = 1; anyWeak = true; }
+      // 苦手が 1 問もなければ、力はビルド時と同じ。回しても揺れるだけなので、固定配置のまま出す
+      if (!anyWeak || !canSettle()) { finishSettle(false); return; }
+      const kn = new Array(n);
+      for (let i = 0; i < n; i++) kn[i] = kindName(i);
+      let made;
+      try {
+        made = S.createSimulation(root.d3, {
+          kindName: kn, edges: E, bookOf: S.bookOfNodes(graph.id, kn, E), x: xs, y: ys, weakQ, hubWeak: mastery.weak,
+        }, S.GRAPH_LAYOUT, S.GRAPH_RUNTIME);
+      } catch (e) { finishSettle(false); return; } // 組み立てに失敗したら固定配置
+      const mq = typeof root.matchMedia === 'function' ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      settle = { sim: made.sim, nodes: made.nodes, left: made.ticks, t0: performance.now(), maxFrame: 0, quiet: !!(mq && mq.matches) };
+      debug.settled = false;
+      requestDraw();
+    }
+    function stepSettle() {
+      const t0 = performance.now();
+      do { settle.sim.tick(); settle.left--; debug.settleTicks++; } while (settle.left > 0 && performance.now() - t0 < SETTLE_BUDGET_MS);
+      const nodes = settle.nodes;
+      let finite = true;
+      for (let i = 0; i < n; i++) if (!Number.isFinite(nodes[i].x) || !Number.isFinite(nodes[i].y)) { finite = false; break; }
+      if (!finite) { stopSettle(); resetPositions(); finishSettle(true); return; } // 壊れたら固定配置に戻す
+      for (let i = 0; i < n; i++) { xs[i] = nodes[i].x; ys[i] = nodes[i].y; }
+      const dt = performance.now() - t0;
+      if (dt > settle.maxFrame) settle.maxFrame = dt;
+      if (settle.left > 0) { updateBounds(); refit(); return; }
+      debug.settleMs = performance.now() - settle.t0;
+      debug.settleMaxFrameMs = settle.maxFrame;
+      stopSettle();
+      finishSettle(true);
     }
 
     // ---- 描画 ----
@@ -541,6 +636,7 @@
       const g = gesture;
       gesture = null;
       if (cancelled || g.pinched || g.moved > TAP_SLOP) return;
+      if (settle) return; // 動いているノードを押し間違えないよう、収まるまでタップは受け付けない
       const i = hitIndex(p.x, p.y);
       if (i >= 0 && mask && mask[i]) openSheet(i);
       else closeSheet();
@@ -575,6 +671,7 @@
     function onZoomClick(e) {
       const b = e.target.closest('button[data-zoom]');
       if (!b || !cam) return;
+      if (b.dataset.zoom === 'relayout') { closeSheet(); startSettle(); return; }
       if (b.dataset.zoom === 'fit') { cam = S.createCamera(width, height, bounds); interacted = false; requestDraw(); }
       else zoomBy(width / 2, height / 2, b.dataset.zoom === 'in' ? 1.6 : 1 / 1.6);
     }
@@ -629,6 +726,7 @@
     recompute();
     const r0 = stage.getBoundingClientRect();
     resize(Math.round(r0.width), Math.round(r0.height)); // ここで最初の 1 フレームを要求する
+    startSettle(); // 苦手があれば、ビルド済みの座標から続きを回す（なければ何もしない）
 
     return {
       refresh() {
@@ -640,6 +738,7 @@
       destroy() {
         if (!alive) return;
         alive = false;
+        stopSettle();
         if (rafId) cancelAnimationFrame(rafId);
         rafId = 0;
         debug.pending = false;
@@ -670,9 +769,11 @@
         setCam({ x: width / 2 - wx * sc, y: height / 2 - wy * sc, scale: sc });
       },
       forceDraw() { draw(); return debug.lastFrameMs; },
+      worldOf(i) { return i >= 0 && i < n ? [xs[i], ys[i]] : null; },
     };
     } catch (err) {
       alive = false;
+      if (settle) { try { settle.sim.stop(); } catch (e2) { /* 無視 */ } settle = null; }
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
       debug.pending = false;
@@ -685,6 +786,7 @@
   function mount(container, deps) {
     if (inst) destroy();
     debug.frames = 0; debug.lastTap = -1; debug.lod = 0; debug.book = 'all'; debug.weakOnly = false;
+    debug.settled = true; debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
     inst = createInstance(container, deps);
   }
   function refresh() { if (inst) inst.refresh(); }
@@ -702,6 +804,7 @@
   debug.isVisible = i => (inst ? inst.isVisible(i) : false);
   debug.focus = (id, rel) => { if (inst) inst.focus(id, rel); };
   debug.forceDraw = () => (inst ? inst.forceDraw() : 0);
+  debug.worldOf = i => (inst ? inst.worldOf(i) : null);
 
   root.GraphView = { mount, refresh, destroy, _debug: debug };
 })(typeof self !== 'undefined' ? self : this);

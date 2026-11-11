@@ -235,7 +235,8 @@
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
-.graph-zoom button[data-zoom="fit"] { font-size: 11px; }
+.graph-zoom button[data-zoom="fit"],
+.graph-zoom button[data-zoom="relayout"] { font-size: 11px; }
 
 /* ---- 詳細シート（このビュー専用の軽いシート） ---- */
 .graph-sheet-backdrop {
