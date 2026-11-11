@@ -188,3 +188,26 @@ test('問題・ルール・本のノードからも出題できる（どの種�
     assert.ok((await poolIds(page)).length >= 1);
   }
 });
+
+test('記録の読み込み直し（別のタブの保存・同期・画面に戻る）が、近い問題の出題と通常の続きを変えない（苦手の絞り込み中・未回答）', async t => {
+  const { page } = await open(t);
+  await page.evaluate(() => { setApp('grammar'); state.grammarWeakFilter = 'weak_unlearned'; applyGrammarFilters(); switchAppPage('practice'); });
+  await page.locator('#choices-container button').first().click();
+  await page.evaluate(() => switchAppPage('graph'));
+  await graphReady(page);
+  const session0 = await stored(page, SESSION_KEY);
+  const books0 = await stored(page, BOOK_SESSIONS_KEY);
+  await startNearDrill(page, 'con:');
+  const near0 = await stored(page, NEAR_KEY);
+  const ids = await poolIds(page);
+  // 実際に読み込み直しが走ったことを確かめる（グラフの更新が、読み込み直しの関数の後に呼ばれる）
+  await page.evaluate(() => { window.__reloaded = 0; const f = window.reloadRecordsFromStorage; window.reloadRecordsFromStorage = function () { const r = f.apply(this, arguments); window.__reloaded++; return r; }; });
+  await page.evaluate(() => reloadRecordsSavedElsewhere());
+  assert.equal(await page.evaluate(() => window.__reloaded), 1, '読み込み直しが走っていない');
+  assert.equal(await page.evaluate(() => state.grammarWeakFilter), 'weak_unlearned');
+  assert.notEqual(await page.evaluate(() => state.nearDrill), null, '近い問題が捨てられた');
+  assert.deepEqual(await poolIds(page), ids);
+  assert.equal(await stored(page, NEAR_KEY), near0);
+  assert.equal(await stored(page, SESSION_KEY), session0, '通常の続きが書き換わった');
+  assert.equal(await stored(page, BOOK_SESSIONS_KEY), books0, '本ごとの続きが書き換わった');
+});
