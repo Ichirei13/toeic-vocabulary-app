@@ -82,10 +82,11 @@ test('ETag が変わったファイルだけが書き直され、新しい中身
   behavior.changed.set('css/app.css', { body: '/* 変更後 */\n' + fs.readFileSync(path.join(root, 'css/app.css'), 'utf8'), etag: 'W/"changed-1"' });
   const r = await reloadAndCount();
   assert.deepEqual(r.urls.map(u => new URL(u).pathname), ['/css/app.css']);
-  const cached = await page.evaluate(async () => {
-    const res = await (await caches.open('toeic-drill-v14')).match('css/app.css');
+  const cacheName = /const CACHE = '([^']+)'/.exec(fs.readFileSync(path.join(root, 'sw.js'), 'utf8'))[1]; // sw.js の版を上げても追従する
+  const cached = await page.evaluate(async name => {
+    const res = await (await caches.open(name)).match('css/app.css');
     return (await res.text()).startsWith('/* 変更後 */');
-  });
+  }, cacheName);
   assert.equal(cached, true, 'キャッシュの中身が新しくなっていない');
   const again = await reloadAndCount();
   assert.equal(again.put, 0, '同じ ETag のままなら、もう書かない');

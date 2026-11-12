@@ -53,19 +53,25 @@
     weakEdge: 'rgba(229,72,77,0.8)', reds: ['#f29a9d', '#ec6f74', '#e5484d'],
   };
   const BUNDLE_MIN_Q = 2;                     // 苦手が 0 で問題数がこれ以下の束は、遠景・中景では描かない
-  const BUNDLE_WIDTHS = [0.8, 1.6, 2.6, 3.8]; // 束の太さ: 苦手 0 / 1〜2 / 3〜5 / 6 以上
+  const BUNDLE_WIDTHS = [0.8, 1.3, 1.8, 2.4]; // 束の太さ: 苦手 0 / 1〜2 / 3〜5 / 6 以上（苦手が多いと中央に集まって塗りつぶしになるので細め）
+  const BUNDLE_WEAK_ALPHA = 0.5;              // 苦手のある束の不透明度（線の向こうのノードとラベルを読めるように）
   const SIZE_BOOST_STEP = 0.25, SIZE_BOOST_MAX = 1.2; // 大きさ = 1 + min(上限, 段 × √苦手の数)
   const RED_VARS = ['--graph-weak-1', '--graph-weak-2', '--graph-weak']; // 赤の濃さ（苦手の割合 1 割未満 / 3 割未満 / それ以上）
   const FOCUS_NEAR = 30;         // 問題を選んだときに一緒に浮かび上がらせる、近い問題の数
   const DIM_NODE = 0.16;         // 選択中、つながらないノードの濃さ
   const DIM_EDGE = 0.08;         // 選択中、つながらない線の濃さ
+  const FOCUS_EDGE_WIDTH = 1.8;  // 選択中、浮かび上がらせる線の太さ
+  const FOCUS_EDGE_MANY = 60;    // 浮かび上がらせる線がこれより多いときは、扇状に重なって塗りつぶしになるので細く薄くする
+  const FOCUS_EDGE_WIDTH_MANY = 1, FOCUS_EDGE_ALPHA_MANY = 0.5;
+  const FOCUS_Q_LABELS = 6;      // 遠景・中景で、選択中に浮かび上がった問題に付ける番号ラベルの上限（選択したノード自身は別）
+  const REVEAL_GAP = 40;         // タップで開いたシートの上端からこの距離以内にノードがあれば、見える範囲の中央へ動かす（CSS px）
   const JUMP_MS = 300;           // シートの問題をタップしたときの移動の長さ
   const JUMP_MIN_REL = 2.4;      // 移動先の倍率の下限（全体表示に対する比。ルールまで見える倍率）
   const STATUS_LABEL = { weak: '苦手', wrong: '誤答あり', unseen: '未解答', correct: '正解' };
 
   // テスト用の観測値。frames はマウントごとに 0 から数える。listeners は今登録中のリスナー・オブザーバーの数
   const debug = {
-    frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0,
+    frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0, lastFarQuestionLabels: 0, focusEdges: 0, lastFocusEdgeWidth: 0,
     drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, book: 'all', weakOnly: false, lastTap: -1,
     settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
     focusNode: -1, focusCount: 0, animating: false,
@@ -160,6 +166,7 @@
     let colors = null;
     let sheetIndex = -1;
     let settle = null;          // 力学の実行中だけ { sim, nodes, left, t0, maxFrame, quiet }
+    let focusEdges = 0;               // 浮かび上がらせる線の本数（両端が浮かび上がっているもの）
     let focus = null, focusNode = -1; // 選択中: 浮かび上がらせるノード（Uint8Array）と、選択したノード
     let anim = null;                  // 移動のアニメーション中だけ { from, to, t0 }
     let sheetWide = false;            // シートを広げているか（既定は半分の高さ）
@@ -421,6 +428,9 @@
       // 種類ごとに 1 つの path にまとめ、1 回だけ stroke する。
       // 線。選択中は、まず全部を薄く描き、そのあと浮かび上がらせる線を通常の濃さで重ねる
       const lit = focus;
+      const manyLit = !!lit && focusEdges > FOCUS_EDGE_MANY;
+      const litWidth = manyLit ? FOCUS_EDGE_WIDTH_MANY : FOCUS_EDGE_WIDTH;
+      debug.lastFocusEdgeWidth = lit ? litWidth : 0;
       ctx.globalAlpha = lit ? DIM_EDGE : 1;
       // 概念・ひっかけの線: 遠景・中景は束ねた線。そのうえで、見えている苦手の問題の線は下のループが描く
       const bundleCount = lod < 2 ? drawBundles(lod, s, ox, oy, lit ? DIM_EDGE : 1) : 0;
@@ -446,9 +456,9 @@
             if (pass === 0) edgeCount++;
           }
           if (!any) continue;
-          ctx.globalAlpha = pass === 0 && lit ? DIM_EDGE : 1;
+          ctx.globalAlpha = pass === 0 && lit ? DIM_EDGE : pass === 1 && manyLit ? FOCUS_EDGE_ALPHA_MANY : 1;
           ctx.strokeStyle = edgeStyle[t][0];
-          ctx.lineWidth = pass === 1 ? 1.8 : edgeStyle[t][1];
+          ctx.lineWidth = pass === 1 ? litWidth : edgeStyle[t][1];
           ctx.setLineDash(edgeStyle[t][2] || []);
           ctx.stroke();
         }
@@ -496,7 +506,7 @@
         ctx.strokeStyle = colors.label; ctx.lineWidth = 2; ctx.stroke();
       }
 
-      const labels = drawLabels();
+      const labels = drawLabels(lod);
 
       debug.lastDrawnNodes = m;
       debug.lastDrawnEdges = edgeCount;
@@ -527,7 +537,7 @@
           }
           if (!any) continue;
           ctx.strokeStyle = c === 0 ? (t === 1 ? colors.conceptEdge : colors.trapLine) : colors.weakEdge;
-          ctx.globalAlpha = (c === 0 ? 0.5 : 1) * alpha;
+          ctx.globalAlpha = (c === 0 ? 0.5 : BUNDLE_WEAK_ALPHA) * alpha;
           ctx.lineWidth = BUNDLE_WIDTHS[c];
           ctx.setLineDash(t === 2 ? [5, 4] : []);
           ctx.stroke();
@@ -551,12 +561,15 @@
 
     // ラベル: 画面内・絞り込みを通ったノードを優先度順（本 > 概念・Trap > 章 > ルール > 問題）に見て、
     // 既に置いたラベルと重ならず、画面からはみ出さないものだけ、上限 MAX_LABELS 個まで置く（貪欲法）。
-    function drawLabels() {
-      let count = 0;
+    function drawLabels(lod) {
+      let count = 0, qLabels = 0;
       let curFont = '';
       for (let j = 0; j < n && count < MAX_LABELS; j++) {
         const i = labelOrder[j];
         if (!mask[i] || !inView[i] || (focus && !focus[i])) continue;
+        // 問題の番号ラベルは近景だけ。遠景・中景では、選択中に浮かび上がった問題を数個まで（選択したノード自身は必ず）
+        const isQ = graph.kind[i] === kQuestion;
+        if (isQ && lod < 2 && i !== focusNode && (!focus || qLabels >= FOCUS_Q_LABELS)) continue;
         const sx = sxs[i], sy = sys[i];
         if (sx < 0 || sx > width || sy < 0 || sy > height) continue;
         const lf = LABEL_FONT[kindName(i)] || LABEL_FONT.question;
@@ -576,7 +589,9 @@
         const p = count * 4;
         placed[p] = x0; placed[p + 1] = y0; placed[p + 2] = x1; placed[p + 3] = y1;
         placedIdx[count++] = i;
+        if (isQ && lod < 2 && i !== focusNode) qLabels++;
       }
+      debug.lastFarQuestionLabels = qLabels;
       // 描く（並びは優先度順なので書体の切り替えは種類の変わり目だけ）
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -634,13 +649,27 @@
       openSheet(i);
       const sc = Math.max(cam.scale, fitScale * JUMP_MIN_REL);
       const covered = sheet.hidden ? 0 : Math.min(height * 0.6, sheet.getBoundingClientRect().height);
-      const to = { x: width / 2 - xs[i] * sc, y: Math.max(60, (height - covered) / 2) - ys[i] * sc, scale: sc };
+      animateTo({ x: width / 2 - xs[i] * sc, y: Math.max(60, (height - covered) / 2) - ys[i] * sc, scale: sc });
+    }
+    // 移動のアニメーション（「視差効果を減らす」のときは即座に切り替える）。終わったら rAF を要求しない
+    function animateTo(to) {
       const mq = typeof root.matchMedia === 'function' ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
       if (mq && mq.matches) { anim = null; debug.animating = false; setCam(to); return; }
       anim = { from: cam, to, t0: performance.now() };
       debug.animating = true;
       interacted = true;
       requestDraw();
+    }
+    // タップでシートを開いたとき、選んだノードがシートに隠れる・シートの上端のすぐ上にあれば、倍率はそのまま、
+    // シートの上の見える範囲の中央へ動かす。見えている位置なら動かさない
+    function revealAboveSheet(i) {
+      if (!cam || sheet.hidden) return;
+      const cr = canvas.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
+      const sx = xs[i] * cam.scale + cam.x, sy = ys[i] * cam.scale + cam.y;
+      const top = sr.top - cr.top;
+      if (!(sy > top - REVEAL_GAP && sx >= sr.left - cr.left && sx <= sr.right - cr.left)) return;
+      const visible = Math.max(REVEAL_GAP, top);
+      animateTo({ x: width / 2 - xs[i] * cam.scale, y: visible / 2 - ys[i] * cam.scale, scale: cam.scale });
     }
     function stepAnim() {
       const u = Math.min(1, (performance.now() - anim.t0) / JUMP_MS);
@@ -674,13 +703,18 @@
       focusNode = i;
       let c = 0;
       for (let k = 0; k < n; k++) c += focus[k];
-      debug.focusNode = i; debug.focusCount = c;
+      focusEdges = 0;
+      for (let t = 0; t < 3; t++) {
+        const list = edgesByType[t];
+        for (let k = 0; k < list.length; k += 2) if (focus[list[k]] && focus[list[k + 1]]) focusEdges++;
+      }
+      debug.focusNode = i; debug.focusCount = c; debug.focusEdges = focusEdges;
       requestDraw();
     }
     function clearFocus() {
       if (!focus) return;
-      focus = null; focusNode = -1;
-      debug.focusNode = -1; debug.focusCount = 0;
+      focus = null; focusNode = -1; focusEdges = 0;
+      debug.focusNode = -1; debug.focusCount = 0; debug.focusEdges = 0;
       requestDraw();
     }
 
@@ -800,7 +834,7 @@
       if (cancelled || g.pinched || g.moved > TAP_SLOP) return;
       if (settle) return; // 動いているノードを押し間違えないよう、収まるまでタップは受け付けない
       const i = hitIndex(p.x, p.y);
-      if (i >= 0 && mask && mask[i]) openSheet(i);
+      if (i >= 0 && mask && mask[i]) { openSheet(i); if (sheetIndex === i) revealAboveSheet(i); }
       else closeSheet();
     }
     function onWheel(e) {

@@ -835,6 +835,27 @@ test('性能（CPU 4 倍スロットル、記録用）', async t => {
   }
 });
 
+test('性能: 力学（CPU 4 倍スロットル、記録用。苦手 110 問 = 全体の約 1/9）', async t => {
+  const out = {};
+  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+    const page = await open(t, { viewport: vp });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await seedWeak(page, 110);
+    await page.evaluate(() => window.__mount());
+    await settled(page);
+    out[vp.width] = await page.evaluate(() => ({
+      settleMs: Math.round(GraphView._debug.settleMs),
+      maxFrameMs: Math.round(GraphView._debug.settleMaxFrameMs),
+      ticks: GraphView._debug.settleTicks,
+      drawMs: Math.round(GraphView._debug.forceDraw() * 10) / 10,
+    }));
+    assert.equal(out[vp.width].ticks, 120);
+    assert.ok(out[vp.width].settleMs < 8000, `収まるまでが長すぎる: ${out[vp.width].settleMs}ms`);
+  }
+  console.log('# 力学（CPU 4 倍）', JSON.stringify(out));
+});
+
 // アプリの本物のテーマの一覧と、暗い / 明るいの分類（css/app.css の --bg-page で決めた）。
 // テーマを足したら、ここと css/graph.css の両方を直す（下のテストで CSS の一覧と照合するので、足し忘れると落ちる）
 const APP_THEMES = { ink: 'dark', duolingo: 'dark', navy: 'dark', forest: 'dark', nordic: 'dark', quizlet: 'dark', light: 'light', ios: 'light' };
@@ -1119,6 +1140,98 @@ test('シート: 「視差効果を減らす」では、アニメーションな
   await tapNode(page, await firstOf(page, 'con:'));
   await page.locator('#host .graph-q[data-node]').first().click();
   assert.equal(await page.evaluate(() => GraphView._debug.animating), false);
+});
+
+// 画面の縦位置（canvas の上端からの距離）で、タップできるノードを探す
+const findTappable = (page, minFrac, maxFrac) => page.evaluate(([lo, hi]) => {
+  const G = GRAMMAR_GRAPH, D = GraphView._debug, c = document.querySelector('#host canvas').getBoundingClientRect();
+  for (let i = 0; i < G.id.length; i++) {
+    if (G.kinds[G.kind[i]] === 'question' || !D.isVisible(i)) continue;
+    const p = D.screenOf(i);
+    if (!p || p[0] < 40 || p[0] > c.width - 40) continue;
+    const f = (p[1] - c.top) / c.height;
+    if (f >= lo && f <= hi && D.hitAt(p[0], p[1]) === i) return i;
+  }
+  return -1;
+}, [minFrac, maxFrac]);
+
+test('シート: タップしたノードがシートに隠れるなら、倍率を変えずに上の見える範囲の中央へ動き、動き終わると止まる', async t => {
+  const page = await open(t);
+  await seedWeak(page, 110);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  const i = await findTappable(page, 0.56, 0.95);
+  assert.ok(i >= 0, '下寄りのノードが見つからない');
+  const cam0 = await page.evaluate(() => GraphView._debug.camera());
+  await tapNode(page, i);
+  await waitFor(page, () => GraphView._debug.animating === false && GraphView._debug.pending === false);
+  assert.equal(await page.evaluate(() => GraphView._debug.focusNode), i);
+  const d = await page.evaluate(i => {
+    const c = document.querySelector('#host canvas').getBoundingClientRect(), s = document.querySelector('#host .graph-sheet').getBoundingClientRect();
+    return { cam: GraphView._debug.camera(), p: GraphView._debug.screenOf(i), top: s.top - c.top, ctop: c.top };
+  }, i);
+  assert.equal(d.cam.scale, cam0.scale, '倍率が変わった');
+  assert.ok(Math.abs(d.p[0] - 187.5) < 2, `横の中央に来ていない: ${d.p[0]}`);
+  assert.ok(Math.abs(d.p[1] - d.ctop - d.top / 2) < 2, `シートの上の中央に来ていない: ${d.p[1] - d.ctop} / シートの上端 ${d.top}`);
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
+  await new Promise(r => setTimeout(r, 900));
+  assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 }, '動き終わった後も描き続けている');
+});
+
+test('シート: タップしたノードが見えている位置なら、カメラは動かない', async t => {
+  const page = await open(t);
+  await seedWeak(page, 110);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  const i = await findTappable(page, 0.1, 0.45);
+  assert.ok(i >= 0, '上寄りのノードが見つからない');
+  const cam0 = await page.evaluate(() => GraphView._debug.camera());
+  await tapNode(page, i);
+  assert.equal(await sheetOpen(page), true);
+  assert.equal(await page.evaluate(() => GraphView._debug.animating), false);
+  await new Promise(r => setTimeout(r, 400));
+  assert.deepEqual(await page.evaluate(() => GraphView._debug.camera()), cam0, 'カメラが動いた');
+});
+
+test('ラベル: 遠景・中景では問題の番号ラベルを置かず、選択中も数個（6 個）まで', async t => {
+  const page = await open(t, { viewport: { width: 1280, height: 800 } });
+  await seedWeak(page, 110);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  const far = await page.evaluate(() => ({ lod: GraphView._debug.lod, q: GraphView._debug.lastFarQuestionLabels, drawn: GraphView._debug.drawnKinds[5] }));
+  assert.equal(far.lod, 0);
+  assert.ok(far.drawn > 0, '苦手の問題ノードは全体表示でも描かれる');
+  assert.equal(far.q, 0, '遠景で問題のラベルが出ている');
+  const con = await page.evaluate(() => GRAMMAR_GRAPH.id.indexOf('con:名詞の役割（主語・目的語・補語）'));
+  const f = await frames(page);
+  await tapNode(page, con);
+  await nextFrame(page, f);
+  const sel = await page.evaluate(() => ({ lod: GraphView._debug.lod, q: GraphView._debug.lastFarQuestionLabels, node: GraphView._debug.focusNode }));
+  assert.equal(sel.node, con);
+  assert.equal(sel.lod, 0);
+  assert.ok(sel.q > 0 && sel.q <= 6, `選択中の問題ラベルの数: ${sel.q}`);
+});
+
+test('選択: 浮かび上がらせる線が多い（60 本超）ときは太さ 1、少ないときは 1.8', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  const pick = id => page.evaluate(id => GRAMMAR_GRAPH.id.indexOf(id), id);
+  const res = {};
+  for (const id of ['con:SVOC（文の骨格）', 'ch:sekai:1']) {
+    const i = await pick(id);
+    await page.evaluate(i => GraphView._debug.focus(i, 3), i);
+    await waitFor(page, i => GraphView._debug.camera().scale > 0 && GraphView._debug.screenOf(i)[0] > 100, i);
+    const f = await frames(page);
+    await tapNode(page, i);
+    await nextFrame(page, f);
+    res[id] = await page.evaluate(() => ({ node: GraphView._debug.focusNode, edges: GraphView._debug.focusEdges, width: GraphView._debug.lastFocusEdgeWidth }));
+    assert.equal(res[id].node, i, id + ' を選べていない');
+    await page.mouse.click(2, 100); // 何もない場所のタップで閉じる
+  }
+  assert.ok(res['con:SVOC（文の骨格）'].edges > 60);
+  assert.equal(res['con:SVOC（文の骨格）'].width, 1);
+  assert.ok(res['ch:sekai:1'].edges <= 60);
+  assert.equal(res['ch:sekai:1'].width, 1.8);
 });
 
 test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async t => {
