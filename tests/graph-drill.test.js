@@ -211,3 +211,13 @@ test('記録の読み込み直し（別のタブの保存・同期・画面に�
   assert.equal(await stored(page, SESSION_KEY), session0, '通常の続きが書き換わった');
   assert.equal(await stored(page, BOOK_SESSIONS_KEY), books0, '本ごとの続きが書き換わった');
 });
+
+test('updateNearDrillBanner が未定義（読み込む版が混ざった状態）でも、回答の続きが保存される', async t => {
+  const { page } = await open(t);
+  await page.evaluate(() => { setApp('grammar'); applyGrammarFilters(); switchAppPage('practice'); });
+  await page.locator('#choices-container button').first().waitFor();
+  await page.evaluate(() => { window.updateNearDrillBanner = undefined; });
+  await page.locator('#choices-container button').first().click();
+  const idx = await page.evaluate(() => JSON.parse(localStorage.getItem('toeic_session')).grammar.index);
+  assert.equal(idx, 1, '続きが保存されていない');
+});

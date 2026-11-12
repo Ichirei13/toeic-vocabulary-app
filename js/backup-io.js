@@ -312,7 +312,7 @@ function replaceRecords(rawByKey, saveUndo, label) {
 // 解いている最中の画面は作り直さない（同期は回答のたびに走るので、進み具合が消えてしまう）
 function refreshPoolAfterRecordSync() {
   // 近い問題の出題中は作り直さない（その問題は苦手の絞り込みと関係がなく、作り直すと通常の続きも上書きされる）
-  if (nearDrillActive()) return;
+  if (typeof nearDrillActive === 'function' && nearDrillActive()) return;
   const isGrammar = state.app === 'grammar';
   if (isGrammar ? state.grammarWeakFilter === 'all' : state.weakFilter === 'all') return;
   const untouched = isGrammar

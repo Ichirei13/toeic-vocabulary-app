@@ -1304,3 +1304,78 @@ test('出題ボタン: onStartDrill を渡したときだけ出て、押すと�
   assert.equal(typeof d.label, 'string');
   assert.ok(d.label.length > 0);
 });
+
+test('力学: tick が例外を投げたら固定配置に戻り、タップが受け付けられる（警告は出てよい）', async t => {
+  const page = await open(t);
+  await seedWeak(page, 40);
+  await page.evaluate(() => {
+    const orig = StudyCore.createSimulation;
+    StudyCore.createSimulation = function () {
+      const made = orig.apply(this, arguments);
+      let calls = 0;
+      const tick = made.sim.tick;
+      made.sim.tick = function () { if (++calls === 2) throw new Error('boom'); return tick.apply(this, arguments); };
+      return made;
+    };
+    console.warn = function () {};
+    window.__mount();
+  });
+  await settled(page);
+  const r = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, D = GraphView._debug;
+    let same = true;
+    for (let i = 0; i < G.id.length; i++) { const w = D.worldOf(i); if (w[0] !== G.x[i] || w[1] !== G.y[i]) { same = false; break; } }
+    return { settled: D.settled, same };
+  });
+  assert.equal(r.settled, true);
+  assert.equal(r.same, true, '座標がビルド済みの値に戻っていない');
+  await new Promise(r => setTimeout(r, 300));
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; });
+  await new Promise(r => setTimeout(r, 1000));
+  assert.equal(await page.evaluate(() => window.__cnt.raf), 0, '収まった後も rAF が呼ばれている');
+  await tapNode(page, await firstOf(page, 'book:'));
+  assert.equal(await sheetOpen(page), true, '例外の後にタップしてもシートが開かない');
+});
+
+test('当たり判定: 苦手で大きくなった概念は、見た目の円の内側（半径の 0.9 倍）で当たる', async t => {
+  const page = await open(t);
+  const c = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, e = G.edges, by = new Map(), stats = {}, weak = {};
+    for (let k = 0; k < e.length; k += 3) {
+      if (e[k + 2] !== 1) continue;
+      const q = G.kind[e[k]] === G.kinds.indexOf('question') ? e[k] : e[k + 1], h = q === e[k] ? e[k + 1] : e[k];
+      if (!by.has(h)) by.set(h, []);
+      by.get(h).push(q);
+    }
+    let best = -1, qs = [];
+    for (const [h, l] of by) if (l.length > qs.length) { best = h; qs = l; }
+    for (const q of qs) { stats[G.qid[q]] = { a: 2, c: 0 }; weak[G.qid[q]] = { streak: 0, due: Date.now() + 86400000 }; }
+    window.__stats = stats; window.__weak = weak;
+    return { best, count: qs.length };
+  });
+  assert.ok(c.count >= 20, `苦手を集められる概念がない: ${c.count}`);
+  await page.evaluate(() => window.__mount());
+  await settled(page);
+  await page.evaluate(i => GraphView._debug.focus(i, 9), c.best);
+  const r = await page.evaluate(i => {
+    const D = GraphView._debug, G = GRAMMAR_GRAPH;
+    const [cx, cy] = D.screenOf(i), rad = D.screenRadiusOf(i) * 0.9;
+    let tried = 0, hit = 0;
+    for (let a = 0; a < 16; a++) {
+      const x = cx + Math.cos(a * Math.PI / 8) * rad, y = cy + Math.sin(a * Math.PI / 8) * rad;
+      let closer = false;
+      for (let j = 0; j < G.id.length; j++) {
+        if (j === i || !D.isVisible(j)) continue;
+        const s = D.screenOf(j);
+        if (Math.hypot(s[0] - x, s[1] - y) <= rad) { closer = true; break; }
+      }
+      if (closer) continue;
+      tried++;
+      if (D.hitAt(x, y) === i) hit++;
+    }
+    return { tried, hit, rad: D.screenRadiusOf(i), radius: D.radiusOf(i) };
+  }, c.best);
+  assert.ok(r.radius > 12, `概念が大きくなっていない: ${r.radius}`);
+  assert.ok(r.tried > 0, '試せる方向がない');
+  assert.equal(r.hit, r.tried, `外周で当たらない方向がある: ${JSON.stringify(r)}`);
+});

@@ -144,6 +144,7 @@
     const bundles = [S.buildBundles(graph, index, 'chapter'), S.buildBundles(graph, index, 'rule')];
     let bundleWeakCnt = [new Int32Array(bundles[0].count), new Int32Array(bundles[1].count)];
     const sizeBoost = new Float32Array(n).fill(1); // 苦手の数に応じた大きさの倍率
+    let maxBaseR = BASE_R.book;                    // 大きくなった分を含む、ノードの基準半径の最大（当たり判定の上限に使う）
     const fillClass = new Uint8Array(n);           // 0〜5 = 状態の色、6〜8 = 赤の濃さ
     const baseLabel = labelText.slice();           // 数を付ける前のラベル
 
@@ -272,11 +273,14 @@
       weak = safeObj(deps.getWeak);
       mastery = S.computeMastery(graph, stats, weak, deps.isDue);
       masteryVer++;
+      let mx = BASE_R.book;
       bundleWeakCnt = bundles.map(b => S.bundleWeak(b, mastery.weak));
       for (let i = 0; i < n; i++) {
         const w = mastery.weak[i], k = graph.kind[i], st = mastery.state[i];
         const grows = k === kConcept || k === kTrap || k === kChapter || k === kRule;
         sizeBoost[i] = grows && w > 0 ? 1 + Math.min(SIZE_BOOST_MAX, SIZE_BOOST_STEP * Math.sqrt(w)) : 1;
+        const br = baseR[i] * sizeBoost[i];
+        if (br > mx) mx = br;
         if (st === 1 || st === 2) {
           // 赤は、配下に占める苦手の割合で 3 段階。問題そのものはいちばん濃い
           const ratio = k === kQuestion ? 1 : mastery.total[i] > 0 ? w / mastery.total[i] : 0;
@@ -286,6 +290,10 @@
         }
         const text = w > 0 && k !== kQuestion ? baseLabel[i] + ' ' + w : baseLabel[i];
         if (text !== labelText[i]) { labelText[i] = text; labelW[i] = NaN; } // 幅は次に置くときに測り直す
+      }
+      if (mx !== maxBaseR) {
+        maxBaseR = mx;
+        if (grid && width > 0 && height > 0) buildGrid(); // 当たり半径の上限が変わったので格子を作り直す
       }
     }
     function ensureMask(lod) {
@@ -306,7 +314,7 @@
     // 寄ったときは半径が小さいので 1〜4 セルしか見ない。8〜400 ワールド単位に収める。
     let grid = null;
     function buildGrid() {
-      const maxHitPx = Math.max(HIT_MIN_PX, BASE_R.book * R_FACTOR_MAX);
+      const maxHitPx = Math.max(HIT_MIN_PX, maxBaseR * R_FACTOR_MAX);
       const cell = clamp((2 * maxHitPx) / (fitScale * ZOOM_MIN_REL), 8, 400);
       grid = S.buildGrid(xs, ys, cell);
     }
@@ -376,7 +384,14 @@
     }
     function stepSettle() {
       const t0 = performance.now();
-      do { settle.sim.tick(); settle.left--; debug.settleTicks++; } while (settle.left > 0 && performance.now() - t0 < SETTLE_BUDGET_MS);
+      try {
+        do { settle.sim.tick(); settle.left--; debug.settleTicks++; } while (settle.left > 0 && performance.now() - t0 < SETTLE_BUDGET_MS);
+      } catch (e) {
+        // 力学が例外を投げたら、座標が壊れたときと同じく固定配置に戻す（settle を残すとタップが永久に効かない）
+        console.warn('graph-view: 力学の計算に失敗したため、固定配置に戻します', e);
+        stopSettle(); resetPositions(); finishSettle(true);
+        return;
+      }
       const nodes = settle.nodes;
       let finite = true;
       for (let i = 0; i < n; i++) if (!Number.isFinite(nodes[i].x) || !Number.isFinite(nodes[i].y)) { finite = false; break; }
@@ -686,7 +701,7 @@
       if (!cam || !grid) return -1;
       ensureMask(currentLod());
       const [wx, wy] = S.screenToWorld(cam, lx, ly);
-      const maxR = BASE_R.book * radiusFactor();
+      const maxR = maxBaseR * radiusFactor();
       const r = Math.max(HIT_MIN_PX, maxR) / cam.scale;
       return S.hitTest(grid, hitXs, ys, wx, wy, r, hitOrder);
     }
@@ -980,6 +995,7 @@
       },
       forceDraw() { draw(); return debug.lastFrameMs; },
       radiusOf(i) { return i >= 0 && i < n ? baseR[i] * sizeBoost[i] : 0; },
+      screenRadiusOf(i) { return i >= 0 && i < n && cam ? baseR[i] * sizeBoost[i] * radiusFactor() : 0; },
       worldOf(i) { return i >= 0 && i < n ? [xs[i], ys[i]] : null; },
     };
     } catch (err) {
@@ -1018,6 +1034,7 @@
   debug.focus = (id, rel) => { if (inst) inst.focus(id, rel); };
   debug.forceDraw = () => (inst ? inst.forceDraw() : 0);
   debug.radiusOf = i => (inst ? inst.radiusOf(i) : 0);
+  debug.screenRadiusOf = i => (inst ? inst.screenRadiusOf(i) : 0);
   debug.worldOf = i => (inst ? inst.worldOf(i) : null);
 
   root.GraphView = { mount, refresh, destroy, _debug: debug };
