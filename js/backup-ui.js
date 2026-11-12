@@ -165,6 +165,9 @@ function backupConfirmHtml(v) {
   if (p.unknownWords + p.unknownGrammar > 0) {
     notes.push(`今の単語・問題データに無い記録（単語 ${p.unknownWords}件・問題 ${p.unknownGrammar}件）も、消さずに残します。`);
   }
+  if (Math.max(p.exportedAt || 0, p.latestTime || 0) > Date.now() + CLOCK_SKEW_TOLERANCE_MS) {
+    notes.push('この端末の時計より先の時刻の記録が入っています。書き出した端末か、この端末の時計がずれているようです。統合すると、苦手リストの新旧の判定が入れ替わることがあります。');
+  }
   const fromFile = name => (r[name] === undefined ? 'なし（今のまま）' : 'あり');
   const fileCounts = {
     ...wordCounts(r.weakWords, r.seenWords),

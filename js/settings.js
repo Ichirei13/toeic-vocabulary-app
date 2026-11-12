@@ -3,6 +3,9 @@
 
 const SETTINGS_KEY = 'toeic_settings';
 const SESSION_KEY = 'toeic_session';
+// グラフの「近い問題を解く」の続き。この端末だけに置く（バックアップ・同期・別のタブへの反映の対象にしない。
+// RECORD_KEYS / EXTRA_KEYS / CROSS_TAB_KEYS に足さないこと）。中身は { ids, index, score, answered, label }
+const NEAR_DRILL_KEY = 'toeic_near_drill_v1';
 // 出題中の並びは、単語を RAW_WORDS の番号、文法を問題の id で保存する。戻すときの逆引き用
 const WORD_INDEX = new Map(RAW_WORDS.map((w, i) => [w, i]));
 const GRAMMAR_BY_ID = new Map(RAW_GRAMMAR.map(g => [g.id, g]));
@@ -80,6 +83,8 @@ function sessionSignature(app) {
 // 本ごとの続きは home.js の saveBookSessionSnapshot が別に持つ（同じ形）
 function sessionSnapshot() {
   const sessions = loadJSON(SESSION_KEY, {});
+  // 近い問題の出題中は、通常の続きを書き換えない（保存済みのものをそのまま返す。バックアップにも通常の続きが入る）
+  if (nearDrillActive()) return sessions;
   // 回答済みの問題は開き直したときに出し直さないよう、次の問題から再開する
   if (state.app === 'grammar') {
     sessions.grammar = {
@@ -102,7 +107,54 @@ function sessionSnapshot() {
 }
 
 function saveSession() {
+  // 近い問題の出題中は、通常の続き（SESSION_KEY）に触れず、専用のキーにだけ保存する
+  if (nearDrillActive()) { saveNearDrill(); return; }
   saveJSON(SESSION_KEY, sessionSnapshot());
+}
+
+function nearDrillActive() {
+  return state.app === 'grammar' && !!state.nearDrill;
+}
+
+function saveNearDrill() {
+  saveJSON(NEAR_DRILL_KEY, {
+    ids: state.grammarPool.map(g => g.id),
+    // 回答済みの問題は開き直したときに出し直さないよう、次の問題から再開する（通常の続きと同じ）
+    index: Math.min(state.currentGrammarIndex + (state.grammarAnswered ? 1 : 0), state.grammarPool.length),
+    score: state.grammarScore,
+    answered: state.grammarAnsweredCount,
+    label: state.nearDrill.label,
+  });
+}
+
+// 近い問題の出題をやめる（メモリの印と、保存した続きの両方を消す）。出題そのものは呼び出し側が入れ替える
+function clearNearDrill() {
+  state.nearDrill = null;
+  try { localStorage.removeItem(NEAR_DRILL_KEY); } catch (e) { /* 消せなくても、次に読むときに形を確かめる */ }
+}
+
+// 保存した近い問題の続きを戻せたら true。形が正しくない・解き終えている・問題が見つからないときは、消して false
+function restoreNearDrill() {
+  const saved = loadJSON(NEAR_DRILL_KEY, null);
+  if (saved === null) {
+    let raw = null;
+    try { raw = localStorage.getItem(NEAR_DRILL_KEY); } catch (e) { /* 読めなければ何もしない */ }
+    if (raw !== null) clearNearDrill(); // 中身があるのに読めない = 壊れている
+    return false;
+  }
+  const ok = isPlainObject(saved) && Array.isArray(saved.ids);
+  const pool = ok ? saved.ids.map(id => GRAMMAR_BY_ID.get(id)) : [];
+  const index = ok && Number.isInteger(saved.index) ? saved.index : 0;
+  if (!ok || pool.length === 0 || pool.some(x => !x) || index < 0 || index >= pool.length) { clearNearDrill(); return false; }
+  resetReview();
+  Object.assign(state, {
+    grammarPool: pool,
+    currentGrammarIndex: index,
+    grammarScore: Number.isInteger(saved.score) ? saved.score : 0,
+    grammarAnsweredCount: Number.isInteger(saved.answered) ? saved.answered : 0,
+    nearDrill: { label: typeof saved.label === 'string' ? saved.label.slice(0, 60) : '' },
+  });
+  return true;
 }
 
 // 保存した続きを戻せたら true。絞り込みが変わっていたり、最後まで解き終えていたら false（新しく出題し直す）
@@ -114,6 +166,7 @@ function restoreSession(app) {
   if (pool.length === 0 || pool.some(x => !x) || index < 0 || index >= pool.length) return false;
   const score = Number.isInteger(saved.score) ? saved.score : 0;
   const answered = Number.isInteger(saved.answered) ? saved.answered : 0;
+  if (app === 'grammar') clearNearDrill(); // 通常の続きに戻すので、近い問題の出題は終わり
   resetReview();
   if (app === 'grammar') {
     Object.assign(state, { grammarPool: pool, currentGrammarIndex: index, grammarScore: score, grammarAnsweredCount: answered });

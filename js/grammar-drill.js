@@ -196,6 +196,7 @@ function filteredGrammar() {
 }
 
 function applyGrammarFilters() {
+  clearNearDrill(); // フィルターで出題し直すので、近い問題の出題は終わり
   state.grammarPool = shuffle(filteredGrammar());
   resetReview();
   state.currentGrammarIndex = 0;
@@ -205,6 +206,55 @@ function applyGrammarFilters() {
   updateFilterSummary();
   checkFilterNudge();
   renderCurrentGrammar();
+}
+
+// グラフの「近い問題を解く」から呼ぶ。ids の順に出題する。採点・苦手の記録は通常の出題と同じ。
+// 通常の出題の続き（SESSION_KEY・本ごとの続き）は書き換えない。出題できたら true
+function startGrammarCustomDrill(ids, label) {
+  const pool = (Array.isArray(ids) ? ids : []).map(id => GRAMMAR_BY_ID.get(id)).filter(Boolean);
+  if (pool.length === 0) return false;
+  saveSession();                                   // 今の続き（通常の、または前の近い問題の）を先に保存する
+  if (state.app !== 'grammar') setApp('grammar');  // 単語から来たときは文法に切り替える（表示の切り替えも含む）
+  resetReview();
+  Object.assign(state, {
+    grammarPool: pool,
+    currentGrammarIndex: 0,
+    grammarScore: 0,
+    grammarAnsweredCount: 0,
+    nearDrill: { label: String(label == null ? '' : label).slice(0, 60) },
+  });
+  updateGrammarWeakBadge();
+  updateFilterSummary();
+  renderCurrentGrammar();
+  return true;
+}
+
+// 近い問題の出題をやめて、通常の出題の続き（なければ今のフィルターで出題し直し）に戻る
+function exitNearDrill() {
+  clearNearDrill();
+  if (!restoreSession('grammar')) return applyGrammarFilters();
+  updateGrammarWeakBadge();
+  updateFilterSummary();
+  renderCurrentGrammar();
+}
+
+// 演習画面の上の「〈名前〉に近い N 問 ［解除］」。近い問題の出題中だけ出す。要素は初めて出すときに作る
+function updateNearDrillBanner() {
+  let el = document.getElementById('near-drill-banner');
+  if (!nearDrillActive()) { if (el) el.hidden = true; return; }
+  if (!el) {
+    const quiz = document.getElementById('quiz-container');
+    if (!quiz || !quiz.parentNode) return;
+    el = document.createElement('div');
+    el.id = 'near-drill-banner';
+    el.className = 'near-drill-banner';
+    el.innerHTML = '<span class="near-drill-label"></span><button type="button" class="near-drill-exit">解除</button>';
+    el.querySelector('.near-drill-exit').addEventListener('click', exitNearDrill);
+    quiz.parentNode.insertBefore(el, quiz);
+  }
+  const label = state.nearDrill.label ? `「${state.nearDrill.label}」に近い` : 'グラフで選んだ';
+  el.querySelector('.near-drill-label').textContent = `${label} ${state.grammarPool.length} 問`;
+  el.hidden = false;
 }
 
 function renderCurrentGrammar() {
@@ -225,7 +275,10 @@ function renderCurrentGrammar() {
   }
 
   if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
-    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.grammarScore, state.grammarAnsweredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}</div>`;
+    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.grammarScore, state.grammarAnsweredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}${nearDrillActive() ? '<button type="button" class="home-weak-btn near-drill-back">グラフに戻る</button>' : ''}</div>`;
+    const backBtn = container.querySelector('.near-drill-back');
+    // 通常の続きに戻してからグラフを開く（解き終えた 30 問で、通常の続きを上書きしないため）
+    if (backBtn) backBtn.addEventListener('click', () => { exitNearDrill(); switchAppPage('graph'); });
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
     updateFooter();

@@ -224,6 +224,36 @@ function loadSeenByMode() {
   return Object.fromEntries(VOCAB_MODES.map(m => [m, new Set(lists[m])]));
 }
 
+// 保存が壊れていて読めない記録は空として始まり、次の保存（日別記録は起動時）で上書きされる。
+// その前に、元の文字列を別のキー（元のキー + '.broken'）に残す（中身を調べたり手で直したりできるように）。
+// すでに残してあれば上書きしない（最初に壊れたときの中身を守る）。残したキーの一覧を返す
+const BROKEN_RECORD_SUFFIX = '.broken';
+function keepBrokenRecords() {
+  const kept = [];
+  [
+    [WEAK_WORDS_KEY, false], ['toeic_weak_grammar', false], [WEAK_DELETED_KEY, false], [SEEN_WORDS_KEY, false],
+    [WORD_STATS_KEY, false], [GRAMMAR_STATS_KEY, false], [GRAMMAR_SEEN_KEY, true],
+    ['toeic_daily_activity_v1', false], // home.js の DAILY_ACTIVITY_KEY と同じ文字列（home.js より先に確かめる必要がある）
+  ].forEach(([key, isArray]) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) return;
+      let readable = false;
+      try {
+        const v = JSON.parse(raw);
+        readable = isArray ? Array.isArray(v) : isPlainObject(v);
+      } catch (e) { /* JSON として読めない */ }
+      if (readable) return;
+      if (localStorage.getItem(key + BROKEN_RECORD_SUFFIX) === null) localStorage.setItem(key + BROKEN_RECORD_SUFFIX, raw);
+      kept.push(key);
+    } catch (e) {
+      // 保存領域が使えない・空きが無いときは残せない。起動は止めない
+    }
+  });
+  return kept;
+}
+const brokenRecordKeys = keepBrokenRecords();
+
 let state = {
   app: 'vocab', // 'vocab' or 'grammar'
 
@@ -252,6 +282,7 @@ let state = {
   grammarRule: null, // 金のルール番号で絞り込み中なら数値
   guideChapter: 'all',
   grammarPool: [],
+  nearDrill: null, // グラフの「近い問題を解く」の出題中だけ { label }。通常の出題の続きとは別に持つ
   currentGrammarIndex: 0,
   grammarScore: 0,
   grammarAnsweredCount: 0,

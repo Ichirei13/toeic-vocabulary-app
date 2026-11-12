@@ -355,5 +355,7 @@ function updateFooter() {
   // 表示が変わるたびに呼ばれるので、ここで設定と進み具合を保存しておく
   saveSettings();
   saveSession();
+  // 別ファイルの新しい関数。読み込む版が混ざっても、上の保存を飛ばさないよう最後に、有無を確かめて呼ぶ
+  if (typeof updateNearDrillBanner === 'function') updateNearDrillBanner();
 }
 

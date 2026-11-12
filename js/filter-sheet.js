@@ -27,7 +27,8 @@ function setApp(app) {
   resetActionBar();
 
   if (isGrammar) {
-    if (!restoreSession('grammar')) return applyGrammarFilters();
+    // 近い問題の続きがあればそれを、なければ通常の続きを、どちらもなければ今のフィルターで出題し直す
+    if (!restoreNearDrill() && !restoreSession('grammar')) return applyGrammarFilters();
     updateGrammarWeakBadge();
     updateFilterSummary();
     renderCurrentGrammar();

@@ -27,7 +27,8 @@ function buildBackup({ forDrive = false } = {}) {
     format: forDrive ? BACKUP_FORMAT_DRIVE : BACKUP_FORMAT,
     exportedAt: new Date().toISOString(),
     appData: { words: RAW_WORDS.length, grammar: RAW_GRAMMAR.length },
-    data,
+    // 写しを渡す。state の中身をそのまま渡すと、受け取った側が書き換えたときにメモリの学習記録まで変わる
+    data: JSON.parse(JSON.stringify(data)),
   };
 }
 
@@ -91,6 +92,19 @@ function clampImportedTimes(data) {
     if (e.u !== undefined) e.u = Math.min(e.u, Date.now());
   });
   return data;
+}
+
+// 苦手の最終更新時刻（u）と、苦手から外した時刻のうち、いちばん新しいものを返す（無ければ 0）。
+// clampImportedTimes で「今」に直す前の値を見る。これがこの端末の「今」より先なら、書いた端末かこの端末の時計がずれている。
+// 復習日（due）は先の日付が正しいので見ない
+function latestRecordTime(d) {
+  let latest = 0;
+  const see = t => { if (typeof t === 'number' && Number.isFinite(t) && t > latest) latest = t; };
+  const seeEntries = store => { if (isPlainObject(store)) Object.values(store).forEach(e => { if (e && typeof e === 'object') see(e.u); }); };
+  if (isPlainObject(d.weakWords)) Object.values(d.weakWords).forEach(seeEntries);
+  seeEntries(d.weakGrammar);
+  if (isPlainObject(d.weakDeleted)) Object.values(d.weakDeleted).forEach(see);
+  return latest;
 }
 
 // バックアップ・取り消し用の記録の成績と苦手リストから、出題済みの初期値を作る。
@@ -199,6 +213,7 @@ function parseBackup(text) {
   return {
     ok: true,
     exportedAt: Number.isFinite(exportedAt) ? exportedAt : null,
+    latestTime: latestRecordTime(d), // 記録の中でいちばん新しい時刻（直す前の値）。時計のずれの検出に使う
     // 設定と出題の続きの中身は、読み込んだあとに restoreSettings / restoreSession が1項目ずつ確かめる
     records: {
       weakWords: Object.fromEntries(VOCAB_MODES.map(m => [m, clampImportedTimes(words.data[m])])),
@@ -269,13 +284,21 @@ function replaceRecords(rawByKey, saveUndo, label) {
       throw new Error(`空き容量が足りないため、${label}を中止しました。記録は元のままです。`);
     }
   }
+  const written = []; // 書けたキー（書いた順）
   try {
-    writeRaw(rawByKey);
+    Object.entries(rawByKey).forEach(([k, raw]) => {
+      writeRaw({ [k]: raw });
+      written.push(k);
+    });
   } catch (e) {
     try {
-      // 先に取り消し用の記録を外して空きを作ってから、元の記録を書き戻す
+      // 先に取り消し用の記録を外して空きを作ってから、元の記録を書き戻す。
+      // 書けたキーだけを、書いたのと逆の順で戻す。逆順なら、戻す途中の使用量は「書き込みの途中で一度通った量」を
+      // 超えないので、容量不足で書き戻せなくなることがない（同じ順で戻すと、縮んだキーを先に元へ戻す空きが足りないことがある）
       if (saveUndo) localStorage.removeItem(BACKUP_UNDO_KEY);
-      writeRaw(before);
+      written.reverse().forEach(k => {
+        if (Object.hasOwn(before, k)) writeRaw({ [k]: before[k] });
+      });
       if (saveUndo) writeRaw({ [BACKUP_UNDO_KEY]: undoBefore });
     } catch (e2) {
       throw new Error(`${label}に失敗し、元の記録にも戻せませんでした。書き出しておいたバックアップファイルから、もう一度復元してください。`);
@@ -288,6 +311,8 @@ function replaceRecords(rawByKey, saveUndo, label) {
 // まだ1問も解いていないときだけ、合う問題が変わっていれば出題し直す。
 // 解いている最中の画面は作り直さない（同期は回答のたびに走るので、進み具合が消えてしまう）
 function refreshPoolAfterRecordSync() {
+  // 近い問題の出題中は作り直さない（その問題は苦手の絞り込みと関係がなく、作り直すと通常の続きも上書きされる）
+  if (typeof nearDrillActive === 'function' && nearDrillActive()) return;
   const isGrammar = state.app === 'grammar';
   if (isGrammar ? state.grammarWeakFilter === 'all' : state.weakFilter === 'all') return;
   const untouched = isGrammar

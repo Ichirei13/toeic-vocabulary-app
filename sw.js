@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v14';
+const CACHE = 'toeic-drill-v15';
 const ASSETS = [
   './',
   'index.html',
@@ -148,8 +148,14 @@ const ASSETS = [
   'src/graph-filter.js',
   'src/graph-geometry.js',
   'src/graph-detail.js',
+  'src/graph-near.js',
   'js/graph-view.js',
   'css/graph.css',
+  'vendor/d3-dispatch.min.js',
+  'vendor/d3-quadtree.min.js',
+  'vendor/d3-timer.min.js',
+  'vendor/d3-force.min.js',
+  'src/graph-force.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',

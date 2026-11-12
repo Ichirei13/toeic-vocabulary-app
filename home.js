@@ -116,9 +116,7 @@ function loadDailyActivity() {
     }
   } catch (e) {}
   const initial = { days };
-  try {
-    writeStorage(DAILY_ACTIVITY_KEY, JSON.stringify(initial));
-  } catch (e) { reportSaveFailure(DAILY_ACTIVITY_KEY); }
+  saveJSON(DAILY_ACTIVITY_KEY, initial);
   return initial;
 }
 
@@ -143,6 +141,17 @@ function reloadHomeExtras() {
   dailyActivity = loadDailyActivity();
   prefs = loadPrefs();
   if (typeof reloadPomoExtras === 'function') reloadPomoExtras();
+  if (currentAppPage === 'home') renderHomePage();
+}
+
+// 別のタブが保存した日別記録と表示設定を読み込み直す（js/boot.js から呼ぶ）。ポモドーロには触らない。
+// 中身が変わっていなければ何もしない（画面に戻るたびに呼ばれるので、ホームを作り直すのは変わったときだけ）
+function reloadActivityAndPrefs() {
+  const nextActivity = loadDailyActivity();
+  const nextPrefs = loadPrefs();
+  if (JSON.stringify(nextActivity) === JSON.stringify(dailyActivity) && JSON.stringify(nextPrefs) === JSON.stringify(prefs)) return;
+  dailyActivity = nextActivity;
+  prefs = nextPrefs;
   if (currentAppPage === 'home') renderHomePage();
 }
 
@@ -176,10 +185,9 @@ function setDailyGoal(goal) {
   }
 }
 
+// saveJSON を通す（保存できた・できなかったの両方が受け手に伝わり、失敗が直ったことも分かる）
 function saveDailyActivity() {
-  try {
-    writeStorage(DAILY_ACTIVITY_KEY, JSON.stringify(dailyActivity));
-  } catch (e) { reportSaveFailure(DAILY_ACTIVITY_KEY); }
+  saveJSON(DAILY_ACTIVITY_KEY, dailyActivity);
 }
 
 function recordAnswerPaceAndActivity(kind, isCorrect) {
@@ -558,6 +566,8 @@ function recordCurrentBookPreset(updateLastBook = false) {
 // 参考書ごとの途中セッション保存（他の参考書に行っても前の参考書の続きを保持できるようにする）
 // 保存する形は settings.js の sessionSnapshot と同じ。違うのは本ごとのキー（'grammar:kin' など）で持つ点
 function saveBookSessionSnapshot() {
+  // 近い問題の出題中は、本ごとの続きを書き換えない（settings.js の sessionSnapshot と同じ扱い）
+  if (state.app === 'grammar' && state.nearDrill) return;
   const bookSessions = loadJSON(BOOK_SESSIONS_KEY, {});
   if (state.app === 'grammar') {
     const key = `grammar:${state.grammarBook || 'all'}`;
@@ -578,9 +588,7 @@ function saveBookSessionSnapshot() {
       answered: state.answeredCount,
     };
   }
-  try {
-    writeStorage(BOOK_SESSIONS_KEY, JSON.stringify(bookSessions));
-  } catch (e) { reportSaveFailure(BOOK_SESSIONS_KEY); }
+  saveJSON(BOOK_SESSIONS_KEY, bookSessions);
 }
 
 // 保存した続きを戻せたら true。条件（sig）が変わっていたり、問題が見つからなかったら false（settings.js の restoreSession と同じ判定）
@@ -593,6 +601,7 @@ function restoreBookSessionSnapshot(kind, bookId) {
   if (pool.length === 0 || pool.some(x => !x) || index < 0 || index >= pool.length) return false;
   const score = Number.isInteger(saved.score) ? saved.score : 0;
   const answered = Number.isInteger(saved.answered) ? saved.answered : 0;
+  if (kind === 'grammar') clearNearDrill(); // 本の続きに戻すので、近い問題の出題は終わり
   resetReview();
   if (kind === 'grammar') {
     Object.assign(state, { grammarPool: pool, currentGrammarIndex: index, grammarScore: score, grammarAnsweredCount: answered });
@@ -1363,8 +1372,27 @@ const GRAPH_SCRIPTS = [
   'src/graph-filter.js',
   'src/graph-geometry.js',
   'src/graph-detail.js',
+  'src/graph-near.js',
   'js/graph-view.js',
 ];
+// 力学用（d3-force と力の定義）。読めなくてもグラフは固定配置で開くので、失敗しても止めない
+const GRAPH_FORCE_SCRIPTS = [
+  'vendor/d3-dispatch.min.js',
+  'vendor/d3-quadtree.min.js',
+  'vendor/d3-timer.min.js',
+  'vendor/d3-force.min.js',
+  'src/graph-force.js',
+];
+let graphForcePromise = null; // 失敗したら捨てて、次に開いたときにやり直す
+function loadGraphForceAssets() {
+  if (graphForcePromise) return graphForcePromise;
+  const p = (async () => {
+    for (const url of GRAPH_FORCE_SCRIPTS) await insertGraphAsset(url);
+  })();
+  graphForcePromise = p;
+  p.catch(() => { if (graphForcePromise === p) graphForcePromise = null; });
+  return p;
+}
 let graphAssetsPromise = null; // 読み込み中・読み込み済みの Promise（失敗したら捨てて、次に開いたときにやり直す）
 let graphOpenToken = 0;        // 開くたびに増やす。読み込みを待つ間に画面を離れたら、古い番号のマウントは捨てる
 let graphReturnPage = 'review';
@@ -1461,6 +1489,7 @@ async function showGraphPage() {
     if (token === graphOpenToken && currentAppPage === 'graph') showError('グラフの読み込みに失敗しました（オフラインで未取得の可能性があります）');
     return;
   }
+  try { await loadGraphForceAssets(); } catch (e) { /* 力学なし（固定配置）で開く */ }
   if (token !== graphOpenToken || currentAppPage !== 'graph') return; // 待っている間に別のページへ移った
   loading.hidden = true;
   try {
@@ -1470,6 +1499,7 @@ async function showGraphPage() {
       getWeak: () => state.grammarWeakData,
       getQuestion: id => GRAMMAR_BY_ID.get(id),
       isDue,
+      onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },
     });
   } catch (e) {
     showError('グラフを表示できませんでした。');
