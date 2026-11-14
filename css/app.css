@@ -2186,3 +2186,102 @@ body {
   font-size: 12px;
 }
 .near-drill-back { margin-top: 14px; }
+
+/* ==================== ラベリング（🏷 ボタン・選ぶ画面） ==================== */
+/* 回答のあとだけアクションバーに出す。ラベルが付いていれば塗りつぶしにして、ラベル名（2つ以上なら件数）を添える */
+.label-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--ui-border);
+  font-family: inherit;
+  padding: 0 12px;
+  min-height: 46px;
+  max-width: 40%;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.label-btn.on {
+  background: var(--accent-btn-bg);
+  color: var(--accent-btn-text);
+  border-color: transparent;
+}
+.label-btn-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.label-btn-text:empty {
+  display: none;
+}
+.toast.action-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toast .toast-action {
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  border-radius: 14px;
+  padding: 3px 10px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.label-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.label-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--ui-border);
+  cursor: pointer;
+  font-size: 15px;
+}
+.label-check input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+.label-new {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.label-name-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-surface);
+  color: var(--text-page);
+  font: inherit;
+  font-size: 16px;
+}
+.label-error {
+  color: var(--wrong, #d9534f);
+  font-size: 13px;
+  min-height: 1em;
+  margin: 4px 0 0;
+}
+.label-empty {
+  color: var(--text-muted);
+  font-size: 14px;
+}

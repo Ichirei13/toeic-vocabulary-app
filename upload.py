@@ -42,6 +42,7 @@ FILES = [
     "js/review-interval.js",
     "js/word-stats.js",
     "js/labels.js",
+    "js/labels-ui.js",
     "js/grammar-drill.js",
     "js/filter-sheet.js",
     "js/vocab-filter.js",

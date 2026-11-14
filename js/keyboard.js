@@ -1,7 +1,7 @@
 // ==================== キーボード操作（PC 向け） ====================
 // 1〜5 (テンキー・全角・A〜E): 選択肢 / 0: わからない / Enter・スペース: 次へ
 // カードモード: スペース: めくる / Enter: めくる・覚えた / 1・←: まだ / 2・→: 覚えた
-// Esc: 下から出るシートを閉じる
+// L: 🏷（ラベル）/ Esc: 下から出るシートを閉じる
 
 function isShown(el) {
   return el && el.style.display !== 'none' && el.offsetParent !== null;
@@ -39,6 +39,13 @@ document.addEventListener('keydown', e => {
   // 全角数字やテンキー対応のための正規化
   const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '５': '5', '０': '0' };
   const rawKey = fullToHalf[e.key] || e.key;
+
+  // L: 🏷 ボタン（回答のあとだけ見えている）
+  if (/^[lLｌＬ]$/.test(e.key)) {
+    const labelBtn = document.getElementById('label-btn');
+    if (isShown(labelBtn)) press(labelBtn);
+    return;
+  }
 
   // 単語カードモード
   if (state.app === 'vocab' && state.mode === 'flash' && document.getElementById('flash-card')) {
