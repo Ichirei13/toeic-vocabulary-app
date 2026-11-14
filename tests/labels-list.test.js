@@ -61,14 +61,32 @@ test('solve_button_disabled_when_empty', () => withPage({}, async page => {
   assert.strictEqual(await page.locator('[data-label-solve]').isDisabled(), true);
 }));
 
-test('solve_this_label_only_serves_labeled_questions', () => withPage({}, async page => {
+test('solve_this_label_resets_other_filters_and_serves_all_labeled', () => withPage({}, async page => {
   await label(page, ['g:1001', 'g:2005']);
-  await page.evaluate(() => { setApp('grammar'); state.grammarBook = 'sekai'; applyGrammarFilters(); state.app = 'grammar'; });
+  await page.evaluate(() => { setApp('grammar'); state.grammarBook = 'sekai'; state.grammarWeakFilter = 'weak_only'; applyGrammarFilters(); state.app = 'grammar'; });
   await openContents(page);
   await page.click('[data-label-solve]');
   assert.deepStrictEqual(await pool(page), [1001, 2005]);
-  const r = await page.evaluate(() => ({ app: state.app, label: state.grammarLabel, sheet: isSheetOpen(), saved: JSON.parse(localStorage.getItem('toeic_settings')).grammarLabel }));
-  assert.deepStrictEqual(r, { app: 'grammar', label: 'default', sheet: false, saved: 'default' });
+  const r = await page.evaluate(() => ({ app: state.app, label: state.grammarLabel, book: state.grammarBook, weak: state.grammarWeakFilter, sheet: isSheetOpen(), saved: JSON.parse(localStorage.getItem('toeic_settings')).grammarLabel }));
+  assert.deepStrictEqual(r, { app: 'grammar', label: 'default', book: 'all', weak: 'all', sheet: false, saved: 'default' });
+}));
+
+test('label_combines_with_book_filter', () => withPage({}, async page => {
+  await label(page, ['g:1001', 'g:2005']);
+  await page.evaluate(() => { setApp('grammar'); startLabelDrill('grammar', 'default'); openFilterSheet(); });
+  await page.click('#grammar-book-segments [data-gbook="kin"]');
+  assert.deepStrictEqual(await pool(page), [1001]);
+  assert.strictEqual(await page.evaluate(() => state.grammarLabel), 'default');
+}));
+
+test('label_combines_with_weak_filter_for_words', () => withPage({}, async page => {
+  const words = await page.evaluate(() => [RAW_WORDS[0].w, RAW_WORDS[5].w]);
+  await label(page, words.map(w => `w:${w}`));
+  await page.evaluate(w => { setApp('vocab'); state.mode = 'e2j'; updateWeakEntry(wordWeak(), w, false, `w:e2j:${w}`); saveWeakData(); startLabelDrill('vocab', 'default'); }, words[0]);
+  assert.strictEqual(await page.evaluate(() => state.pool.length), 2);
+  await page.evaluate(() => openFilterSheet());
+  await page.click('#weak-segments [data-weak="weak_only"]');
+  assert.deepStrictEqual(await page.evaluate(() => state.pool.map(x => x.w)), [words[0]]);
 }));
 
 test('vocab_label_drill_uses_current_mode', () => withPage({}, async page => {
@@ -80,17 +98,43 @@ test('vocab_label_drill_uses_current_mode', () => withPage({}, async page => {
   assert.deepStrictEqual(r, { app: 'vocab', mode: 'j2e', pool: words.slice().sort() });
 }));
 
-test('chip_clears_label_filter', () => withPage({}, async page => {
-  await label(page, ['g:1001']);
-  await page.evaluate(() => { setApp('grammar'); startLabelDrill('grammar', 'default'); openFilterSheet(); });
-  const chip = await page.textContent('#label-filter-chip');
-  assert(chip.includes('ラベル: あとで見る'), chip);
-  assert(chip.includes('ほかの条件は使われません'), chip);
-  await page.click('[data-clear-label-filter]');
-  const r = await page.evaluate(() => ({ label: state.grammarLabel, n: state.grammarPool.length, chipHidden: document.getElementById('label-filter-chip').hidden }));
+test('filter_sheet_label_row_selects_and_clears_label', () => withPage({}, async page => {
+  await label(page, ['g:1001', 'g:1002']);
+  await page.evaluate(() => { setApp('grammar'); state.grammarBook = 'kin'; applyGrammarFilters(); openFilterSheet(); });
+  const row = await page.textContent('#label-filter-chip');
+  assert(row.includes('ラベル') && row.includes('あとで見る'), row);
+  await page.click('#label-filter-chip [data-label-filter="default"]');
+  let r = await page.evaluate(() => ({ label: state.grammarLabel, book: state.grammarBook, saved: JSON.parse(localStorage.getItem('toeic_settings')).grammarLabel }));
+  assert.deepStrictEqual(r, { label: 'default', book: 'kin', saved: 'default' });
+  assert.deepStrictEqual(await pool(page), [1001, 1002]);
+  assert.strictEqual(await page.evaluate(() => document.querySelector('#label-filter-chip [data-label-filter="default"]').classList.contains('active')), true);
+  await page.click('#label-filter-chip [data-label-filter=""]');
+  r = await page.evaluate(() => ({ label: state.grammarLabel, n: state.grammarPool.length }));
   assert.strictEqual(r.label, null);
-  assert(r.n > 1, `プールが ${r.n} 問`);
-  assert.strictEqual(r.chipHidden, true);
+  assert(r.n > 2, `プールが ${r.n} 問`);
+}));
+
+test('label_row_counts_follow_label_changes', () => withPage({}, async page => {
+  await page.evaluate(() => { setApp('grammar'); state.grammarBook = 'kin'; applyGrammarFilters(); });
+  const count = () => page.textContent('#label-filter-chip [data-label-filter="default"] .label-chip-count');
+  assert.strictEqual(await count(), '0');
+  await label(page, ['g:1001', 'g:1002']);
+  assert.strictEqual(await count(), '2');
+}));
+
+test('nudge_condition_includes_label', () => withPage({}, async page => {
+  const r = await page.evaluate(() => {
+    setApp('grammar');
+    const g0 = getFilterStateKey();
+    state.grammarLabel = 'default';
+    const g1 = getFilterStateKey();
+    state.app = 'vocab';
+    const v0 = getFilterStateKey();
+    state.vocabLabel = 'default';
+    const v1 = getFilterStateKey();
+    return [g0 !== g1, v0 !== v1];
+  });
+  assert.deepStrictEqual(r, [true, true]);
 }));
 
 test('deleting_the_filtered_label_clears_the_filter', () => withPage({}, async page => {

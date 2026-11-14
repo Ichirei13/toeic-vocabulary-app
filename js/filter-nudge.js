@@ -13,11 +13,11 @@ const NUDGE_MIN_POOL = 300;
 
 function getFilterStateKey() {
   if (state.app === 'grammar') {
-    return `g_${state.grammarBook}_${state.grammarChapter.join(',') || 'all'}_${state.grammarRule || 'none'}_${state.grammarWeakFilter}`;
+    return `g_${state.grammarBook}_${state.grammarChapter.join(',') || 'all'}_${state.grammarRule || 'none'}_${state.grammarWeakFilter}${state.grammarLabel ? `_label:${state.grammarLabel}` : ''}`;
   }
   const dates = (state.dateFilter || []).slice().sort().join(',');
   const range = state.rangeFilter.map(r => `${r.start}-${r.end}`).join(',') || 'none';
-  return `v_${state.sourceFilter}_${dates}_${state.posFilter.join(',') || 'all'}_${range}_${state.weakFilter}`;
+  return `v_${state.sourceFilter}_${dates}_${state.posFilter.join(',') || 'all'}_${range}_${state.weakFilter}${state.vocabLabel ? `_label:${state.vocabLabel}` : ''}`;
 }
 
 function checkFilterNudge() {
