@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v17';
+const CACHE = 'toeic-drill-v18';
 const ASSETS = [
   './',
   'index.html',

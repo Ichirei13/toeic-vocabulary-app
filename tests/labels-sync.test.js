@@ -93,4 +93,29 @@ test('last_label_and_filters_are_validated_on_restore', () => withPage({
   assert.deepStrictEqual(r, [null, 'default', null]);
 }));
 
+test('undo_saved_before_labels_existed_still_works_and_keeps_labels', () => withPage({}, async page => {
+  await addLabel(page, 'g:1001');
+  const r = await page.evaluate(() => {
+    // ラベル機能を入れる前に保存された取り消し用の記録（toeic_labels_v1 が無い）
+    const records = Object.fromEntries(RECORD_STORAGE_KEYS.filter(k => k !== LABELS_KEY).map(k => [k, localStorage.getItem(k)]));
+    localStorage.setItem(BACKUP_UNDO_KEY, JSON.stringify({ savedAt: Date.now(), records }));
+    const ok = !!loadUndo();
+    runUndo();
+    return { ok, error: backupView.error || null, labels: StudyCore.labelsOf(state.labels, 'g:1001') };
+  });
+  assert.deepStrictEqual(r, { ok: true, error: null, labels: ['default'] });
+}));
+
+test('future_label_times_are_clamped_and_reported', () => withPage({}, async page => {
+  const r = await page.evaluate(() => {
+    const future = Date.now() + 24 * 3600 * 1000;
+    const b = buildBackup();
+    b.data.labels = StudyCore.setLabel(StudyCore.emptyLabelStore(), 'default', 'g:1', true, future);
+    const p = parseBackup(JSON.stringify(b));
+    return { future, u: p.records.labels.items['default|g:1'].u, latest: p.latestTime, now: Date.now() };
+  });
+  assert(r.u <= r.now, `u ${r.u} は今より先`);
+  assert.strictEqual(r.latest, r.future);
+}));
+
 run();
