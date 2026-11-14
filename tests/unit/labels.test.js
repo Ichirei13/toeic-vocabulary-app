@@ -148,3 +148,35 @@ test('functions_do_not_mutate_input', () => {
   L.sanitizeLabelStore(s);
   assert.strictEqual(JSON.stringify(s), before);
 });
+
+test('name_length_counts_visible_characters', () => {
+  const s = L.emptyLabelStore();
+  assert.deepStrictEqual(L.validateLabelName(s, '😀'.repeat(20)), { ok: true, name: '😀'.repeat(20) });
+  assert.deepStrictEqual(L.validateLabelName(s, '😀'.repeat(21)), { ok: false, reason: '名前は20文字までです。' });
+  const family = '👨‍👩‍👧';
+  assert.strictEqual(L.labelNameLength(family), 1);
+  assert.strictEqual(L.labelNameLength('暗記📚'), 3);
+  const r = L.sanitizeLabelStore({ labels: { l_aaaaaa: { name: '📚'.repeat(20), created: 1, u: 1 } }, items: {} });
+  assert.strictEqual(r.invalid, 0);
+});
+
+test('clamp_label_store_times_pulls_future_times_to_now', () => {
+  let s = L.createLabel(L.emptyLabelStore(), 'l_aaaaaa', '暗記', 5000);
+  s = L.setLabel(s, 'l_aaaaaa', 'g:1', true, 9000);
+  s = L.setLabel(s, 'default', 'g:2', true, 100);
+  const before = JSON.stringify(s);
+  const c = L.clampLabelStoreTimes(s, 1000);
+  assert.deepStrictEqual(c.labels.l_aaaaaa, { name: '暗記', created: 1000, u: 1000 });
+  assert.deepStrictEqual(c.items['l_aaaaaa|g:1'], { on: true, u: 1000 });
+  assert.deepStrictEqual(c.items['default|g:2'], { on: true, u: 100 });
+  assert.deepStrictEqual(c.labels.default, { name: 'あとで見る', created: 0, u: 0 });
+  assert.strictEqual(JSON.stringify(s), before);
+});
+
+test('latest_label_time_finds_newest_u', () => {
+  let s = L.createLabel(L.emptyLabelStore(), 'l_aaaaaa', '暗記', 5000);
+  s = L.setLabel(s, 'l_aaaaaa', 'g:1', true, 9000);
+  assert.strictEqual(L.latestLabelTime(s), 9000);
+  assert.strictEqual(L.latestLabelTime(L.emptyLabelStore()), 0);
+  assert.strictEqual(L.latestLabelTime(null), 0);
+});

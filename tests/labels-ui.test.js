@@ -1,7 +1,7 @@
 // 解答後の 🏷 ボタン（ワンタップで最後に使ったラベル・再タップと長押しで選ぶ画面・L キー）の検証。
 // 実行: NODE_PATH=$(npm root -g) node tests/labels-ui.test.js
 const assert = require('assert');
-const { test, withPage, run } = require('./labels-harness.cjs');
+const { test, withPage, openPage, run } = require('./labels-harness.cjs');
 
 // 300問以上だと絞り込みを促す画面が上に出るので、金の文法（160問）だけにして解く
 const startGrammar = page => page.evaluate(() => { setApp('grammar'); state.grammarBook = 'kin'; applyGrammarFilters(); });
@@ -169,6 +169,33 @@ test('duplicate_name_is_rejected_in_picker', () => withPage({}, async page => {
   await createInPicker(page, 'あとで見る');
   assert((await page.textContent('#label-picker-error')).includes('同じ名前のラベルがあります。'));
   assert.strictEqual(await page.evaluate(() => StudyCore.activeLabels(state.labels).length), 1);
+}));
+
+test('other_tab_label_change_refreshes_button_and_open_sheet', () => withPage({}, async (page, context) => {
+  await startGrammar(page);
+  await answerFirst(page);
+  const key = await currentKey(page);
+  await page.evaluate(() => toggleLabelList());
+  const other = await openPage(context);
+  await other.evaluate(k => applyLabelChange(StudyCore.setLabel(state.labels, 'default', k, true, Date.now())), key);
+  await page.waitForFunction(() => document.getElementById('label-btn').classList.contains('on'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.getElementById('weak-list-content').textContent.includes('文法 1問'), null, { timeout: 5000 });
+}));
+
+test('other_tab_change_refreshes_settings_section', () => withPage({}, async (page, context) => {
+  await page.evaluate(() => switchAppPage('settings'));
+  const other = await openPage(context);
+  await other.evaluate(() => applyLabelChange(StudyCore.createLabel(state.labels, 'l_aaaaaa', '別タブ', Date.now())));
+  await page.waitForFunction(() => document.getElementById('label-settings-section').textContent.includes('別タブ'), null, { timeout: 5000 });
+}));
+
+test('long_emoji_name_can_be_created_in_picker', () => withPage({}, async page => {
+  await startGrammar(page);
+  await answerFirst(page);
+  await page.evaluate(() => openLabelPicker());
+  const name = '👨‍👩‍👧'.repeat(20);
+  await createInPicker(page, name);
+  assert.strictEqual(await page.evaluate(n => StudyCore.activeLabels(state.labels).some(l => l.name === n), name), true);
 }));
 
 run();

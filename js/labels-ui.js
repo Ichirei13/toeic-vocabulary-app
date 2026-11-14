@@ -138,7 +138,7 @@ function renderLabelPicker() {
     <div class="label-picker">
       ${rows || '<p class="label-empty">ラベルがありません。下で作れます。</p>'}
       <div class="label-new">
-        <input id="label-new-name" class="label-name-input" type="text" maxlength="40" placeholder="新しいラベル" autocomplete="off">
+        <input id="label-new-name" class="label-name-input" type="text" maxlength="200" placeholder="新しいラベル" autocomplete="off">
         <button type="button" class="chip" data-label-create>＋ 作成</button>
       </div>
       <p id="label-picker-error" class="label-error" role="alert">${escapeHtml(labelPickerError)}</p>
@@ -389,7 +389,7 @@ function labelItemCount(labelId) {
 function labelNameEditorHtml() {
   return `
     <div class="label-new">
-      <input class="label-name-input" type="text" maxlength="40" value="${escapeHtml(labelSettingsEdit.draft)}" placeholder="ラベルの名前" autocomplete="off">
+      <input class="label-name-input" type="text" maxlength="200" value="${escapeHtml(labelSettingsEdit.draft)}" placeholder="ラベルの名前" autocomplete="off">
       <button type="button" class="settings-chip active" data-label-settings-save>保存</button>
       <button type="button" class="settings-chip" data-label-settings-cancel>やめる</button>
     </div>
@@ -509,3 +509,21 @@ function openLabelSettings() {
     }
   });
 })();
+
+// ---- 別のタブ・同期でラベルが変わったときの描き直し ----
+// js/backup-io.js の reloadRecordsFromStorage から呼ぶ
+function refreshLabelViews() {
+  refreshLabelButton();
+  renderLabelFilterChip();
+  if (isSheetOpen()) {
+    if (activeSheetRender === renderLabelList) renderLabelList();
+    else if (activeSheetRender === renderLabelPicker && labelPickerTarget) renderLabelPicker();
+  }
+  if (!document.getElementById('label-settings-section')) return;
+  // 入力の途中なら、そのラベルが消えていない限り描き直さない（入力中の文字を消さない）
+  const editingAlive = labelSettingsEdit.mode === 'new'
+    || (labelSettingsEdit.mode && StudyCore.activeLabels(state.labels).some(l => l.id === labelSettingsEdit.id));
+  if (editingAlive) return;
+  resetLabelSettingsEdit();
+  renderLabelSettingsSection();
+}

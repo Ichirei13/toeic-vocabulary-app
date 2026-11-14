@@ -105,6 +105,7 @@ function latestRecordTime(d) {
   if (isPlainObject(d.weakWords)) Object.values(d.weakWords).forEach(seeEntries);
   seeEntries(d.weakGrammar);
   if (isPlainObject(d.weakDeleted)) Object.values(d.weakDeleted).forEach(see);
+  if (isPlainObject(d.labels)) see(StudyCore.latestLabelTime(d.labels));
   return latest;
 }
 
@@ -228,7 +229,8 @@ function parseBackup(text) {
       seenGrammar: seenGrammar.data,
       settings: d.settings,
       session: d.session,
-      labels: labels ? labels.data : undefined, // 無いファイルは undefined のまま＝復元しても今のまま
+      // 無いファイルは undefined のまま＝復元しても今のまま。先の時刻は「今」にそろえる（苦手の記録と同じ）
+      labels: labels ? StudyCore.clampLabelStoreTimes(labels.data, Date.now()) : undefined,
     },
     // 日別の学習記録と表示設定。キーが無いファイル（版5以前など）は undefined のまま＝復元しても今のまま
     extras: {
@@ -340,6 +342,7 @@ function reloadRecordsFromStorage(isRestore = true) {
   state.labels = loadLabels(); // restoreSettings がラベル ID を確かめるので先に読む
   // 別のタブ・同期で、絞り込み中のラベルが削除されていたら外す（復元のときは restoreSettings が確かめる）
   if (!isRestore) settleLabelSettings(prevLabelFilters);
+  if (typeof refreshLabelViews === 'function') refreshLabelViews(); // 🏷・開いているラベルの画面・設定画面（js/labels-ui.js）
   state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
   state.weakDeleted = loadWeakDeleted();
@@ -423,8 +426,9 @@ function loadUndo() {
   const undo = loadJSON(BACKUP_UNDO_KEY, {});
   if (!Number.isFinite(undo.savedAt) || !isPlainObject(undo.records)) return null;
   // 文法の出題済みを足す前に残した記録には、このキーが無い（復元前に保存が無かったのと同じ扱いにする）
+  // ラベル（LABELS_KEY）を足す前に残した記録にも、そのキーが無い（こちらは取り消しでも触らない。下の runUndo）
   const valid = RECORD_STORAGE_KEYS.every(k => undo.records[k] === null || typeof undo.records[k] === 'string'
-    || ((k === GRAMMAR_SEEN_KEY || k === WEAK_DELETED_KEY) && undo.records[k] === undefined));
+    || ((k === GRAMMAR_SEEN_KEY || k === WEAK_DELETED_KEY || k === LABELS_KEY) && undo.records[k] === undefined));
   // 日別の学習記録・表示設定は、以前の取り消し用の記録には無い（undefined なら取り消しでも触らない）
   const extrasValid = EXTRA_STORAGE_KEYS.every(k => undo.records[k] === undefined || undo.records[k] === null || typeof undo.records[k] === 'string');
   return valid && extrasValid ? undo : null;
@@ -438,7 +442,9 @@ function runUndo() {
   }
   try {
     // 本体の記録は、無ければ「保存が無かった」として外す。日別記録・表示設定は、取り消し用の記録に無ければ触らない
-    const restoreKeys = [...RECORD_STORAGE_KEYS, ...EXTRA_STORAGE_KEYS.filter(k => undo.records[k] !== undefined)];
+    // ラベルも、取り消し用の記録に無ければ触らない（そのあとに付けたラベルを消さない）
+    const restoreKeys = [...RECORD_STORAGE_KEYS.filter(k => k !== LABELS_KEY || undo.records[k] !== undefined),
+      ...EXTRA_STORAGE_KEYS.filter(k => undo.records[k] !== undefined)];
     replaceRecords(Object.fromEntries(restoreKeys.map(k => [k, undo.records[k] === undefined ? null : undo.records[k]])), false, '取り消し');
   } catch (e) {
     backupView = { step: 'home', error: e.message };

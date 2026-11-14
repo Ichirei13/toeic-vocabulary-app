@@ -23,10 +23,17 @@
     return typeof key === 'string' && (/^g:[1-9]\d{0,8}$/.test(key) || /^w:.+$/.test(key));
   }
 
+  // 名前の長さは見た目の文字数で数える（絵文字や結合文字も1文字。Intl.Segmenter が無い環境ではコードポイントで数える）
+  const segmenter = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter('ja', { granularity: 'grapheme' }) : null;
+  function labelNameLength(text) {
+    const t = String(text);
+    return segmenter ? Array.from(segmenter.segment(t)).length : Array.from(t).length;
+  }
+
   function isValidName(name) {
     if (typeof name !== 'string') return false;
-    const t = name.trim();
-    return t.length >= 1 && t.length <= LABEL_NAME_MAX;
+    const n = labelNameLength(name.trim());
+    return n >= 1 && n <= LABEL_NAME_MAX;
   }
 
   function splitItemId(id) {
@@ -91,7 +98,7 @@
   function validateLabelName(store, name, exceptId) {
     const t = typeof name === 'string' ? name.trim() : '';
     if (t.length === 0) return { ok: false, reason: '名前を入れてください。' };
-    if (t.length > LABEL_NAME_MAX) return { ok: false, reason: `名前は${LABEL_NAME_MAX}文字までです。` };
+    if (labelNameLength(t) > LABEL_NAME_MAX) return { ok: false, reason: `名前は${LABEL_NAME_MAX}文字までです。` };
     if (activeLabels(store).some(l => l.id !== exceptId && l.name === t)) return { ok: false, reason: '同じ名前のラベルがあります。' };
     return { ok: true, name: t };
   }
@@ -139,6 +146,25 @@
       .sort((x, y) => y.u - x.u);
   }
 
+  // 読み込んだ記録の時刻（created・u）が now より先なら now にそろえる（時計の進んだ端末の記録が、あとの変更に勝ち続けないように）
+  function clampLabelStoreTimes(store, now) {
+    const clamp = t => Math.min(t, now);
+    const labels = {};
+    Object.entries((store && store.labels) || {}).forEach(([id, l]) => { labels[id] = { ...l, created: clamp(l.created), u: clamp(l.u) }; });
+    const items = {};
+    Object.entries((store && store.items) || {}).forEach(([id, it]) => { items[id] = { ...it, u: clamp(it.u) }; });
+    return { labels, items };
+  }
+
+  // 記録の中でいちばん新しい時刻（時計のずれの検出に使う）。無ければ 0
+  function latestLabelTime(store) {
+    let latest = 0;
+    [(store && store.labels) || {}, (store && store.items) || {}].forEach(map => {
+      Object.values(map).forEach(x => { if (x && Number.isFinite(x.u) && x.u > latest) latest = x.u; });
+    });
+    return latest;
+  }
+
   function resolveLastUsed(store, lastId) {
     if (typeof lastId === 'string' && isActive(store, lastId)) return lastId;
     const list = activeLabels(store);
@@ -147,7 +173,8 @@
 
   return {
     DEFAULT_LABEL_ID, DEFAULT_LABEL_NAME, LABEL_NAME_MAX,
-    emptyLabelStore, isLabelItemKey, sanitizeLabelStore, mergeLabelStores, validateLabelName,
+    emptyLabelStore, isLabelItemKey, sanitizeLabelStore, mergeLabelStores, validateLabelName, labelNameLength,
+    clampLabelStoreTimes, latestLabelTime,
     createLabel, renameLabel, deleteLabel, setLabel, activeLabels, labelsOf, itemsOf, resolveLastUsed,
   };
 });
