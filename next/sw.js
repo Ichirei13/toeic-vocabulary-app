@@ -1,7 +1,8 @@
-// The legacy worker deletes every cache except toeic-drill-v1 on activation.
-// Reuse that cache, but keep ALL trial entries (including data) under /next/__offline__/.
+// The legacy worker (../sw.js) deletes old caches on activation but keeps every cache named toeic-next-*.
+// Use our own cache so a new legacy version never removes the trial's offline files.
+// Keep ALL trial entries (including data) under /next/__offline__/.
 // Never overwrite the legacy worker's URLs, delete caches, or claim its scope.
-const CACHE = 'toeic-drill-v1';
+const CACHE = 'toeic-next-v1';
 const ASSETS = ['./', './index.html', './styles.css', './themes.css', './app.mjs', './core.mjs', './preferences.mjs', './activity.mjs', './progress.mjs', './learning-ui.mjs', './companion.mjs', './themes.mjs', './backup.mjs', '../data/words.js', '../data/grammar.js'];
 function cacheKey(input) {
   const url = new URL(typeof input === 'string' ? input : input.url, self.registration.scope);

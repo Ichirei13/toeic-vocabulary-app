@@ -21,7 +21,8 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server.close(); });
 
-async function open(t, { width = 375, height = 812, theme = 'ink' } = {}) {
+// fixedTime: ページの時計を止める時刻（時間帯でポーズが変わる画面を、いつ実行しても同じに確かめるため）
+async function open(t, { width = 375, height = 812, theme = 'ink', fixedTime = null } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce', timezoneId: 'Asia/Tokyo' });
   t.after(() => context.close());
   await context.addInitScript(theme => localStorage.setItem('toeic_app_theme', theme), theme);
@@ -30,6 +31,7 @@ async function open(t, { width = 375, height = 812, theme = 'ink' } = {}) {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   t.after(() => assert.deepEqual(errors, []));
+  if (fixedTime) await page.clock.setFixedTime(fixedTime);
   await page.goto(base + '/index.html#home');
   await page.evaluate(() => dismissNudge());
   return { page, context };
@@ -86,29 +88,40 @@ test('book tiles keep each color when selected and use the new vocabulary mascot
   assert.equal(new Set(colors.values()).size, 7, '教材の背景色を区別できない');
 });
 
-test('brand mascot stays beside a readable label and returns home on mobile', async t => {
+// ロゴ（ブランド）は横幅 1000px 以上の左のサイドバーにだけ出す。狭い画面は下のタブバーだけで、ホームへはホームのタブで戻る
+test('brand mascot stays beside a readable label in the wide sidebar and every width can return home', async t => {
   const { page } = await open(t, { width: 375 });
   for (const width of [320, 375, 768, 1440]) {
     await page.setViewportSize({ width, height: 812 });
     const img = page.locator('.top-page-brand img');
     assert.equal(await img.count(), 1);
-    await img.evaluate(img => img.decode());
     const layout = await page.locator('.top-page-brand').evaluate(el => {
       const label = [...el.querySelectorAll('span')].find(span => getComputedStyle(span).display !== 'none');
       const rect = el.getBoundingClientRect();
       const tabs = document.querySelector('.top-page-tabs').getBoundingClientRect();
       const icon = el.querySelector('img').getBoundingClientRect();
-      return { fullLabel: label.scrollWidth <= label.clientWidth + 1, brandRight: rect.right, tabsLeft: tabs.left, tabsRight: tabs.right, iconWidth: icon.width };
+      return { shown: getComputedStyle(el).display !== 'none', fullLabel: label.scrollWidth <= label.clientWidth + 1, brandBottom: rect.bottom, tabsTop: tabs.top, tabsLeft: tabs.left, tabsRight: tabs.right, iconWidth: icon.width };
     });
-    assert(layout.fullLabel && layout.brandRight <= layout.tabsLeft && layout.tabsRight <= width + 1 && layout.iconWidth >= 24, JSON.stringify(layout));
+    assert(layout.tabsLeft >= 0 && layout.tabsRight <= width + 1, `タブが画面からはみ出している ${width}: ${JSON.stringify(layout)}`);
+    if (width >= 1000) {
+      await img.evaluate(img => img.decode());
+      assert(layout.shown && layout.fullLabel && layout.brandBottom <= layout.tabsTop && layout.iconWidth >= 24, `${width}: ${JSON.stringify(layout)}`);
+    } else {
+      assert.equal(layout.shown, false, `${width}: 狭い画面でロゴが出ている`);
+    }
   }
   await page.getByRole('tab', { name: '設定', exact: true }).click();
   await page.getByRole('button', { name: 'TOEIC Practice ホームへ', exact: true }).click();
   assert(await page.locator('#home-page').isVisible());
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('tab', { name: '設定', exact: true }).click();
+  await page.getByRole('tab', { name: 'ホーム', exact: true }).click();
+  assert(await page.locator('#home-page').isVisible());
 });
 
 test('home guidance, real streak and goal achievement use distinct poses without losing counts', async t => {
-  const { page } = await open(t);
+  // 22時〜5時は案内役が夜・おやすみのポーズになるので、昼の時刻で確かめる
+  const { page } = await open(t, { fixedTime: new Date('2026-11-14T12:00:00+09:00') });
   assert((await page.locator('.home-message-bar img').getAttribute('src')).endsWith('neutral.svg'));
   await page.evaluate(() => {
     dailyActivity.days = {};
@@ -121,7 +134,8 @@ test('home guidance, real streak and goal achievement use distinct poses without
   });
   assert.match(await page.locator('.home-streak-badge').innerText(), /3日連続/);
   assert((await page.locator('.home-streak-badge img').getAttribute('src')).endsWith('streak.svg'));
-  assert((await page.locator('.home-goal-row img').getAttribute('src')).endsWith('celebrate.svg'));
+  // 目標達成はトロフィーのポーズ（全48ポーズの配置で celebrate から変えた）
+  assert((await page.locator('.home-goal-row img').getAttribute('src')).endsWith('praise-trophy.svg'));
   assert.match(await page.locator('.home-goal-row').innerText(), /目標\s*達成/);
   assert.match(await page.locator('.home-goal-row').innerText(), /10 \/ 10問/);
   await capture(page, 'pomeranian-home-achieved.png');
@@ -129,7 +143,7 @@ test('home guidance, real streak and goal achievement use distinct poses without
   assert(await page.getByRole('dialog', { name: '学習カレンダー' }).isVisible());
   await page.getByRole('dialog', { name: '学習カレンダー' }).getByRole('button', { name: '閉じる', exact: true }).click();
   await page.evaluate(() => { prefs.dailyGoal = 0; dailyActivity.days[localDateStr()].g = 0; renderHomePage(); });
-  assert.equal(await page.locator('.home-goal-row img[src$="celebrate.svg"]').count(), 0);
+  assert.equal(await page.locator('.home-goal-row img[src$="praise-trophy.svg"]').count(), 0);
 });
 
 test('completion and actual graduated results celebrate without inventing achievements', async t => {

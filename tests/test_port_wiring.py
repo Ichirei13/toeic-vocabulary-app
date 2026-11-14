@@ -61,7 +61,9 @@ def test_review_page_is_wired():
     assert 'data-page="review"' in HTML
     assert 'id="review-page"' in HTML
     home = (ROOT / "home.js").read_text(encoding="utf-8")
-    assert "const APP_PAGES = ['home', 'practice', 'review', 'settings'];" in home
+    # ページは増えていく（集中・グラフなど）ので、並び全体ではなく「復習」が登録されていることを確かめる
+    pages_line = next(line for line in home.splitlines() if line.startswith("const APP_PAGES = ["))
+    assert "'review'" in pages_line
     assert "function renderReviewPage()" in home
     # ナビは「ホーム / 演習 / 復習 / 設定」の順
     nav = HTML[HTML.index('class="top-page-tabs"'):]

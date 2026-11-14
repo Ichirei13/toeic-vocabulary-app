@@ -1,7 +1,9 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v18';
+const CACHE = 'toeic-drill-v19';
+// 試用版（next/sw.js）がオフライン用に使うキャッシュの名前の頭。古い版を消すときも、これは残す（消すと試用版がオフラインで開けない）
+const TRIAL_CACHE_PREFIX = 'toeic-next-';
 const ASSETS = [
   './',
   'index.html',
@@ -172,7 +174,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && !k.startsWith(TRIAL_CACHE_PREFIX)).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

@@ -42,7 +42,9 @@ let browser;
   page.on('pageerror', e => errors.push(String(e)));
   await page.goto(base + '/next/');
   await page.getByRole('heading', { name: 'おかえりなさい。' }).waitFor();
-  assert.equal(await page.locator('.book-card').count(), 4);
+  // 本棚は文法（公開版の教材4種）と単語（TEPPAN・日々の単語）の2段
+  assert.equal(await page.locator('section:has(#library-grammar) .book-card').count(), 4);
+  assert.equal(await page.locator('section:has(#library-vocab) .book-card').count(), 2);
   assert.equal(await page.locator('.count').innerText(), '1問');
   await page.screenshot({ path: '/tmp/study-desk-home.png', fullPage: true });
   reports.push('ホーム・公開版の教材4種・既存記録の初回コピー');
@@ -130,19 +132,19 @@ let browser;
   reports.push('従来版の全対象キーが不変・外部通信ゼロ');
   await page.reload();
   await page.evaluate(() => navigator.serviceWorker.ready);
-  // The existing root worker removes all other cache names on activation.
+  // The existing root worker removes its old caches on activation, but must keep the trial's toeic-next-* cache.
   // Installing it after the trial must retain trial assets AND its own root assets.
   await page.evaluate(async () => {
-    const cache = await caches.open('toeic-drill-v1');
-    await cache.put('../legacy-sentinel', new Response('untouched'));
     const registration = await navigator.serviceWorker.register('../sw.js', { scope: '../' });
     if (!registration.active) await new Promise(resolve => {
       const worker = registration.installing || registration.waiting;
       if (worker.state === 'activated') resolve();
       else worker.addEventListener('statechange', () => { if (worker.state === 'activated') resolve(); });
     });
-    if (await (await cache.match('../legacy-sentinel')).text() !== 'untouched') throw new Error('Legacy cache changed');
-    const keys = await cache.keys();
+    const names = await caches.keys();
+    if (!names.some(n => n.startsWith('toeic-drill-v'))) throw new Error('Legacy cache missing');
+    if (!names.includes('toeic-next-v1')) throw new Error('Trial cache evicted');
+    const keys = await (await caches.open('toeic-next-v1')).keys();
     if (!keys.some(k => k.url.includes('/next/__offline__/'))) throw new Error('Trial cache evicted');
   });
   await context.setOffline(true);
