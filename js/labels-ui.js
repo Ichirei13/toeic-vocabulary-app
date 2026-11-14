@@ -359,3 +359,133 @@ document.getElementById('weak-list-content').addEventListener('click', e => {
 document.getElementById('label-filter-chip')?.addEventListener('click', e => {
   if (e.target.closest('[data-clear-label-filter]')) clearLabelFilter(state.app === 'grammar' ? 'grammar' : 'vocab');
 });
+
+// ---- 設定画面の「ラベル」セクション（作る・名前を変える・削除する） ----
+// 名前の変更と削除はここだけでできる。home.js の renderSettingsPage が labelSettingsSectionHtml() を差し込む
+
+// mode: null | 'new' | 'rename' | 'delete'。id は対象のラベル、draft は入力中の名前
+let labelSettingsEdit = { mode: null, id: null, draft: '', error: '' };
+
+function labelItemCount(labelId) {
+  const { grammar, words } = labelEntries(labelId);
+  return grammar.length + words.length;
+}
+
+function labelNameEditorHtml() {
+  return `
+    <div class="label-new">
+      <input class="label-name-input" type="text" maxlength="40" value="${escapeHtml(labelSettingsEdit.draft)}" placeholder="ラベルの名前" autocomplete="off">
+      <button type="button" class="settings-chip active" data-label-settings-save>保存</button>
+      <button type="button" class="settings-chip" data-label-settings-cancel>やめる</button>
+    </div>
+    <p class="label-error" role="alert">${escapeHtml(labelSettingsEdit.error)}</p>`;
+}
+
+function labelSettingsSectionHtml() {
+  const edit = labelSettingsEdit;
+  const rows = StudyCore.activeLabels(state.labels).map(l => {
+    const { grammar, words } = labelEntries(l.id);
+    if (edit.mode === 'rename' && edit.id === l.id) return `<div class="label-settings-row">${labelNameEditorHtml()}</div>`;
+    if (edit.mode === 'delete' && edit.id === l.id) {
+      return `
+        <div class="label-settings-row label-settings-confirm">
+          <p>『${escapeHtml(l.name)}』を削除します。付いている ${grammar.length + words.length} 件からこのラベルが外れます。</p>
+          <div class="settings-chips">
+            <button type="button" class="settings-chip label-danger" data-label-settings-confirm-delete>削除する</button>
+            <button type="button" class="settings-chip" data-label-settings-cancel>やめる</button>
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="label-settings-row">
+        <div class="label-settings-name">🏷 ${escapeHtml(l.name)}<span class="label-row-count">文法 ${grammar.length}問・単語 ${words.length}語</span></div>
+        <div class="settings-chips">
+          <button type="button" class="settings-chip" data-label-settings-rename="${escapeHtml(l.id)}">名前を変える</button>
+          <button type="button" class="settings-chip" data-label-settings-delete="${escapeHtml(l.id)}">削除</button>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+      <section class="settings-section" id="label-settings-section">
+        <div class="settings-section-header">
+          <span class="settings-icon">🏷</span>
+          <h3 class="settings-section-title">ラベル</h3>
+        </div>
+        <p class="settings-desc">解答後の 🏷 で付けるラベルを管理します。苦手リストとは別に記録されます。</p>
+        ${rows || '<p class="settings-hint">ラベルがありません。</p>'}
+        ${edit.mode === 'new'
+          ? `<div class="label-settings-row">${labelNameEditorHtml()}</div>`
+          : '<button type="button" class="settings-chip" data-label-settings-new>＋ 新しいラベル</button>'}
+      </section>`;
+}
+
+function renderLabelSettingsSection() {
+  const el = document.getElementById('label-settings-section');
+  if (!el) return;
+  el.outerHTML = labelSettingsSectionHtml();
+  const input = document.querySelector('#label-settings-section .label-name-input');
+  if (input) {
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+}
+
+function setLabelSettingsEdit(next) {
+  labelSettingsEdit = { mode: null, id: null, draft: '', error: '', ...next };
+  renderLabelSettingsSection();
+}
+
+function saveLabelSettingsName() {
+  const input = document.querySelector('#label-settings-section .label-name-input');
+  const draft = input ? input.value : '';
+  const { mode, id } = labelSettingsEdit;
+  const v = StudyCore.validateLabelName(state.labels, draft, mode === 'rename' ? id : undefined);
+  if (!v.ok) return setLabelSettingsEdit({ mode, id, draft, error: v.reason });
+  const now = Date.now();
+  applyLabelChange(mode === 'rename'
+    ? StudyCore.renameLabel(state.labels, id, v.name, now)
+    : StudyCore.createLabel(state.labels, newLabelId(), v.name, now));
+  setLabelSettingsEdit({});
+  refreshLabelButton();
+  renderLabelFilterChip();
+}
+
+function deleteLabelFromSettings() {
+  applyLabelChange(StudyCore.deleteLabel(state.labels, labelSettingsEdit.id, Date.now()));
+  setLabelSettingsEdit({});
+  refreshLabelButton();
+}
+
+// フッターの一覧の「ラベルを編集 →」
+function openLabelSettings() {
+  closeSheet();
+  labelSettingsEdit = { mode: null, id: null, draft: '', error: '' };
+  switchAppPage('settings');
+  const el = document.getElementById('label-settings-section');
+  if (el) el.scrollIntoView({ block: 'start' });
+}
+
+(function bindLabelSettings() {
+  const pageEl = document.getElementById('settings-page');
+  if (!pageEl) return;
+  pageEl.addEventListener('click', e => {
+    if (!e.target.closest('#label-settings-section')) return;
+    if (e.target.closest('[data-label-settings-new]')) return setLabelSettingsEdit({ mode: 'new' });
+    const rename = e.target.closest('[data-label-settings-rename]');
+    if (rename) return setLabelSettingsEdit({ mode: 'rename', id: rename.dataset.labelSettingsRename, draft: labelName(rename.dataset.labelSettingsRename) });
+    const del = e.target.closest('[data-label-settings-delete]');
+    if (del) return setLabelSettingsEdit({ mode: 'delete', id: del.dataset.labelSettingsDelete });
+    if (e.target.closest('[data-label-settings-save]')) return saveLabelSettingsName();
+    if (e.target.closest('[data-label-settings-confirm-delete]')) return deleteLabelFromSettings();
+    if (e.target.closest('[data-label-settings-cancel]')) return setLabelSettingsEdit({});
+  });
+  pageEl.addEventListener('keydown', e => {
+    if (!e.target.closest('#label-settings-section .label-name-input')) return;
+    if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      saveLabelSettingsName();
+    } else if (e.key === 'Escape') {
+      setLabelSettingsEdit({});
+    }
+  });
+})();

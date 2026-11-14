@@ -1162,6 +1162,9 @@ function renderSettingsPage() {
         <p class="settings-hint">この回数だけ正解すると苦手リストから自動的に外れます（途中で間違えるとリセットされます）。</p>
       </section>
 
+      <!-- ラベル（js/labels-ui.js） -->
+      ${typeof labelSettingsSectionHtml === 'function' ? labelSettingsSectionHtml() : ''}
+
       <!-- データ管理設定 -->
       <section class="settings-section">
         <div class="settings-section-header">

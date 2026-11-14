@@ -32,6 +32,10 @@ PCブラウザ（キーボードショートカット対応）およびモバイ
 4. **学習サポート**:
    - 正解・不正解時の即時フィードバックと日本語和訳・詳細解説の折りたたみ表示。
    - 苦手問題復習モード（忘却曲線に基づく復習管理）。
+5. **ラベリング**:
+   - 解答後の 🏷 ボタン（PC は `L` キー）をワンタップすると、最後に使ったラベルを付けられる。もう一度タップか長押しで、付けるラベルを選び直したり新しく作ったりできる。
+   - フッターの「ラベル」でラベルごとに見返し、「このラベルで解く」でそのラベルの問題だけを出題。ラベルの作成・名前の変更・削除は設定画面の「ラベル」で行う。
+   - 苦手リストとは別の記録（`toeic_labels_v1`）。バックアップ（版7）と Google ドライブ同期で端末間をそろえる。
 
 ---
 
@@ -68,8 +72,14 @@ NODE_PATH=$(npm root -g) node tests/sheets.test.js
 # 演習画面の構成（モード選択は絞り込みシートだけ、フッターに設定リンクなし）
 NODE_PATH=$(npm root -g) node tests/practice-chrome.test.js
 
-# 文法の出題済み記録・絞り込み・バックアップ（版6）
+# 文法の出題済み記録・絞り込み・バックアップ
 NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
+
+# ラベリング（保存と同期・🏷 ボタン・フッターの一覧と絞り込み・設定画面）
+NODE_PATH=$(npm root -g) node tests/labels-sync.test.js
+NODE_PATH=$(npm root -g) node tests/labels-ui.test.js
+NODE_PATH=$(npm root -g) node tests/labels-list.test.js
+NODE_PATH=$(npm root -g) node tests/labels-settings.test.js
 ```
 
 ### 検証項目
