@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v15';
+const CACHE = 'toeic-drill-v16';
 const ASSETS = [
   './',
   'index.html',
@@ -14,6 +14,8 @@ const ASSETS = [
   'js/theme-audio.js',
   'js/review-interval.js',
   'js/word-stats.js',
+  'js/labels.js',
+  'js/labels-ui.js',
   'js/grammar-drill.js',
   'js/filter-sheet.js',
   'js/vocab-filter.js',
@@ -39,6 +41,7 @@ const ASSETS = [
   'src/pace.js',
   'src/wordbook.js',
   'src/pomodoro.js',
+  'src/labels.js',
   'assets/pomeranian/encourage.svg',
   'assets/pomeranian/reflect.svg',
   'assets/pomeranian/neutral.svg',

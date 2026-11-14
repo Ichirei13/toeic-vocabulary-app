@@ -233,6 +233,7 @@ function keepBrokenRecords() {
   [
     [WEAK_WORDS_KEY, false], ['toeic_weak_grammar', false], [WEAK_DELETED_KEY, false], [SEEN_WORDS_KEY, false],
     [WORD_STATS_KEY, false], [GRAMMAR_STATS_KEY, false], [GRAMMAR_SEEN_KEY, true],
+    ['toeic_labels_v1', false], // js/labels.js の LABELS_KEY と同じ文字列
     ['toeic_daily_activity_v1', false], // home.js の DAILY_ACTIVITY_KEY と同じ文字列（home.js より先に確かめる必要がある）
   ].forEach(([key, isArray]) => {
     try {
@@ -280,6 +281,9 @@ let state = {
   grammarChapter: [], // 選んだ章 ['kin:2', 'sekai:3']（本:章）。空なら全章
   grammarWeakFilter: 'all',
   grammarRule: null, // 金のルール番号で絞り込み中なら数値
+  grammarLabel: null, // ラベルで絞り込み中ならラベル ID（ほかの条件は使わない）
+  vocabLabel: null, // 単語をラベルで絞り込み中ならラベル ID
+  lastLabelId: null, // 🏷 のワンタップで付けるラベル（最後に使ったラベル。端末ごと）
   guideChapter: 'all',
   grammarPool: [],
   nearDrill: null, // グラフの「近い問題を解く」の出題中だけ { label }。通常の出題の続きとは別に持つ

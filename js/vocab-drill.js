@@ -240,6 +240,7 @@ function flipCard() {
   const card = document.getElementById('flash-card');
   if (!card) return;
   card.classList.toggle('flipped');
+  refreshLabelButton(); // めくったら 🏷 を出す
   if (state.answered || state.reviewIndex !== null) return;
   const dk = document.getElementById('dont-know-btn');
   dk.innerText = 'まだ';

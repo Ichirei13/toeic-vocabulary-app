@@ -615,6 +615,9 @@ function restoreBookSessionSnapshot(kind, bookId) {
 // 指定した参考書の前回プリセットを state に適用する
 function applySavedBookPresetToState(kind, bookId) {
   const preset = homeState.presets[`${kind}:${bookId}`];
+  // 本を選んで解くときは、ラベルでの絞り込みをやめる（ラベルの絞り込みはほかの条件を使わないため）
+  state[kind === 'grammar' ? 'grammarLabel' : 'vocabLabel'] = null;
+  saveSettings();
   if (kind === 'grammar') {
     state.app = 'grammar';
     state.grammarBook = bookId;
@@ -1162,6 +1165,9 @@ function renderSettingsPage() {
         <p class="settings-hint">この回数だけ正解すると苦手リストから自動的に外れます（途中で間違えるとリセットされます）。</p>
       </section>
 
+      <!-- ラベル（js/labels-ui.js） -->
+      ${typeof labelSettingsSectionHtml === 'function' ? labelSettingsSectionHtml() : ''}
+
       <!-- データ管理設定 -->
       <section class="settings-section">
         <div class="settings-section-header">
@@ -1658,6 +1664,8 @@ function startWeakDrillFromHome(kind) {
     state.grammarChapter = [];
     state.grammarRule = null;
     state.grammarWeakFilter = 'weak_only';
+    state.grammarLabel = null; // ラベルの絞り込みをやめる（ほかの条件を使わないため）
+    saveSettings();
     syncFilterUI();
     setApp('grammar');
     applyGrammarFilters();
@@ -1668,6 +1676,8 @@ function startWeakDrillFromHome(kind) {
     state.dateFilter = [];
     state.posFilter = [];
     state.weakFilter = 'weak_only';
+    state.vocabLabel = null; // ラベルの絞り込みをやめる（ほかの条件を使わないため）
+    saveSettings();
     syncFilterUI();
     setApp('vocab');
     applyFilters();
