@@ -3,8 +3,8 @@
 
 const BACKUP_APP_ID = 'toeic-drill';
 // ファイル形式の版。形式を変えたら上げて、BACKUP_MIGRATIONS に1つ前の版からの変換を足す
-// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む / 版5: 苦手から外した記録（weakDeleted）と苦手の最終更新時刻（u）を含む / 版6: 日別の学習記録（activity）と表示設定（prefs）を含む
-const BACKUP_FORMAT = 6;
+// 版1: 単語の苦手・学習済みがモード共通 / 版2: モードごと / 版3: 通算成績（問題別正誤カウント）を含む / 版4: 文法の出題済みを含む / 版5: 苦手から外した記録（weakDeleted）と苦手の最終更新時刻（u）を含む / 版6: 日別の学習記録（activity）と表示設定（prefs）を含む / 版7: ラベル（labels）を含む
+const BACKUP_FORMAT = 7;
 // Google ドライブ同期用ファイルの版。同期の対象を増やさず、まだ更新していない端末が読めるよう版 5 のまま保つ（BACKUP_FORMAT を上げても連動させない）
 const BACKUP_FORMAT_DRIVE = 5;
 // 版 n のファイルを版 n+1 に直す変換
@@ -64,6 +64,8 @@ const BACKUP_MIGRATIONS = {
   },
   // 日別の学習記録と表示設定は版5までに無かった。無いものは「今のまま」にしたいので、空で補わず版だけ上げる
   5: backup => ({ ...backup, format: 6 }),
+  // ラベルは版6までに無かった。無いものは「今のまま」にしたいので、空で補わず版だけ上げる
+  6: backup => ({ ...backup, format: 7 }),
 };
 const BACKUP_MAX_BYTES = 2 * 1024 * 1024;
 // 端末どうしの時計のずれとして許す幅。記録の時刻がこの端末の「今」よりこれ以上先なら、どちらかの時計がずれているとみなす
@@ -79,6 +81,7 @@ const RECORD_KEYS = {
   seenGrammar: GRAMMAR_SEEN_KEY,
   settings: SETTINGS_KEY,
   session: SESSION_KEY,
+  labels: LABELS_KEY,
 };
 const RECORD_STORAGE_KEYS = Object.values(RECORD_KEYS);
 // 日別の学習記録・表示設定・ポモドーロタイマー記録。バックアップと復元の取り消しには含めるが、
@@ -181,6 +184,7 @@ function getCurrentLocalRecords() {
     seenGrammar: [...state.grammarSeen],
     settings: loadJSON(SETTINGS_KEY, {}),
     session: loadJSON(SESSION_KEY, {}),
+    labels: state.labels,
   };
 }
 
@@ -206,6 +210,8 @@ function mergeBackupRecords(localRec, remoteRec) {
     seenGrammar: mergedSeenGrammar,
     settings: localRec.settings || remoteRec.settings || {},
     session: localRec.session || remoteRec.session || {},
+    // ラベルの無いファイル（版6以前・まだ更新していない端末の同期）なら、この端末の今のまま
+    labels: remoteRec.labels === undefined ? localRec.labels : StudyCore.mergeLabelStores(localRec.labels, remoteRec.labels),
   };
 }
 

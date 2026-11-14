@@ -17,7 +17,7 @@ RAW_WORDS.forEach(w => { if (!WORD_BY_HEADWORD.has(w.w)) WORD_BY_HEADWORD.set(w.
 // 保存する設定。ここに足したキーは restoreSettings で検証して戻すこと（保存値は信用しない）
 function settingsSnapshot() {
   const keys = ['app', 'mode', 'sourceFilter', 'rangeFilter', 'dateFilter', 'posFilter', 'weakFilter',
-                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'weakSort',
+                'grammarBook', 'grammarChapter', 'grammarWeakFilter', 'grammarRule', 'grammarLabel', 'vocabLabel', 'lastLabelId', 'weakSort',
                 'wordbookRed', 'wordbookTest', 'weakReviewMode', 'weakIntervalDays', 'weakGraduateStreak'];
   return Object.fromEntries(keys.map(k => [k, state[k]]));
 }
@@ -60,6 +60,9 @@ function restoreSettings() {
     : (Number.isInteger(saved.grammarChapter) && state.grammarBook !== 'all' ? [`${state.grammarBook}:${saved.grammarChapter}`] : []);
   state.grammarChapter = getGrammarChaptersList().map(c => c.key).filter(k => k !== 'all' && savedChapters.includes(k));
   state.grammarRule = KIN_RULES.some(r => r.number === saved.grammarRule) ? saved.grammarRule : null;
+  // ラベルは、今あるラベルの ID のときだけ戻す
+  const labelIds = StudyCore.activeLabels(state.labels).map(l => l.id);
+  ['grammarLabel', 'vocabLabel', 'lastLabelId'].forEach(k => { state[k] = labelIds.includes(saved[k]) ? saved[k] : null; });
   state.grammarWeakFilter = pick(saved.grammarWeakFilter, ['all', 'weak_unlearned', 'weak_only', 'due'], 'all');
   state.weakSort = pick(saved.weakSort, ['new', 'old', 'due', 'order'], 'new');
   state.weakReviewMode = pick(saved.weakReviewMode, ['immediate', 'interval'], 'interval');

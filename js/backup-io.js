@@ -13,6 +13,7 @@ function buildBackup({ forDrive = false } = {}) {
     seenGrammar: [...state.grammarSeen],
     settings: settingsSnapshot(),
     session: sessionSnapshot(),
+    labels: state.labels, // ドライブ同期にも入れる（端末どうしでラベルをそろえる）
   };
   if (!forDrive) {
     data.activity = loadJSON(EXTRA_KEYS.activity, {});
@@ -195,6 +196,7 @@ function parseBackup(text) {
   if (d.prefs !== undefined && !isPlainObject(d.prefs)) return fail('表示設定の形が正しくありません。');
   if (d.pomoLog !== undefined && !isPlainObject(d.pomoLog)) return fail('ポモドーロの記録の形が正しくありません。');
   if (d.pomoSettings !== undefined && !isPlainObject(d.pomoSettings)) return fail('ポモドーロ設定の形が正しくありません。');
+  if (d.labels !== undefined && !isPlainObject(d.labels)) return fail('ラベルの記録の形が正しくありません。');
 
   const words = sanitizeWeakByMode(d.weakWords);
   const grammar = sanitizeWeakData(d.weakGrammar, isGrammarKey);
@@ -203,6 +205,7 @@ function parseBackup(text) {
   const grammarStats = sanitizeStatsMap(d.grammarStats);
   const seenGrammar = sanitizeSeenGrammar(d.seenGrammar);
   const weakDeleted = sanitizeWeakDeleted(d.weakDeleted);
+  const labels = d.labels === undefined ? null : StudyCore.sanitizeLabelStore(d.labels);
   const activity = d.activity === undefined ? null : StudyCore.sanitizeActivity(d.activity);
   const pomoLog = d.pomoLog === undefined ? null : StudyCore.sanitizePomoLog(d.pomoLog);
   const pomoSettings = d.pomoSettings === undefined ? undefined : (StudyCore.pomoSettingsPatch(d.pomoSettings) || {});
@@ -225,6 +228,7 @@ function parseBackup(text) {
       seenGrammar: seenGrammar.data,
       settings: d.settings,
       session: d.session,
+      labels: labels ? labels.data : undefined, // 無いファイルは undefined のまま＝復元しても今のまま
     },
     // 日別の学習記録と表示設定。キーが無いファイル（版5以前など）は undefined のまま＝復元しても今のまま
     extras: {
@@ -238,7 +242,7 @@ function parseBackup(text) {
       pomoLog: pomoLog ? pomoLog.log : undefined,
       pomoSettings,
     },
-    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + invalidBeforeMigration + (activity ? activity.invalid : 0) + (pomoLog ? pomoLog.invalid : 0),
+    invalid: words.invalid + grammar.invalid + seen.invalid + wordStats.invalid + grammarStats.invalid + seenGrammar.invalid + weakDeleted.invalid + (labels ? labels.invalid : 0) + invalidBeforeMigration + (activity ? activity.invalid : 0) + (pomoLog ? pomoLog.invalid : 0),
     // 今のデータに無い単語・問題も、別の端末のほうがデータが新しい場合に備えて消さずに残す
     unknownWords: [...weakWordKeys].filter(k => !knownWords.has(k)).length,
     unknownGrammar: [...new Set([...Object.keys(grammar.data).map(Number), ...seenGrammar.data])].filter(id => !GRAMMAR_BY_ID.has(id)).length,
@@ -332,6 +336,7 @@ function refreshPoolAfterRecordSync() {
 // 復元ではなくクラウド同期のとき（isRestore が false）は、設定と出題の続きは変わらないので、
 // 解いている最中の画面を作り直さず、別のタブも読み込み直させない
 function reloadRecordsFromStorage(isRestore = true) {
+  state.labels = loadLabels(); // restoreSettings がラベル ID を確かめるので先に読む
   state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
   state.weakDeleted = loadWeakDeleted();

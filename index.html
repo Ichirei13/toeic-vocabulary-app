@@ -222,8 +222,8 @@
   新しいファイルを足したら sw.js の ASSETS と upload.py の FILES にも足す（tests/test_file_lists.py が食い違いを検出する）。
     1. data/   問題データ（RAW_WORDS, RAW_GRAMMAR）と単語の豆知識（WORD_TIPS）
     2. src/    DOM を触らない純粋ロジック（Node の単体テストあり）
-    3. js/util.js → theme-audio → review-interval → word-stats
-               共通関数 → テーマ・音 → 復習間隔 → 記録と state の作成（最上位で state を作るので、ここまでが土台）
+    3. js/util.js → theme-audio → review-interval → word-stats → labels
+               共通関数 → テーマ・音 → 復習間隔 → 記録と state の作成（最上位で state を作るので、ここまでが土台）→ ラベルの記録（state.labels）
     4. js/grammar-drill → filter-sheet → vocab-filter → review-prev → vocab-drill → filter-nudge → settings → rules-guide → weak-list → weak-print
                関数宣言が中心で、動き出すのは boot.js 以降。最上位で実行するのは rules-guide.js（RAW_GRAMMAR から KIN_RULES を作る）と
                weak-list.js（シートのクリック登録）だけ
@@ -242,10 +242,12 @@
 <script src="src/pace.js"></script>
 <script src="src/wordbook.js"></script>
 <script src="src/pomodoro.js"></script>
+<script src="src/labels.js"></script>
 <script src="js/util.js"></script>
 <script src="js/theme-audio.js"></script>
 <script src="js/review-interval.js"></script>
 <script src="js/word-stats.js"></script>
+<script src="js/labels.js"></script>
 <script src="js/grammar-drill.js"></script>
 <script src="js/filter-sheet.js"></script>
 <script src="js/vocab-filter.js"></script>

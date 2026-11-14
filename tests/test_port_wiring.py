@@ -27,19 +27,28 @@ def test_activity_module_is_wired():
     assert HTML.index('<script src="src/activity.js"></script>') < HTML.index('<script src="home.js"></script>')
 
 
-def test_backup_format_6_is_wired_and_drive_is_untouched():
-    assert "const BACKUP_FORMAT = 6;" in HTML
+def test_backup_format_7_is_wired_and_drive_is_untouched():
+    assert "const BACKUP_FORMAT = 7;" in HTML
     assert "const EXTRA_KEYS = {" in HTML
     assert "const LOCAL_BACKUP_KEYS =" in HTML
-    # Drive 同期の対象（RECORD_KEYS）には新しいキーを入れない
+    # Drive 同期の対象（RECORD_KEYS）に日別記録・表示設定は入れない。ラベルは入れる（端末どうしでそろえる）
     start = HTML.index("const RECORD_KEYS = {")
     end = HTML.index("};", start)
     block = HTML[start:end]
     assert "toeic_prefs_v1" not in block
     assert "toeic_daily_activity_v1" not in block
-    # Drive 同期が作るファイルは従来どおり（版 5・日別記録なし）
-    assert HTML.count("buildBackup({ forDrive: true })") == 2
-    assert "format: forDrive ? 5 : BACKUP_FORMAT" in HTML
+    assert "labels: LABELS_KEY" in block
+    # Drive 同期が作るファイルは従来どおり版 5（日別記録なし）
+    assert "const BACKUP_FORMAT_DRIVE = 5;" in HTML
+    assert "format: forDrive ? BACKUP_FORMAT_DRIVE : BACKUP_FORMAT" in HTML
+
+
+def test_labels_are_wired():
+    for src in ("src/labels.js", "js/labels.js"):
+        assert f'<script src="{src}"></script>' in HTML
+        assert f"'{src}'" in SW
+        assert f'"{src}"' in (ROOT / "upload.py").read_text(encoding="utf-8")
+    assert HTML.index('<script src="js/word-stats.js"></script>') < HTML.index('<script src="js/labels.js"></script>')
 
 
 def test_review_module_is_wired():
