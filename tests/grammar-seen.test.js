@@ -586,18 +586,23 @@ test('sync_does_not_notify_other_tabs', () => withPage({}, async page => {
   assert.strictEqual(stamp, null); // 同期は「復元」ではないので、別のタブを読み込み直させない
 }));
 
-test('session_save_does_not_schedule_sync', () => withPage({}, async page => {
+// 自動同期は止めている（GDRIVE_AUTOSYNC_AVAILABLE = false）。止めている間は、どの保存でも同期を予約しない
+test('saves_do_not_schedule_sync_while_auto_sync_is_stopped', () => withPage({}, async page => {
   await stubDrive(page);
   const r = await page.evaluate(() => {
     localStorage.setItem(GDRIVE_AUTOSYNC_KEY, '1');
     gdriveSyncTimer = null;
     saveJSON(SESSION_KEY, {});
-    const afterSession = gdriveSyncTimer;
-    saveJSON(WORD_STATS_KEY, {});
-    return { afterSession, afterStats: gdriveSyncTimer !== null };
+    saveJSON(WORD_STATS_KEY, { x: { a: 1, c: 1 } });
+    return { available: GDRIVE_AUTOSYNC_AVAILABLE, timer: gdriveSyncTimer };
   });
-  assert.strictEqual(r.afterSession, null);
-  assert.strictEqual(r.afterStats, true);
+  assert.deepStrictEqual(r, { available: false, timer: null });
+}));
+
+// 自動同期を戻したときの決まり: 設定と出題の続きは描画のたびに保存されるので、同期のきっかけにしない
+test('session_and_settings_saves_never_trigger_sync', () => withPage({}, async page => {
+  const r = await page.evaluate(() => [SESSION_KEY, SETTINGS_KEY, WORD_STATS_KEY, LABELS_KEY, 'toeic_theme_unrelated'].map(autoSyncTriggeredBy));
+  assert.deepStrictEqual(r, [false, false, true, true, false]);
 }));
 
 // ==================== 絞り込みの複数選択(範囲・品詞・文法の章) ====================
