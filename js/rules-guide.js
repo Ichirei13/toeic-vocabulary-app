@@ -110,6 +110,8 @@ function startRuleDrill(number) {
   state.grammarChapter = [];
   state.grammarWeakFilter = 'all';
   state.grammarRule = number;
+  state.grammarLabel = null; // ラベルの絞り込みをやめる（ほかの条件を使わないため）
+  saveSettings();
   syncFilterUI();
   applyGrammarFilters();
   closeSheet();

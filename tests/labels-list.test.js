@@ -116,6 +116,22 @@ test('label_deleted_in_another_tab_clears_the_filter', () => withPage({}, async 
   assert(r.n > 1, `プールが ${r.n} 問`);
 }));
 
+// ラベルで解いたあとに、ほかの「解く」入口（ルール・ホームの苦手・本のカード）を使うと、ラベルの絞り込みは外れる
+for (const [name, start, kind] of [
+  ['rule_drill', () => startRuleDrill(KIN_RULES[0].number), 'grammar'],
+  ['home_weak_drill_grammar', () => startWeakDrillFromHome('grammar'), 'grammar'],
+  ['home_weak_drill_vocab', () => startWeakDrillFromHome('vocab'), 'vocab'],
+  ['home_book_card', () => startBookFromHome('grammar', 'kin'), 'grammar'],
+]) {
+  test(`other_entry_points_clear_label_filter_${name}`, () => withPage({}, async page => {
+    await label(page, ['g:1001', `w:${await firstWord(page)}`]);
+    await page.evaluate(k => startLabelDrill(k, 'default'), kind);
+    await page.evaluate(`(${start})()`);
+    const r = await page.evaluate(k => ({ label: state[k === 'grammar' ? 'grammarLabel' : 'vocabLabel'], saved: JSON.parse(localStorage.getItem('toeic_settings'))[k === 'grammar' ? 'grammarLabel' : 'vocabLabel'] }), kind);
+    assert.deepStrictEqual(r, { label: null, saved: null });
+  }));
+}
+
 test('session_signature_unchanged_without_label_filter', () => withPage({}, async page => {
   const r = await page.evaluate(() => {
     const oldGrammar = JSON.stringify([RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter]);
