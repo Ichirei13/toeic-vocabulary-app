@@ -77,9 +77,11 @@ function restoreSettings() {
 // 今の絞り込みを表す値。保存した出題順はこれが一致するときだけ使う（データが増減したときも作り直す）
 function sessionSignature(app) {
   return JSON.stringify(app === 'grammar'
-    ? [RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter]
+    ? [RAW_GRAMMAR.length, state.grammarBook, state.grammarChapter, state.grammarRule, state.grammarWeakFilter,
+       ...(state.grammarLabel ? ['label', state.grammarLabel] : [])] // ラベルを使わないときは今までと同じ値（保存済みの続きを使える）
     : [RAW_WORDS.length, state.sourceFilter, state.rangeFilter, state.dateFilter, state.posFilter, state.weakFilter,
-       ...(state.weakFilter !== 'all' ? [state.mode] : [])]); // 苦手で絞るときは出題範囲がモードで変わる
+       ...(state.weakFilter !== 'all' ? [state.mode] : []), // 苦手で絞るときは出題範囲がモードで変わる
+       ...(state.vocabLabel ? ['label', state.vocabLabel] : [])]);
 }
 
 // 保存先 SESSION_KEY は { vocab, grammar } の2枠。今の app の枠だけ書き換え、もう片方は残す。

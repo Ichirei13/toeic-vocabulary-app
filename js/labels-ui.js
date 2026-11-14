@@ -182,3 +182,180 @@ document.getElementById('weak-list-content').addEventListener('keydown', e => {
     createLabelFromPicker();
   }
 });
+
+// ---- ラベル一覧（フッターの「ラベル」）とラベルの中身 ----
+
+// labelId が null なら一覧、ラベル ID なら中身。tab は 'grammar' | 'vocab'、sort は 'added'（付けた順）| 'order'
+let labelListView = { labelId: null, tab: 'grammar', sort: 'added' };
+
+function toggleLabelList() {
+  if (isSheetOpen() && activeSheetRender === renderLabelList) return closeSheet();
+  labelListView = { labelId: null, tab: state.app === 'grammar' ? 'grammar' : 'vocab', sort: 'added' };
+  openSheet('ラベル', renderLabelList, false);
+}
+
+// ラベルに付いている項目のうち、今の問題データにあるもの（無くなった問題・単語は出さない）
+function labelEntries(labelId) {
+  const grammar = [];
+  const words = [];
+  StudyCore.itemsOf(state.labels, labelId).forEach(({ key }) => {
+    if (key.startsWith('g:')) {
+      const ex = GRAMMAR_BY_ID.get(Number(key.slice(2)));
+      if (ex) grammar.push({ key, ex });
+    } else {
+      const word = WORD_BY_HEADWORD.get(key.slice(2));
+      if (word) words.push({ key, word });
+    }
+  });
+  return { grammar, words };
+}
+
+function renderLabelList() {
+  if (labelListView.labelId !== null) {
+    if (StudyCore.activeLabels(state.labels).some(l => l.id === labelListView.labelId)) return renderLabelContents(labelListView.labelId);
+    labelListView.labelId = null; // 開いていたラベルが（別のタブなどで）削除された
+  }
+  document.getElementById('sheet-title').innerText = 'ラベル';
+  const rows = StudyCore.activeLabels(state.labels).map(l => {
+    const { grammar, words } = labelEntries(l.id);
+    return `
+      <button type="button" class="label-row" data-label-open="${escapeHtml(l.id)}">
+        <span class="label-row-name">🏷 ${escapeHtml(l.name)}</span>
+        <span class="label-row-count">文法 ${grammar.length}問・単語 ${words.length}語</span>
+      </button>`;
+  }).join('');
+  document.getElementById('weak-list-content').innerHTML = `
+    <div class="label-list">
+      ${rows || '<p class="label-empty">ラベルがありません。</p>'}
+      ${typeof openLabelSettings === 'function' ? '<button type="button" class="label-edit-link" data-label-edit>ラベルを編集 →</button>' : ''}
+    </div>`;
+}
+
+function renderLabelContents(labelId) {
+  const name = StudyCore.activeLabels(state.labels).find(l => l.id === labelId).name;
+  document.getElementById('sheet-title').innerText = `ラベル: ${name}`;
+  const { grammar, words } = labelEntries(labelId);
+  const isGrammar = labelListView.tab === 'grammar';
+  if (labelListView.sort === 'order') {
+    const bookOrder = ex => { const i = GRAMMAR_BOOK_IDS.indexOf(bookOf(ex)); return i >= 0 ? i : 99; };
+    grammar.sort((a, b) => bookOrder(a.ex) - bookOrder(b.ex) || a.ex.ch - b.ex.ch || a.ex.id - b.ex.id);
+    words.sort((a, b) => a.word.w.localeCompare(b.word.w, 'en', { sensitivity: 'base' }));
+  }
+  const list = isGrammar ? grammar : words;
+  const chip = (attr, value, on, text) => `<button type="button" class="chip ${on ? 'active' : ''}" ${attr}="${value}">${text}</button>`;
+  const remove = key => `<button type="button" class="del-btn" data-label-remove="${escapeHtml(key)}">ラベルを外す</button>`;
+  const items = list.map(isGrammar
+    ? ({ key, ex }) => `
+      <div class="weak-item label-item">
+        <div class="label-item-head">
+          <span class="label-item-book">${getBookBadge(ex.b)} ${getChapterLabel(ex.b, ex.ch, ex.ch_title)}</span>
+          ${remove(key)}
+        </div>
+        <div class="label-item-q">${ex.q}</div>
+        <div class="label-item-answer">正解: (${grammarChoiceLabel(ex.a)}) ${ex.c[ex.a]}</div>
+        ${ex.exp ? `<details class="label-item-exp"><summary>解説</summary><div class="grammar-exp-text">${ex.exp}</div></details>` : ''}
+      </div>`
+    : ({ key, word }) => `
+      <div class="weak-item label-item">
+        <div class="label-item-head">
+          <span class="weak-word">${escapeHtml(word.w)}</span>
+          ${remove(key)}
+        </div>
+        <div class="weak-meaning">${escapeHtml(word.m)}</div>
+        ${word.e ? `<div class="label-item-example">${word.e}</div>` : ''}
+      </div>`).join('');
+  document.getElementById('weak-list-content').innerHTML = `
+    <button type="button" class="label-back" data-label-back>← ラベル一覧</button>
+    <div class="filter-row" style="flex-wrap:wrap;margin-bottom:4px;">
+      ${chip('data-label-tab', 'grammar', isGrammar, `文法 ${grammar.length}`)}
+      ${chip('data-label-tab', 'vocab', !isGrammar, `単語 ${words.length}`)}
+    </div>
+    <button type="button" class="filter-apply-btn label-solve-btn" data-label-solve${list.length ? '' : ' disabled'}>このラベルで解く（${isGrammar ? '文法' : '単語'} ${list.length}）</button>
+    <div class="filter-row" style="flex-wrap:wrap;margin:8px 0 4px;">
+      ${chip('data-label-sort', 'added', labelListView.sort === 'added', '付けた順')}
+      ${chip('data-label-sort', 'order', labelListView.sort === 'order', isGrammar ? '本・章順' : 'ABC順')}
+    </div>
+    ${items || `<p class="label-empty">このラベルの${isGrammar ? '文法の問題' : '単語'}はありません。</p>`}`;
+}
+
+// ---- ラベルで絞り込んで解く ----
+
+const labelFilterKey = kind => (kind === 'grammar' ? 'grammarLabel' : 'vocabLabel');
+
+// ラベルの付いた問題だけを出す。ほかの絞り込み（本・章・苦手）は使わない
+function startLabelDrill(kind, labelId) {
+  if (state.app !== kind) setApp(kind);
+  state[labelFilterKey(kind)] = labelId;
+  saveSettings();
+  syncFilterUI();
+  if (kind === 'grammar') applyGrammarFilters();
+  else applyFilters();
+  closeSheet();
+  if (typeof currentAppPage !== 'undefined' && currentAppPage !== 'practice' && typeof switchAppPage === 'function') switchAppPage('practice');
+}
+
+function clearLabelFilter(kind) {
+  state[labelFilterKey(kind)] = null;
+  saveSettings();
+  syncFilterUI();
+  if (state.app !== kind) return;
+  if (kind === 'grammar') applyGrammarFilters();
+  else applyFilters();
+}
+
+// 絞り込みシートの「ラベル: 〇〇 ✕」
+function renderLabelFilterChip() {
+  const el = document.getElementById('label-filter-chip');
+  if (!el) return;
+  const id = state[labelFilterKey(state.app === 'grammar' ? 'grammar' : 'vocab')];
+  el.hidden = !id;
+  el.innerHTML = id ? `
+    <button type="button" class="chip active" data-clear-label-filter>ラベル: ${escapeHtml(labelName(id))} ✕</button>
+    <p class="label-filter-note">ラベルで絞り込み中は、ほかの条件は使われません。</p>` : '';
+}
+
+// js/labels.js の applyLabelChange から呼ばれる。絞り込み中のラベルが削除されたら、ふつうの条件で出題し直す
+function onLabelFilterDropped(prev) {
+  renderLabelFilterChip();
+  updateFilterSummary();
+  const kind = state.app === 'grammar' ? 'grammar' : 'vocab';
+  if (prev && prev[labelFilterKey(kind)] && !state[labelFilterKey(kind)]) {
+    if (kind === 'grammar') applyGrammarFilters();
+    else applyFilters();
+  }
+}
+
+document.getElementById('weak-list-content').addEventListener('click', e => {
+  const open = e.target.closest('[data-label-open]');
+  if (open) {
+    labelListView = { ...labelListView, labelId: open.dataset.labelOpen, sort: 'added' };
+    return renderLabelList();
+  }
+  if (e.target.closest('[data-label-back]')) {
+    labelListView.labelId = null;
+    return renderLabelList();
+  }
+  const tab = e.target.closest('[data-label-tab]');
+  if (tab) {
+    labelListView.tab = tab.dataset.labelTab;
+    return renderLabelList();
+  }
+  const sort = e.target.closest('[data-label-sort]');
+  if (sort) {
+    labelListView.sort = sort.dataset.labelSort;
+    return renderLabelList();
+  }
+  const remove = e.target.closest('[data-label-remove]');
+  if (remove) {
+    applyLabelChange(StudyCore.setLabel(state.labels, labelListView.labelId, remove.dataset.labelRemove, false, Date.now()));
+    refreshLabelButton();
+    return renderLabelList();
+  }
+  const solve = e.target.closest('[data-label-solve]');
+  if (solve && !solve.disabled) return startLabelDrill(labelListView.tab, labelListView.labelId);
+  if (e.target.closest('[data-label-edit]')) return openLabelSettings();
+});
+
+document.getElementById('label-filter-chip')?.addEventListener('click', e => {
+  if (e.target.closest('[data-clear-label-filter]')) clearLabelFilter(state.app === 'grammar' ? 'grammar' : 'vocab');
+});

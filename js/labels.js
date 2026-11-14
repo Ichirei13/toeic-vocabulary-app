@@ -39,14 +39,19 @@ function dropStaleLabelSettings() {
   return changed;
 }
 
+// state.labels を置き換えたあとの後始末。無くなったラベルを指す設定を外し、絞り込み中だったら出題し直す
+function settleLabelSettings(prev) {
+  if (!dropStaleLabelSettings()) return;
+  saveSettings();
+  if (typeof onLabelFilterDropped === 'function') onLabelFilterDropped(prev); // js/labels-ui.js
+}
+
 // ラベルの変更はすべてここを通す（保存と、無くなったラベルを指す設定の後始末）
 function applyLabelChange(nextStore) {
+  const prev = { grammarLabel: state.grammarLabel, vocabLabel: state.vocabLabel };
   state.labels = nextStore;
   saveLabels();
-  if (dropStaleLabelSettings()) {
-    saveSettings();
-    if (typeof onLabelFilterDropped === 'function') onLabelFilterDropped();
-  }
+  settleLabelSettings(prev);
 }
 
 state.labels = loadLabels();

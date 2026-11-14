@@ -185,6 +185,11 @@ function grammarMatchesBaseFilters(ex) {
 
 // 今の絞り込みに合う文法問題（並べ替える前）
 function filteredGrammar() {
+  // ラベルで絞り込み中は、そのラベルの問題だけ（ほかの条件は使わない）
+  if (state.grammarLabel) {
+    const keys = new Set(StudyCore.itemsOf(state.labels, state.grammarLabel).map(x => x.key));
+    return RAW_GRAMMAR.filter(ex => keys.has(`g:${ex.id}`));
+  }
   return RAW_GRAMMAR.filter(ex => {
     if (!grammarMatchesBaseFilters(ex)) return false;
     const entry = state.grammarWeakData[ex.id];

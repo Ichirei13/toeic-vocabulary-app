@@ -336,7 +336,10 @@ function refreshPoolAfterRecordSync() {
 // 復元ではなくクラウド同期のとき（isRestore が false）は、設定と出題の続きは変わらないので、
 // 解いている最中の画面を作り直さず、別のタブも読み込み直させない
 function reloadRecordsFromStorage(isRestore = true) {
+  const prevLabelFilters = { grammarLabel: state.grammarLabel, vocabLabel: state.vocabLabel };
   state.labels = loadLabels(); // restoreSettings がラベル ID を確かめるので先に読む
+  // 別のタブ・同期で、絞り込み中のラベルが削除されていたら外す（復元のときは restoreSettings が確かめる）
+  if (!isRestore) settleLabelSettings(prevLabelFilters);
   state.weakByMode = loadWeakByMode();
   state.grammarWeakData = loadWeakData('toeic_weak_grammar', isGrammarKey);
   state.weakDeleted = loadWeakDeleted();
