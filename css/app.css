@@ -2231,6 +2231,8 @@ body {
   gap: 12px;
 }
 .toast .toast-action {
+  flex: 0 0 auto;
+  white-space: nowrap;
   background: transparent;
   color: inherit;
   border: 1px solid currentColor;
