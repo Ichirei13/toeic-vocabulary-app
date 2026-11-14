@@ -41,12 +41,10 @@ function dedupeWords(words) {
 
 // 今の絞り込みに合う単語（並べ替える前）
 function filteredWords() {
-  // ラベルで絞り込み中は、そのラベルの単語だけ（ほかの条件は使わない）
-  if (state.vocabLabel) {
-    const keys = new Set(StudyCore.itemsOf(state.labels, state.vocabLabel).map(x => x.key));
-    return dedupeWords(RAW_WORDS.filter(w => keys.has(`w:${w.w}`)));
-  }
+  // ラベルで絞り込み中は、そのラベルの単語のうち、ほかの条件にも合うものだけ
+  const labelKeys = state.vocabLabel ? new Set(StudyCore.itemsOf(state.labels, state.vocabLabel).map(x => x.key)) : null;
   const filtered = RAW_WORDS.filter(w => {
+    if (labelKeys && !labelKeys.has(`w:${w.w}`)) return false;
     if (!wordMatchesBaseFilters(w)) return false;
 
     // weak

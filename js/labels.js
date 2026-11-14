@@ -52,6 +52,7 @@ function applyLabelChange(nextStore) {
   state.labels = nextStore;
   saveLabels();
   settleLabelSettings(prev);
+  if (typeof renderLabelFilterChip === 'function') renderLabelFilterChip(); // 絞り込みシートのラベルの件数（js/labels-ui.js）
 }
 
 state.labels = loadLabels();

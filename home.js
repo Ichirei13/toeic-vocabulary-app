@@ -1522,6 +1522,7 @@ function switchAppPage(page, options = {}) {
   else if (currentAppPage !== 'graph') graphReturnPage = appPageShown ? currentAppPage : 'review';
   if (page === 'graph') ensureGraphPage();
   appPageShown = true;
+  if (page !== currentAppPage && typeof resetLabelSettingsEdit === 'function') resetLabelSettingsEdit(); // js/labels-ui.js
   currentAppPage = page;
   const appEl = document.getElementById('app');
   if (appEl) {

@@ -282,9 +282,14 @@ function renderLabelContents(labelId) {
 
 const labelFilterKey = kind => (kind === 'grammar' ? 'grammarLabel' : 'vocabLabel');
 
-// ラベルの付いた問題だけを出す。ほかの絞り込み（本・章・苦手）は使わない
+// ほかの条件をいったん「すべて」に戻してから、ラベルで絞り込む（押した直後はラベルの問題が全部出る。そこから絞り込みシートで絞れる）
 function startLabelDrill(kind, labelId) {
   if (state.app !== kind) setApp(kind);
+  if (kind === 'grammar') {
+    Object.assign(state, { grammarBook: 'all', grammarChapter: [], grammarRule: null, grammarWeakFilter: 'all' });
+  } else {
+    Object.assign(state, { sourceFilter: 'all', rangeFilter: [], dateFilter: [], posFilter: [], weakFilter: 'all' });
+  }
   state[labelFilterKey(kind)] = labelId;
   saveSettings();
   syncFilterUI();
@@ -294,24 +299,33 @@ function startLabelDrill(kind, labelId) {
   if (typeof currentAppPage !== 'undefined' && currentAppPage !== 'practice' && typeof switchAppPage === 'function') switchAppPage('practice');
 }
 
-function clearLabelFilter(kind) {
-  state[labelFilterKey(kind)] = null;
-  saveSettings();
-  syncFilterUI();
-  if (state.app !== kind) return;
-  if (kind === 'grammar') applyGrammarFilters();
-  else applyFilters();
-}
-
-// 絞り込みシートの「ラベル: 〇〇 ✕」
+// 絞り込みシートの「ラベル」の行（すべて＋各ラベルと、今のドリルの件数）。ほかの条件と組み合わせて絞れる
 function renderLabelFilterChip() {
   const el = document.getElementById('label-filter-chip');
   if (!el) return;
-  const id = state[labelFilterKey(state.app === 'grammar' ? 'grammar' : 'vocab')];
-  el.hidden = !id;
-  el.innerHTML = id ? `
-    <button type="button" class="chip active" data-clear-label-filter>ラベル: ${escapeHtml(labelName(id))} ✕</button>
-    <p class="label-filter-note">ラベルで絞り込み中は、ほかの条件は使われません。</p>` : '';
+  const kind = state.app === 'grammar' ? 'grammar' : 'vocab';
+  const current = state[labelFilterKey(kind)];
+  const labels = StudyCore.activeLabels(state.labels);
+  el.hidden = labels.length === 0;
+  const chip = (id, text) => `<button type="button" class="chip ${(current || '') === id ? 'active' : ''}" data-label-filter="${escapeHtml(id)}">${text}</button>`;
+  el.innerHTML = labels.length === 0 ? '' : `
+    <div class="filter-section-label">ラベル</div>
+    <div class="filter-row" style="flex-wrap:wrap;">
+      ${chip('', 'すべて')}
+      ${labels.map(l => {
+        const { grammar, words } = labelEntries(l.id);
+        return chip(l.id, `🏷 ${escapeHtml(l.name)} <span class="label-chip-count">${kind === 'grammar' ? grammar.length : words.length}</span>`);
+      }).join('')}
+    </div>`;
+}
+
+// ラベルの行のチップ。ほかのチップと同じく、選んだらすぐ出題し直す
+function setLabelFilter(kind, labelId) {
+  state[labelFilterKey(kind)] = labelId || null;
+  saveSettings();
+  syncFilterUI();
+  if (kind === 'grammar') applyGrammarFilters();
+  else applyFilters();
 }
 
 // js/labels.js の applyLabelChange から呼ばれる。絞り込み中のラベルが削除されたら、ふつうの条件で出題し直す
@@ -357,7 +371,8 @@ document.getElementById('weak-list-content').addEventListener('click', e => {
 });
 
 document.getElementById('label-filter-chip')?.addEventListener('click', e => {
-  if (e.target.closest('[data-clear-label-filter]')) clearLabelFilter(state.app === 'grammar' ? 'grammar' : 'vocab');
+  const chip = e.target.closest('[data-label-filter]');
+  if (chip) setLabelFilter(state.app === 'grammar' ? 'grammar' : 'vocab', chip.dataset.labelFilter);
 });
 
 // ---- 設定画面の「ラベル」セクション（作る・名前を変える・削除する） ----
@@ -428,6 +443,11 @@ function renderLabelSettingsSection() {
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
   }
+}
+
+// 設定画面を離れたら、入力途中の状態は捨てる（home.js の switchAppPage から呼ぶ）
+function resetLabelSettingsEdit() {
+  labelSettingsEdit = { mode: null, id: null, draft: '', error: '' };
 }
 
 function setLabelSettingsEdit(next) {

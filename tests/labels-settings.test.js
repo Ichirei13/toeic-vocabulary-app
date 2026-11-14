@@ -64,6 +64,15 @@ test('invalid_names_show_reason', () => withPage({}, async page => {
   assert.deepStrictEqual(await names(page), ['あとで見る']);
 }));
 
+test('settings_editor_resets_after_leaving_settings', () => withPage({}, async page => {
+  await openSettings(page);
+  await page.click(`${section} [data-label-settings-new]`);
+  await page.fill(`${section} .label-name-input`, '途中');
+  await page.evaluate(() => { switchAppPage('practice'); switchAppPage('settings'); });
+  assert.strictEqual(await page.locator(`${section} .label-name-input`).count(), 0);
+  assert.strictEqual(await page.locator(`${section} [data-label-settings-new]`).count(), 1);
+}));
+
 test('edit_link_from_footer_list_opens_settings_section', () => withPage({}, async page => {
   await page.evaluate(() => toggleLabelList());
   await page.click('[data-label-edit]');
