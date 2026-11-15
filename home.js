@@ -947,6 +947,9 @@ function renderHomePage() {
       </div>
     </section>
 
+    <!-- 5. ラベル（js/labels-ui.js）。行を押すとそのラベルの中身 -->
+    ${typeof labelSummaryHtml === 'function' ? `<section class="home-label-bar" aria-label="ラベル">${labelSummaryHtml(kind)}</section>` : ''}
+
     </div>
     <div class="home-col-side">
     <!-- 5. 他の参考書（スクロール可能ボックス） -->
@@ -1012,6 +1015,7 @@ function renderReviewPage() {
           <button type="button" class="home-weak-btn solve" data-home-action="solve-weak" data-kind="${kind}" ${p.weak === 0 ? 'disabled' : ''}>苦手を解く</button>
           <button type="button" class="home-weak-btn" data-home-action="view-weak-list" data-kind="${kind}">一覧を見る</button>
         </div>
+        ${typeof labelSummaryHtml === 'function' ? labelSummaryHtml(kind) : ''}
       </section>`;
   };
   container.innerHTML = `

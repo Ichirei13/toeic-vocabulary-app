@@ -515,6 +515,7 @@ function openLabelSettings() {
 function refreshLabelViews() {
   refreshLabelButton();
   renderLabelFilterChip();
+  refreshLabelSummaries();
   if (isSheetOpen()) {
     if (activeSheetRender === renderLabelList) renderLabelList();
     else if (activeSheetRender === renderLabelPicker && labelPickerTarget) renderLabelPicker();
@@ -527,3 +528,48 @@ function refreshLabelViews() {
   resetLabelSettingsEdit();
   renderLabelSettingsSection();
 }
+
+// ---- ホーム・復習画面の「🏷 ラベル」の欄 ----
+// kind（'vocab' | 'grammar'）の件数でラベルを並べる。行を押すと、そのラベルの中身（その種類のタブ）を開く
+
+function labelSummaryHtml(kind) {
+  const labels = StudyCore.activeLabels(state.labels);
+  const counted = labels.map(l => {
+    const { grammar, words } = labelEntries(l.id);
+    return { ...l, n: kind === 'grammar' ? grammar.length : words.length };
+  });
+  const unit = kind === 'grammar' ? '問' : '語';
+  const kindName = kind === 'grammar' ? '文法' : '単語';
+  const rows = counted.map(l => `
+      <button type="button" class="label-summary-row" data-label-view="${escapeHtml(l.id)}" data-kind="${kind}">
+        <span class="label-row-name">${escapeHtml(l.name)}</span>
+        <span class="label-row-count">${kindName} ${l.n}${unit} ›</span>
+      </button>`).join('');
+  const nothing = counted.every(l => l.n === 0);
+  return `
+    <div class="label-summary" data-kind="${kind}">
+      <div class="label-summary-title">🏷 ラベル</div>
+      ${rows}
+      ${nothing ? '<p class="label-summary-hint">解答後の 🏷 で付けられます。</p>' : ''}
+    </div>`;
+}
+
+// そのラベルの中身を、kind のタブで開く
+function openLabelContents(labelId, kind) {
+  labelListView = { labelId, tab: kind === 'grammar' ? 'grammar' : 'vocab', sort: 'added' };
+  openSheet('ラベル', renderLabelList, false);
+}
+
+// ラベルが変わったら、表示中のホーム・復習画面の件数を描き直す
+function refreshLabelSummaries() {
+  if (typeof currentAppPage === 'undefined') return;
+  if (currentAppPage === 'home' && typeof renderHomePage === 'function') renderHomePage();
+  else if (currentAppPage === 'review' && typeof renderReviewPage === 'function') renderReviewPage();
+}
+
+['home-page', 'review-page'].forEach(id => {
+  document.getElementById(id)?.addEventListener('click', e => {
+    const row = e.target.closest('[data-label-view]');
+    if (row) openLabelContents(row.dataset.labelView, row.dataset.kind);
+  });
+});

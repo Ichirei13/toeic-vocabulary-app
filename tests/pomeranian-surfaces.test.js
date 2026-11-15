@@ -21,8 +21,8 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server.close(); });
 
-// fixedTime: ページの時計を止める時刻（時間帯でポーズが変わる画面を、いつ実行しても同じに確かめるため）
-async function open(t, { width = 375, height = 812, theme = 'ink', fixedTime = null } = {}) {
+// fixedTime: ページの時計を止める時刻。22時〜5時はホームの案内役のポーズが変わるので、いつ実行しても同じになるよう昼にしておく
+async function open(t, { width = 375, height = 812, theme = 'ink', fixedTime = new Date('2026-11-14T12:00:00+09:00') } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce', timezoneId: 'Asia/Tokyo' });
   t.after(() => context.close());
   await context.addInitScript(theme => localStorage.setItem('toeic_app_theme', theme), theme);
@@ -120,8 +120,7 @@ test('brand mascot stays beside a readable label in the wide sidebar and every w
 });
 
 test('home guidance, real streak and goal achievement use distinct poses without losing counts', async t => {
-  // 22時〜5時は案内役が夜・おやすみのポーズになるので、昼の時刻で確かめる
-  const { page } = await open(t, { fixedTime: new Date('2026-11-14T12:00:00+09:00') });
+  const { page } = await open(t);
   assert((await page.locator('.home-message-bar img').getAttribute('src')).endsWith('neutral.svg'));
   await page.evaluate(() => {
     dailyActivity.days = {};
