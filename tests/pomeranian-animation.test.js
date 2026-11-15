@@ -36,6 +36,8 @@ async function open(t, motion, seedOldCache = false) {
       await oldCache.put('/assets/pomeranian/neutral.svg', new Response('old-still-image'));
     });
   }
+  // 22時〜5時はホームの案内役が夜・おやすみのポーズになるので、時計を昼（この端末の時刻）に止める。タイマーとアニメーションは動いたまま
+  await page.clock.setFixedTime(new Date('2026-11-14T12:00:00'));
   await page.goto(base + '/index.html#home');
   await page.evaluate(() => dismissNudge());
   return { page, context };

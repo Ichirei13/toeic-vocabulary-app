@@ -16,10 +16,58 @@ const openContents = async page => {
   await page.click('[data-label-open="default"]');
 };
 
-test('footer_link_opens_label_list', () => withPage({}, async page => {
-  await page.click('.footer >> text=ラベル');
-  assert.strictEqual(await page.textContent('#sheet-title'), 'ラベル');
-  assert((await sheetText(page)).includes('あとで見る'));
+test('practice_footer_has_no_label_link', () => withPage({}, async page => {
+  const texts = await page.$$eval('.footer .stats span', els => els.map(e => e.textContent.trim()));
+  assert(!texts.includes('ラベル'), texts.join(' / '));
+  assert(texts.includes('苦手リスト'));
+}));
+
+const homeLabels = '#home-page .label-summary';
+const openHome = (page, kind) => page.evaluate(k => { switchAppPage('home'); homeCategory = k; renderHomePage(); }, kind);
+
+test('home_shows_labels_with_counts_and_opens_contents', () => withPage({}, async page => {
+  const w = await firstWord(page);
+  await label(page, [`w:${w}`, 'g:1001', 'g:1002']);
+  await openHome(page, 'vocab');
+  const text = await page.textContent(homeLabels);
+  assert(text.includes('あとで見る') && text.includes('単語 1語'), text);
+  await page.click(`${homeLabels} [data-label-view="default"]`);
+  assert.strictEqual(await page.textContent('#sheet-title'), 'ラベル: あとで見る');
+  assert.strictEqual(await page.evaluate(() => document.querySelector('[data-label-tab="vocab"]').classList.contains('active')), true);
+  assert((await sheetText(page)).includes(w));
+}));
+
+test('home_grammar_category_counts_grammar', () => withPage({}, async page => {
+  await label(page, ['g:1001', 'g:1002']);
+  await openHome(page, 'grammar');
+  assert((await page.textContent(homeLabels)).includes('文法 2問'));
+  await page.click(`${homeLabels} [data-label-view="default"]`);
+  assert.strictEqual(await page.evaluate(() => document.querySelector('[data-label-tab="grammar"]').classList.contains('active')), true);
+}));
+
+test('label_section_shows_hint_when_nothing_labeled', () => withPage({}, async page => {
+  await openHome(page, 'vocab');
+  assert((await page.textContent(homeLabels)).includes('解答後の 🏷 で付けられます'));
+}));
+
+test('review_page_shows_labels_per_kind', () => withPage({}, async page => {
+  const w = await firstWord(page);
+  await label(page, [`w:${w}`, 'g:1001']);
+  await page.evaluate(() => switchAppPage('review'));
+  const blocks = await page.$$eval('#review-page .review-block', els => els.map(e => e.textContent));
+  assert(blocks.some(t => t.includes('単語') && t.includes('単語 1語')), blocks.join('\n'));
+  assert(blocks.some(t => t.includes('文法 1問')), blocks.join('\n'));
+  await page.click('#review-page .label-summary[data-kind="grammar"] [data-label-view="default"]');
+  assert.strictEqual(await page.evaluate(() => document.querySelector('[data-label-tab="grammar"]').classList.contains('active')), true);
+}));
+
+test('home_counts_update_after_removing_from_sheet', () => withPage({}, async page => {
+  await label(page, ['g:1001']);
+  await openHome(page, 'grammar');
+  await page.click(`${homeLabels} [data-label-view="default"]`);
+  await page.click('[data-label-remove="g:1001"]');
+  await page.evaluate(() => closeSheet());
+  assert((await page.textContent(homeLabels)).includes('文法 0問'));
 }));
 
 test('list_shows_counts_per_label', () => withPage({}, async page => {

@@ -53,6 +53,7 @@ function applyLabelChange(nextStore) {
   saveLabels();
   settleLabelSettings(prev);
   if (typeof renderLabelFilterChip === 'function') renderLabelFilterChip(); // 絞り込みシートのラベルの件数（js/labels-ui.js）
+  if (typeof refreshLabelSummaries === 'function') refreshLabelSummaries(); // ホーム・復習画面のラベルの件数
 }
 
 state.labels = loadLabels();
