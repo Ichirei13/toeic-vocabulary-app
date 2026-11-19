@@ -24,6 +24,7 @@
   --graph-label-muted: rgba(60, 60, 67, 0.65);
   --graph-label-halo: var(--graph-bg);
   --graph-ring: #3a3a3c;
+  --graph-ring-guide: rgba(60, 60, 67, 0.14);
   --graph-due-ring: #9f1d22;
   --graph-surface: #ffffff;
   --graph-chip-bg: rgba(120, 120, 128, 0.12);
@@ -52,6 +53,7 @@
     --graph-label: #f2f2f7;
     --graph-label-muted: rgba(235, 235, 245, 0.62);
     --graph-ring: #d1d1d6;
+    --graph-ring-guide: rgba(235, 235, 245, 0.16);
     --graph-due-ring: #ffb3b5;
     --graph-surface: #1c1f24;
     --graph-chip-bg: rgba(118, 118, 128, 0.24);
@@ -86,6 +88,7 @@
   --graph-label: #f2f2f7;
   --graph-label-muted: rgba(235, 235, 245, 0.62);
   --graph-ring: #d1d1d6;
+  --graph-ring-guide: rgba(235, 235, 245, 0.16);
   --graph-due-ring: #ffb3b5;
   --graph-surface: #1c1f24;
   --graph-chip-bg: rgba(118, 118, 128, 0.24);
@@ -113,6 +116,7 @@
   --graph-label: #1c1c1e;
   --graph-label-muted: rgba(60, 60, 67, 0.65);
   --graph-ring: #3a3a3c;
+  --graph-ring-guide: rgba(60, 60, 67, 0.14);
   --graph-due-ring: #9f1d22;
   --graph-surface: #ffffff;
   --graph-chip-bg: rgba(120, 120, 128, 0.12);
@@ -152,11 +156,40 @@
 
 .graph-filter {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  row-gap: 6px;
+  column-gap: 6px;
   padding: 8px 8px 6px;
   flex: 0 0 auto;
   border-bottom: 1px solid var(--graph-border);
+}
+.graph-mode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--graph-chip-bg);
+  gap: 2px;
+}
+.graph-mode-btn {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--graph-label);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.graph-mode-btn[aria-pressed="true"] {
+  background: var(--graph-chip-on-bg);
+  color: var(--graph-chip-on-text);
+  font-weight: 600;
 }
 .graph-chips {
   display: flex;
@@ -170,6 +203,10 @@
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
   padding-right: 10px;
+}
+@media (max-width: 639px) {
+  .graph-weak-toggle { margin-left: auto; }
+  .graph-chips { order: 3; flex: 1 0 100%; }
 }
 .graph-chips::-webkit-scrollbar { display: none; }
 .graph-chip,
@@ -202,6 +239,7 @@
   background: var(--graph-weak);
   color: #ffffff;
 }
+.graph-mode-btn:focus-visible,
 .graph-chip:focus-visible,
 .graph-weak-toggle:focus-visible,
 .graph-zoom button:focus-visible,
