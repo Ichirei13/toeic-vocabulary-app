@@ -27,20 +27,29 @@ def test_activity_module_is_wired():
     assert HTML.index('<script src="src/activity.js"></script>') < HTML.index('<script src="home.js"></script>')
 
 
-def test_backup_format_6_is_wired_and_drive_is_untouched():
-    assert "const BACKUP_FORMAT = 6;" in HTML
+def test_backup_format_7_is_wired_and_drive_is_untouched():
+    assert "const BACKUP_FORMAT = 7;" in HTML
     assert "const EXTRA_KEYS = {" in HTML
     assert "const LOCAL_BACKUP_KEYS =" in HTML
-    # Drive 同期の対象（RECORD_KEYS）には新しいキーを入れない
+    # Drive 同期の対象（RECORD_KEYS）に日別記録・表示設定は入れない。ラベルは入れる（端末どうしでそろえる）
     start = HTML.index("const RECORD_KEYS = {")
     end = HTML.index("};", start)
     block = HTML[start:end]
     assert "toeic_prefs_v1" not in block
     assert "toeic_daily_activity_v1" not in block
-    # Drive 同期が作るファイルは従来どおり（版 5・日別記録なし）
+    assert "labels: LABELS_KEY" in block
+    # Drive 同期が作るファイルは従来どおり版 5（日別記録なし）
     assert HTML.count("buildBackup({ forDrive: true })") == 2
-    assert "format: forDrive ? BACKUP_FORMAT_DRIVE : BACKUP_FORMAT" in HTML
     assert "const BACKUP_FORMAT_DRIVE = 5;" in HTML
+    assert "format: forDrive ? BACKUP_FORMAT_DRIVE : BACKUP_FORMAT" in HTML
+
+
+def test_labels_are_wired():
+    for src in ("src/labels.js", "js/labels.js"):
+        assert f'<script src="{src}"></script>' in HTML
+        assert f"'{src}'" in SW
+        assert f'"{src}"' in (ROOT / "upload.py").read_text(encoding="utf-8")
+    assert HTML.index('<script src="js/word-stats.js"></script>') < HTML.index('<script src="js/labels.js"></script>')
 
 
 def test_review_module_is_wired():
@@ -53,8 +62,9 @@ def test_review_page_is_wired():
     assert 'data-page="review"' in HTML
     assert 'id="review-page"' in HTML
     home = (ROOT / "home.js").read_text(encoding="utf-8")
-    # 'graph' は文法グラフの画面（スマホ幅ではタブを出さず、復習ページのカードから開く）
-    assert "const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings', 'graph'];" in home
+    # ページは増えていく（集中・グラフなど）ので、並び全体ではなく「復習」が登録されていることを確かめる
+    pages_line = next(line for line in home.splitlines() if line.startswith("const APP_PAGES = ["))
+    assert "'review'" in pages_line
     assert "function renderReviewPage()" in home
     # ナビは「ホーム / 演習 / 復習 / 集中 / 設定」の順
     nav = HTML[HTML.index('class="top-page-tabs"'):]

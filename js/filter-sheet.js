@@ -64,6 +64,7 @@ function syncFilterUI() {
   mark('#grammar-weak-segments .segment', d => d.gweak === state.grammarWeakFilter);
   renderGrammarChapterFilters();
   updateSourceRows();
+  if (typeof renderLabelFilterChip === 'function') renderLabelFilterChip(); // js/labels-ui.js（あとで読み込む）
 }
 
 function initFilters() {
@@ -168,6 +169,7 @@ function updateFilterSummary() {
     n += state.grammarChapter.length;
     if (state.grammarRule !== null) n++;
     if (state.grammarWeakFilter !== 'all') n++;
+    if (state.grammarLabel) n++;
   } else {
     if (state.sourceFilter !== 'all') n++;
     if (state.sourceFilter === 'teppan') {
@@ -177,6 +179,7 @@ function updateFilterSummary() {
       n += state.posFilter.length;
     }
     if (state.weakFilter !== 'all') n++;
+    if (state.vocabLabel) n++;
   }
   const el = document.getElementById('filter-count');
   if (!el) return;

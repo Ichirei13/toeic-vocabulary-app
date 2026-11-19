@@ -123,6 +123,10 @@ test('brand mascot stays beside a readable label in the desktop sidebar and retu
   await page.getByRole('tab', { name: '設定', exact: true }).click();
   await page.getByRole('button', { name: 'TOEIC Practice ホームへ', exact: true }).click();
   assert(await page.locator('#home-page').isVisible());
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.getByRole('tab', { name: '設定', exact: true }).click();
+  await page.getByRole('tab', { name: 'ホーム', exact: true }).click();
+  assert(await page.locator('#home-page').isVisible());
 });
 
 test('home guidance, real streak and goal achievement use distinct poses without losing counts', async t => {
@@ -139,6 +143,7 @@ test('home guidance, real streak and goal achievement use distinct poses without
   });
   assert.match(await page.locator('.home-streak-badge').innerText(), /3日連続/);
   assert((await page.locator('.home-streak-badge img').getAttribute('src')).endsWith('streak.svg'));
+  // 目標達成はトロフィーのポーズ（全48ポーズの配置で celebrate から変えた）
   assert((await page.locator('.home-goal-row img').getAttribute('src')).endsWith('praise-trophy.svg'));
   assert.match(await page.locator('.home-goal-row').innerText(), /目標\s*達成/);
   assert.match(await page.locator('.home-goal-row').innerText(), /10 \/ 10問/);

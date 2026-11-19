@@ -25,14 +25,14 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
 3. **学習記録は `saveJSON` / `loadJSON`（`js/util.js`）経由で保存する。** 値が変わらなければ書かない作りで、書いたときだけ `onStorageSaved` の受け手（同期など）に通知が行く。
    保存に失敗しても学習は止めず、失敗は `onStorageSaveFailed` の受け手が知らせる。保存まわりを触る前後で内容が同一になることを
    `tests/storage-writes.test.js`（比較用: `tests/fixtures/storage-scenario.golden.json`）と `tests/storage-subscribe.test.js` で確かめる。
-4. **バックアップの形式を変えたら版を上げる。** `js/backup-core.js` の `BACKUP_FORMAT`（今は 6）を上げ、`BACKUP_MIGRATIONS` に前の版からの変換を足し、`tests/grammar-seen.test.js` などで確かめる。
+4. **バックアップの形式を変えたら版を上げる。** `js/backup-core.js` の `BACKUP_FORMAT`（今は 7。版 7 でラベル `toeic_labels_v1` が入った）を上げ、`BACKUP_MIGRATIONS` に前の版からの変換を足し、`tests/grammar-seen.test.js` などで確かめる。
    Google ドライブ同期用ファイルは `BACKUP_FORMAT_DRIVE`（5）に固定しており、`BACKUP_FORMAT` とは連動させない（更新していない端末が読めるように）。
-   同期の対象は `RECORD_KEYS` だけで、日別記録・表示設定・ポモドーロ（`EXTRA_KEYS`）は同期しない。バックアップファイルと復元の取り消しには含める。
+   同期の対象は `RECORD_KEYS` だけ（ラベルも含む。端末どうしでそろえる）で、日別記録・表示設定・ポモドーロ（`EXTRA_KEYS`）は同期しない。バックアップファイルと復元の取り消しには含める。
 5. **統合（マージ）の規則は意図した仕様。** 苦手リストは更新時刻 `u`（なければ streak）が新しい方、問題ごとの正誤カウントと日別記録は「より進んでいる方」を残し、端末どうしの合算はしない（設定画面の説明文にもそう書いてある）。変えるときはこの説明文も直す。
 6. **Google ドライブの自動同期は止めている**（`js/gdrive.js` の `GDRIVE_AUTOSYNC_AVAILABLE = false`）。手動の「今すぐ同期」と復元は使える。
    理由と経緯は `docs/performance-investigation-2026-11-08.md`。再開するときは、通信の回数と待ち時間を設計し直してから。
 7. **どのタブも、メモリの記録を丸ごと書き戻す。** だから別のタブが保存したら読み込み直す（`js/boot.js` の `reloadRecordsSavedElsewhere`。`storage` イベントと、画面に戻ってきたとき）。
-   対象は `CROSS_TAB_KEYS`。設定・出題の続き・ポモドーロの設定は対象外（タブごとの画面の状態。ポモドーロは、止めているタイマーの残り時間を戻さないため）。
+   対象は `CROSS_TAB_KEYS`（`RECORD_KEYS` から作るので、ラベルも入る）。設定・出題の続き・ポモドーロの設定は対象外（タブごとの画面の状態。ポモドーロは、止めているタイマーの残り時間を戻さないため）。
    保存できていないキーがあるタブ（`failedSaveKeys`）は読み込み直さない（メモリにしかない回答を捨てないため）。新しい記録のキーを足したら、ここに入れるかを決める。
 8. **同期は、怪しいときは統合も保存もせずに止める**（`js/gdrive.js`）。時計のずれ（`driveClockProblem`。Google 側の時刻と 5 分以上違う、
    またはクラウドの記録にこの端末の「今」より先の時刻がある）と、取得後にほかの端末がクラウドを書き換えたとき（保存の直前に確かめ、3 回までやり直す）。

@@ -86,7 +86,7 @@ test('file_backup_is_v6_and_drive_backup_stays_v5', () => withPage(seed(BASE_DAY
       inRecordKeys: ['toeic_daily_activity_v1', 'toeic_prefs_v1'].filter(k => RECORD_STORAGE_KEYS.includes(k)),
     };
   });
-  assert.strictEqual(r.file.format, 6);
+  assert.strictEqual(r.file.format, 7);
   assert.deepStrictEqual(r.file.data.activity, { days: BASE_DAYS });
   assert.deepStrictEqual(r.file.data.prefs, BASE_PREFS);
   assert.strictEqual(r.drive.format, 5);
@@ -106,7 +106,7 @@ test('parse_rejects_bad_extras_and_future_format', () => withPage({}, async page
   const badPrefs = await parse(page, { ...b, data: { ...b.data, prefs: [] } });
   assert.strictEqual(badPrefs.ok, false);
   assert(/表示設定/.test(badPrefs.error), badPrefs.error);
-  const future = await parse(page, { ...b, format: 7 });
+  const future = await parse(page, { ...b, format: 8 });
   assert.strictEqual(future.ok, false);
   assert(/新しいバージョン/.test(future.error), future.error);
 }));

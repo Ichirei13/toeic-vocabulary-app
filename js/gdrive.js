@@ -342,11 +342,16 @@ async function loadFromGoogleDrive({ interactive = false } = {}) {
   }
 }
 
+// 保存されたキーが自動同期のきっかけになるか。学習記録だけ。
+// 設定と出題の続きは描画のたびに保存されるので、これで同期すると同期が次の同期を呼び続ける
+function autoSyncTriggeredBy(key) {
+  if (typeof RECORD_STORAGE_KEYS !== 'undefined' && !RECORD_STORAGE_KEYS.includes(key)) return false;
+  return key !== SETTINGS_KEY && key !== SESSION_KEY;
+}
+
 function scheduleGoogleDriveAutoSync(key) {
   if (!isGoogleDriveAutoSyncEnabled()) return;
-  if (typeof RECORD_STORAGE_KEYS !== 'undefined' && !RECORD_STORAGE_KEYS.includes(key)) return;
-  // 設定と出題の続きは描画のたびに保存されるので、これで同期すると同期が次の同期を呼び続ける
-  if (key === SETTINGS_KEY || key === SESSION_KEY) return;
+  if (!autoSyncTriggeredBy(key)) return;
 
   if (gdriveSyncTimer) clearTimeout(gdriveSyncTimer);
   gdriveSyncTimer = setTimeout(() => {

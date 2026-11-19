@@ -12,10 +12,11 @@ const root = path.resolve(__dirname, '..');
 
 // 起動時（ホームを開いてネットワークが落ち着き、さらに 2 秒待つまで）にページが出す同一オリジンのリクエスト数。
 // このタスクの変更前（commit 894f69e）のコードで、幅 375×812 と 1280×800 の両方で測った値（どちらも 48、3 回とも同じ）。
+// ラベル機能の統合（2026-11-20）で、起動時に読む src/labels.js・js/labels.js・js/labels-ui.js の 3 件が増えて 51。
 // グラフの追加で起動のリクエストが 1 件でも増えたら失敗する。
 // 注: Service Worker の install（初回と sw.js の更新時だけ）は ASSETS をまとめて取るので、そこにはグラフ用のファイルも
 // 入る（オフラインで開くため）。ここで数えるのはページ自身のリクエストだけ。
-const STARTUP_REQUESTS_BASELINE = 48;
+const STARTUP_REQUESTS_BASELINE = 51;
 
 const GRAPH_FILES = [
   'css/graph.css',

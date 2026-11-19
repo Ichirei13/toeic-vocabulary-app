@@ -41,7 +41,10 @@ function dedupeWords(words) {
 
 // 今の絞り込みに合う単語（並べ替える前）
 function filteredWords() {
+  // ラベルで絞り込み中は、そのラベルの単語のうち、ほかの条件にも合うものだけ
+  const labelKeys = state.vocabLabel ? new Set(StudyCore.itemsOf(state.labels, state.vocabLabel).map(x => x.key)) : null;
   const filtered = RAW_WORDS.filter(w => {
+    if (labelKeys && !labelKeys.has(`w:${w.w}`)) return false;
     if (!wordMatchesBaseFilters(w)) return false;
 
     // weak
@@ -82,12 +85,14 @@ function resetActionBar() {
   dk.innerText = 'わからない';
   nextBtn.style.display = 'none';
   nextBtn.innerText = '次へ';
+  hideLabelButton();
 }
 
 function showNextButton(onNext) {
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
   nextBtn.onclick = onNext;
+  refreshLabelButton(); // 回答のあとだけ 🏷 を出す（カードのめくる前などは出さない）
 }
 
 function nextWord() {

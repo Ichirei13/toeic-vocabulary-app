@@ -37,6 +37,10 @@ PCブラウザ（キーボードショートカット対応）およびモバイ
    - 苦手の問題が概念・ひっかけのまわりに集まり、苦手の数がノードの大きさ・線の太さ・ラベルの数で見える（赤の濃さは苦手の割合）。
    - ノードをタップすると、つながる先と近い問題が浮かび上がり、下からの詳細シートで問題の一覧を見ながらグラフを動かせる。
    - どのノードからでも、そこに近い問題を 30 問（苦手を優先）解ける。通常の出題の続きはそのまま残る。
+6. **ラベリング**:
+   - 解答後の 🏷 ボタン（PC は `L` キー）をワンタップすると、最後に使ったラベルを付けられる。もう一度タップか長押しで、付けるラベルを選び直したり新しく作ったりできる。
+   - ホーム画面と復習画面の「🏷 ラベル」でラベルごとに見返し、「このラベルで解く」でそのラベルの問題を出題。絞り込みシートの「ラベル」の行で、本・章・苦手などと組み合わせて絞れる。ラベルの作成・名前の変更・削除は設定画面の「ラベル」で行う。
+   - 苦手リストとは別の記録（`toeic_labels_v1`）。バックアップ（版7）と Google ドライブ同期で端末間をそろえる。
 
 ---
 
@@ -73,7 +77,7 @@ NODE_PATH=$(npm root -g) node tests/sheets.test.js
 # 演習画面の構成（モード選択は絞り込みシートだけ、フッターに設定リンクなし）
 NODE_PATH=$(npm root -g) node tests/practice-chrome.test.js
 
-# 文法の出題済み記録・絞り込み・バックアップ（版6）
+# 文法の出題済み記録・絞り込み・バックアップ
 NODE_PATH=$(npm root -g) node tests/grammar-seen.test.js
 
 # 苦手単語帳PDF（オプションの保存、苦手リストのボタン、A4で溢れないか。PDFを実際に作って測る）
@@ -82,6 +86,12 @@ NODE_PATH=$(npm root -g) node tests/wordbook-ui.test.js
 # 文法グラフ（ビルド・描画/文法軸モード・遅延読み込み/キャッシュ・近い問題出題）
 NODE_PATH=$(npm root -g) node --test tests/build_graph.test.js
 NODE_PATH=$(npm root -g) node --test tests/graph-view.test.js tests/graph-entry.test.js tests/graph-drill.test.js
+
+# ラベリング（保存と同期・🏷 ボタン・フッターの一覧と絞り込み・設定画面）
+NODE_PATH=$(npm root -g) node tests/labels-sync.test.js
+NODE_PATH=$(npm root -g) node tests/labels-ui.test.js
+NODE_PATH=$(npm root -g) node tests/labels-list.test.js
+NODE_PATH=$(npm root -g) node tests/labels-settings.test.js
 ```
 
 ### 検証項目
