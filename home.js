@@ -1469,6 +1469,9 @@ function leaveGraphPage() {
   if (typeof GraphView !== 'undefined' && typeof GraphView.destroy === 'function') GraphView.destroy();
 }
 
+// グラフの配置軸の記憶（この端末だけの設定。バックアップ・同期・他タブ同期の RECORD_KEYS / EXTRA_KEYS / CROSS_TAB_KEYS に足さない）
+const GRAPH_MODE_KEY = 'toeic_graph_mode_v1';
+
 // 読み込み中 → 読み込み → マウント。失敗したら理由と「再試行」
 async function showGraphPage() {
   const pageEl = ensureGraphPage();
@@ -1493,12 +1496,15 @@ async function showGraphPage() {
   if (token !== graphOpenToken || currentAppPage !== 'graph') return; // 待っている間に別のページへ移った
   loading.hidden = true;
   try {
+    const savedMode = loadJSON(GRAPH_MODE_KEY, 'book') === 'grammar' ? 'grammar' : 'book';
     GraphView.mount(host, {
       graph: GRAMMAR_GRAPH,
       getStats: () => state.grammarStats,
       getWeak: () => state.grammarWeakData,
       getQuestion: id => GRAMMAR_BY_ID.get(id),
       isDue,
+      initialMode: savedMode,
+      onModeChange: mode => { saveJSON(GRAPH_MODE_KEY, mode === 'grammar' ? 'grammar' : 'book'); },
       onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },
     });
   } catch (e) {

@@ -15,6 +15,7 @@
   'use strict';
 
   const BOOKS = [['all', 'すべて'], ['kin', '金'], ['sekai', '世界一'], ['polaris2', 'ポラリス2'], ['toplevel', 'トップレベル']];
+  const MODES = [['book', '教材軸'], ['grammar', '文法軸']];
   const TAP_SLOP = 6;          // これ以下の移動（CSS px、経路の長さの合計）で、ピンチでなければタップ
   const HIT_MIN_PX = 14;       // 当たり判定の最小半径（CSS px）。見た目より大きめにとる
   const MAX_LABELS = 80;       // 1 フレームに描くラベルの上限
@@ -44,13 +45,13 @@
   const COLOR_VARS = {
     bg: '--graph-bg', edge: '--graph-edge', conceptEdge: '--graph-concept-edge', trapEdge: '--graph-trap-edge', trapLine: '--graph-trap-line',
     label: '--graph-label', halo: '--graph-label-halo', ring: '--graph-ring', dueRing: '--graph-due-ring',
-    weakEdge: '--graph-weak-edge',
+    weakEdge: '--graph-weak-edge', ringGuide: '--graph-ring-guide',
   };
   const FALLBACK = {
     bg: '#f6f7f9', edge: 'rgba(60,60,67,0.2)', conceptEdge: 'rgba(88,86,214,0.5)', trapEdge: '#e8890c', trapLine: 'rgba(232,137,12,0.5)',
     label: '#1c1c1e', halo: '#f6f7f9', ring: '#3a3a3c', dueRing: '#9f1d22',
     states: ['#b8bec7', '#e5484d', '#e5484d', '#7cc4f0', '#f2c94c', '#34c759'],
-    weakEdge: 'rgba(229,72,77,0.8)', reds: ['#f29a9d', '#ec6f74', '#e5484d'],
+    weakEdge: 'rgba(229,72,77,0.8)', ringGuide: 'rgba(60,60,67,0.14)', reds: ['#f29a9d', '#ec6f74', '#e5484d'],
   };
   const BUNDLE_MIN_Q = 2;                     // 苦手が 0 で問題数がこれ以下の束は、遠景・中景では描かない
   const BUNDLE_WIDTHS = [0.8, 1.3, 1.8, 2.4]; // 束の太さ: 苦手 0 / 1〜2 / 3〜5 / 6 以上（苦手が多いと中央に集まって塗りつぶしになるので細め）
@@ -72,7 +73,7 @@
   // テスト用の観測値。frames はマウントごとに 0 から数える。listeners は今登録中のリスナー・オブザーバーの数
   const debug = {
     frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0, lastFarQuestionLabels: 0, focusEdges: 0, lastFocusEdgeWidth: 0,
-    drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, book: 'all', weakOnly: false, lastTap: -1,
+    drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, mode: 'book', book: 'all', weakOnly: false, lastTap: -1,
     settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
     focusNode: -1, focusCount: 0, animating: false,
   };
@@ -161,6 +162,11 @@
     let rafId = 0, dirty = false;
     let width = 0, height = 0, dpr = 1;
     let cam = null, fitScale = 1, interacted = false;
+    let mode = deps.initialMode === 'grammar' ? 'grammar' : 'book';
+    debug.mode = mode;
+    const modeCoords = { book: null, grammar: null };
+    const kindNames = new Array(n);
+    for (let i = 0; i < n; i++) kindNames[i] = kindName(i);
     let book = 'all', weakOnly = false;
     let stats = {}, weak = {}, mastery = null, masteryVer = 0;
     let mask = null, maskKey = '';
@@ -189,6 +195,9 @@
     rootEl.className = 'graph-view';
     rootEl.innerHTML =
       '<div class="graph-filter" role="toolbar" aria-label="グラフの絞り込み">' +
+        '<div class="graph-mode" role="group" aria-label="配置の軸">' +
+          MODES.map(([id, name]) => `<button type="button" class="graph-mode-btn" data-mode="${id}" aria-pressed="${id === mode}">${esc(name)}</button>`).join('') +
+        '</div>' +
         '<div class="graph-chips" role="group" aria-label="教材">' +
           BOOKS.map(([id, name]) => `<button type="button" class="graph-chip" data-book="${id}" aria-pressed="${id === 'all'}">${esc(name)}</button>`).join('') +
         '</div>' +
@@ -338,7 +347,12 @@
       fitScale = fit.scale;
       if (!interacted) cam = fit;
     }
-    function resetPositions() {
+    function applyBasePositions(targetMode) {
+      if (targetMode === 'grammar' && typeof S.grammarInitialPositions === 'function') {
+        const init = S.grammarInitialPositions({ ids: graph.id, kindName: kindNames, edges: E }, S.GRAPH_GRAMMAR);
+        xs.set(init.x); ys.set(init.y);
+        return;
+      }
       for (let i = 0; i < n; i++) { xs[i] = +graph.x[i]; ys[i] = +graph.y[i]; }
     }
     function canSettle() {
@@ -352,6 +366,7 @@
     }
     // 収まった（または回さなかった）後の後始末。fromFrame = onFrame の中から呼ばれた（直後に描くので要求しない）
     function finishSettle(fromFrame) {
+      modeCoords[mode] = { x: xs.slice(), y: ys.slice() };
       updateBounds();
       refit();
       maskKey = '';                 // 当たり判定用の座標（hitXs）を作り直させる
@@ -362,21 +377,28 @@
     function startSettle() {
       stopSettle();
       stopAnim();
-      resetPositions();
+      applyBasePositions(mode);
       debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
       const weakQ = new Uint8Array(n);
       let anyWeak = false;
       for (let i = 0; i < n; i++) if (graph.kind[i] === kQuestion && mastery.weak[i] > 0) { weakQ[i] = 1; anyWeak = true; }
-      // 苦手が 1 問もなければ、力はビルド時と同じ。回しても揺れるだけなので、固定配置のまま出す
-      if (!anyWeak || !canSettle()) { finishSettle(false); return; }
-      const kn = new Array(n);
-      for (let i = 0; i < n; i++) kn[i] = kindName(i);
       let made;
-      try {
-        made = S.createSimulation(root.d3, {
-          kindName: kn, edges: E, bookOf: S.bookOfNodes(graph.id, kn, E), x: xs, y: ys, weakQ, hubWeak: mastery.weak,
-        }, S.GRAPH_LAYOUT, S.GRAPH_RUNTIME);
-      } catch (e) { finishSettle(false); return; } // 組み立てに失敗したら固定配置
+      if (mode === 'grammar') {
+        if (!canSettle() || typeof S.createGrammarSimulation !== 'function') { finishSettle(false); return; }
+        try {
+          made = S.createGrammarSimulation(root.d3, {
+            ids: graph.id, kindName: kindNames, edges: E, weakQ, hubWeak: mastery.weak,
+          }, S.GRAPH_GRAMMAR);
+        } catch (e) { finishSettle(false); return; }
+      } else {
+        // 苦手が 1 問もなければ、力はビルド時と同じ。回しても揺れるだけなので、固定配置のまま出す
+        if (!anyWeak || !canSettle()) { finishSettle(false); return; }
+        try {
+          made = S.createSimulation(root.d3, {
+            kindName: kindNames, edges: E, bookOf: S.bookOfNodes(graph.id, kindNames, E), x: xs, y: ys, weakQ, hubWeak: mastery.weak,
+          }, S.GRAPH_LAYOUT, S.GRAPH_RUNTIME);
+        } catch (e) { finishSettle(false); return; } // 組み立てに失敗したら固定配置
+      }
       const mq = typeof root.matchMedia === 'function' ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
       settle = { sim: made.sim, nodes: made.nodes, left: made.ticks, t0: performance.now(), maxFrame: 0, quiet: !!(mq && mq.matches) };
       debug.settled = false;
@@ -387,15 +409,15 @@
       try {
         do { settle.sim.tick(); settle.left--; debug.settleTicks++; } while (settle.left > 0 && performance.now() - t0 < SETTLE_BUDGET_MS);
       } catch (e) {
-        // 力学が例外を投げたら、座標が壊れたときと同じく固定配置に戻す（settle を残すとタップが永久に効かない）
+        // 力学が例外を投げたら、座標が壊れたときと同じく現在モードのベース配置に戻す（settle を残すとタップが永久に効かない）
         console.warn('graph-view: 力学の計算に失敗したため、固定配置に戻します', e);
-        stopSettle(); resetPositions(); finishSettle(true);
+        stopSettle(); applyBasePositions(mode); finishSettle(true);
         return;
       }
       const nodes = settle.nodes;
       let finite = true;
       for (let i = 0; i < n; i++) if (!Number.isFinite(nodes[i].x) || !Number.isFinite(nodes[i].y)) { finite = false; break; }
-      if (!finite) { stopSettle(); resetPositions(); finishSettle(true); return; } // 壊れたら固定配置に戻す
+      if (!finite) { stopSettle(); applyBasePositions(mode); finishSettle(true); return; } // 壊れたら現在モードのベース配置に戻す
       for (let i = 0; i < n; i++) { xs[i] = nodes[i].x; ys[i] = nodes[i].y; }
       const dt = performance.now() - t0;
       if (dt > settle.maxFrame) settle.maxFrame = dt;
@@ -404,6 +426,28 @@
       debug.settleMaxFrameMs = settle.maxFrame;
       stopSettle();
       finishSettle(true);
+    }
+    function setMode(next) {
+      const target = next === 'grammar' ? 'grammar' : 'book';
+      if (target === mode) return;
+      stopSettle();
+      stopAnim();
+      closeSheet();
+      mode = target;
+      debug.mode = mode;
+      filterEl.querySelectorAll('.graph-mode-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+      if (typeof deps.onModeChange === 'function') {
+        try { deps.onModeChange(mode); } catch (e) { /* 記憶側の失敗で操作を止めない */ }
+      }
+      interacted = false;
+      if (modeCoords[mode]) {
+        xs.set(modeCoords[mode].x);
+        ys.set(modeCoords[mode].y);
+        debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
+        finishSettle(false);
+      } else {
+        startSettle();
+      }
     }
 
     // ---- 描画 ----
@@ -436,6 +480,19 @@
         drawList[m++] = i;
         sxs[i] = xs[i] * s + ox; sys[i] = ys[i] * s + oy; rs[i] = baseR[i] * sizeBoost[i] * rf;
         kc[graph.kind[i]]++;
+      }
+
+      // 文法軸のガイド円（13 概念を並べる円周をうっすら示す）
+      if (mode === 'grammar' && S.GRAPH_GRAMMAR && S.GRAPH_GRAMMAR.ringRadius > 0) {
+        ctx.beginPath();
+        ctx.arc(ox, oy, S.GRAPH_GRAMMAR.ringRadius * s, 0, Math.PI * 2);
+        ctx.globalAlpha = focus ? DIM_EDGE : 1;
+        ctx.strokeStyle = colors.ringGuide;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
       }
 
       // エッジ: 両端が絞り込みを通り（mask）、かつ少なくとも一端が画面内（余白つき）のときだけ描く。
@@ -864,6 +921,11 @@
       if (cam) zoomBy(x, y, Math.exp(-dy * k));
     }
     function onFilterClick(e) {
+      const mb = e.target.closest('.graph-mode-btn');
+      if (mb && mb.dataset.mode) {
+        setMode(mb.dataset.mode);
+        return;
+      }
       const chip = e.target.closest('.graph-chip');
       if (chip && chip.dataset.book && chip.dataset.book !== book) {
         book = chip.dataset.book;
@@ -884,7 +946,7 @@
       const b = e.target.closest('button[data-zoom]');
       if (!b || !cam) return;
       stopAnim();
-      if (b.dataset.zoom === 'relayout') { closeSheet(); startSettle(); return; }
+      if (b.dataset.zoom === 'relayout') { closeSheet(); modeCoords[mode] = null; startSettle(); return; }
       if (b.dataset.zoom === 'fit') { cam = S.createCamera(width, height, bounds); interacted = false; requestDraw(); }
       else zoomBy(width / 2, height / 2, b.dataset.zoom === 'in' ? 1.6 : 1 / 1.6);
     }
@@ -947,9 +1009,10 @@
     // ---- 起動 ----
     readColors();
     recompute();
+    if (mode === 'grammar') { applyBasePositions('grammar'); updateBounds(); }
     const r0 = stage.getBoundingClientRect();
     resize(Math.round(r0.width), Math.round(r0.height)); // ここで最初の 1 フレームを要求する
-    startSettle(); // 苦手があれば、ビルド済みの座標から続きを回す（なければ何もしない）
+    startSettle(); // 教材軸は苦手があれば続きを回し、文法軸は概念リングから力学を回す
 
     return {
       refresh() {
@@ -1012,7 +1075,7 @@
 
   function mount(container, deps) {
     if (inst) destroy();
-    debug.frames = 0; debug.lastTap = -1; debug.lod = 0; debug.book = 'all'; debug.weakOnly = false;
+    debug.frames = 0; debug.lastTap = -1; debug.lod = 0; debug.mode = 'book'; debug.book = 'all'; debug.weakOnly = false;
     debug.settled = true; debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
     debug.focusNode = -1; debug.focusCount = 0; debug.animating = false;
     inst = createInstance(container, deps);

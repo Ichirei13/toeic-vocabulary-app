@@ -47,6 +47,52 @@
   };
   const ORIGIN = [0, 0];
 
+  // 文法軸モード: 13 概念を 12 時から時計回りに並べる既定の順序（学習の流れ＋共起の多い概念同士が隣り合う順）。
+  // 一覧にない概念が将来増えても、末尾に添字順で追加して等分する。
+  const GRAMMAR_CONCEPT_ORDER = [
+    'con:SVOC（文の骨格）',
+    'con:能動態と受動態',
+    'con:分詞（現在分詞・過去分詞）',
+    'con:動詞の時制と相',
+    'con:助動詞・仮定法',
+    'con:動名詞 vs 不定詞',
+    'con:名詞の役割（主語・目的語・補語）',
+    'con:代名詞の格と用法',
+    'con:形容詞と副詞の修飾関係',
+    'con:関係代名詞・関係副詞',
+    'con:比較級・最上級',
+    'con:接続詞 vs 前置詞の識別',
+    'con:倒置・強調・並列構造',
+  ];
+
+  // 文法軸モードの配置の調整値（実行時のみ。data/grammar_graph.js には影響しない）。
+  const GRAPH_GRAMMAR = {
+    seed: 20261119,
+    ringRadius: 600,
+    ticks: 140,
+    alpha: 0.7,
+    singleOutward: 70,         // 概念が 1 つだけの問題の初期位置を、円の外側へずらす距離
+    jitter: 40,                // 初期位置のばらつき
+    centerPull: 0.01,          // 非固定ノードを原点へごく弱く引く強さ（孤立ノードの発散防止）
+    conceptStrength: 0.45,
+    conceptDistance: 65,
+    weakConceptStrength: 0.7,
+    parentStrength: 0.25,
+    parentDistance: 32,
+    weakParentFactor: 0.4,
+    bookChapterStrength: 0.06,
+    bookChapterDistance: 180,
+    trapStrength: 0.15,
+    trapDistance: 70,
+    weakTrapStrength: 0.8,
+    weakLinkDistance: 44,
+    charge: { book: -320, chapter: -140, rule: -28, concept: -420, trap: -260, question: -6 },
+    chargeDistanceMax: 420,
+    collideRadius: GRAPH_LAYOUT.collideRadius,
+    collideStrength: 0.9,
+    hubCollidePerWeak: GRAPH_RUNTIME.hubCollidePerWeak,
+  };
+
   // 32bit の種から [0,1) の乱数列を作る（mulberry32）。
   function mulberry32(seed) {
     let a = seed >>> 0;
@@ -141,5 +187,158 @@
     return { sim, nodes, ticks };
   }
 
-  return { GRAPH_LAYOUT, GRAPH_RUNTIME, mulberry32, bookOfNodes, createSimulation };
+  // 文法軸モードの初期位置（d3-force の出発点兼、d3 未ロード・計算失敗時のフォールバック）。
+  // 概念ノードを半径 ringRadius の円周上に均等配置し、問題は紐づく概念の重心、本・章・ルール・ひっかけは配下の問題の平均位置に置く。
+  function grammarInitialPositions(input, config) {
+    config = config || GRAPH_GRAMMAR;
+    const ids = input.ids || [], kindName = input.kindName, edges = input.edges || [];
+    const n = kindName.length;
+    const x = new Float64Array(n), y = new Float64Array(n);
+    const pinned = new Uint8Array(n);
+    const order = new Map();
+    for (let k = 0; k < GRAMMAR_CONCEPT_ORDER.length; k++) order.set(GRAMMAR_CONCEPT_ORDER[k], k);
+
+    const concepts = [];
+    for (let i = 0; i < n; i++) if (kindName[i] === 'concept') concepts.push(i);
+    concepts.sort((a, b) => {
+      const oa = order.has(String(ids[a])) ? order.get(String(ids[a])) : GRAMMAR_CONCEPT_ORDER.length;
+      const ob = order.has(String(ids[b])) ? order.get(String(ids[b])) : GRAMMAR_CONCEPT_ORDER.length;
+      return (oa - ob) || (a - b);
+    });
+    const m = concepts.length, R = config.ringRadius;
+    for (let k = 0; k < m; k++) {
+      const ci = concepts[k];
+      const th = -Math.PI / 2 + (2 * Math.PI * k) / m;
+      x[ci] = R * Math.cos(th);
+      y[ci] = R * Math.sin(th);
+      pinned[ci] = 1;
+    }
+
+    const parent = new Int32Array(n).fill(-1);
+    const qSumX = new Float64Array(n), qSumY = new Float64Array(n), qCnt = new Int32Array(n);
+    for (let k = 0; k + 2 < edges.length; k += 3) {
+      const a = edges[k], b = edges[k + 1], t = edges[k + 2];
+      if (t === 0) parent[b] = a;
+      else if (t === 1 && pinned[b]) { qSumX[a] += x[b]; qSumY[a] += y[b]; qCnt[a]++; }
+    }
+
+    const rand = mulberry32(config.seed);
+    const addJitter = (scale) => {
+      const r = scale * Math.sqrt(rand());
+      const th = rand() * 2 * Math.PI;
+      return [r * Math.cos(th), r * Math.sin(th)];
+    };
+
+    for (let i = 0; i < n; i++) {
+      if (kindName[i] !== 'question') continue;
+      let px = 0, py = 0;
+      if (qCnt[i] > 0) {
+        px = qSumX[i] / qCnt[i];
+        py = qSumY[i] / qCnt[i];
+        if (qCnt[i] === 1) {
+          const len = Math.hypot(px, py);
+          if (len > 0) { px += (px / len) * config.singleOutward; py += (py / len) * config.singleOutward; }
+        }
+      }
+      const [jx, jy] = addJitter(config.jitter);
+      x[i] = px + jx; y[i] = py + jy;
+    }
+
+    const gSumX = new Float64Array(n), gSumY = new Float64Array(n), gCnt = new Int32Array(n);
+    for (let i = 0; i < n; i++) {
+      if (kindName[i] !== 'question') continue;
+      let p = parent[i], guard = 0;
+      while (p !== -1 && guard++ < 8) {
+        gSumX[p] += x[i]; gSumY[p] += y[i]; gCnt[p]++;
+        p = parent[p];
+      }
+    }
+    for (let k = 0; k + 2 < edges.length; k += 3) {
+      if (edges[k + 2] === 2) {
+        const q = edges[k], tr = edges[k + 1];
+        gSumX[tr] += x[q]; gSumY[tr] += y[q]; gCnt[tr]++;
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      if (pinned[i] || kindName[i] === 'question') continue;
+      const px = gCnt[i] > 0 ? gSumX[i] / gCnt[i] : 0;
+      const py = gCnt[i] > 0 ? gSumY[i] / gCnt[i] : 0;
+      const [jx, jy] = addJitter(config.jitter * 0.6);
+      x[i] = px + jx; y[i] = py + jy;
+    }
+    return { x, y, pinned };
+  }
+
+  // 文法軸モードの力学シミュレーションを組み立てて返す（止めた状態）。
+  // 概念ノードは fx / fy で円周上に固定し、それ以外のノードはリンクと反発・衝突で自然に配置する。
+  function createGrammarSimulation(d3, input, config) {
+    config = config || GRAPH_GRAMMAR;
+    const kindName = input.kindName, edges = input.edges || [];
+    const n = kindName.length;
+    const weakQ = input.weakQ || null;
+    const hubWeak = input.hubWeak || null;
+    const isWeak = i => !!(weakQ && weakQ[i]);
+
+    const init = grammarInitialPositions(input, config);
+    const nodes = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const nd = { index: i, x: init.x[i], y: init.y[i] };
+      if (init.pinned[i]) { nd.fx = init.x[i]; nd.fy = init.y[i]; }
+      nodes[i] = nd;
+    }
+
+    const links = [];
+    for (let k = 0; k + 2 < edges.length; k += 3) {
+      const a = edges[k], b = edges[k + 1], t = edges[k + 2];
+      links.push({
+        source: a, target: b, type: t,
+        q: t === 0 ? b : a,
+        isBookCh: t === 0 && kindName[a] === 'book',
+      });
+    }
+    const linkForce = d3.forceLink(links)
+      .id(d => d.index)
+      .strength(l => {
+        const w = isWeak(l.q);
+        if (l.type === 1) return w ? config.weakConceptStrength : config.conceptStrength;
+        if (l.type === 2) return w ? config.weakTrapStrength : config.trapStrength;
+        if (l.isBookCh) return config.bookChapterStrength;
+        return w ? config.parentStrength * config.weakParentFactor : config.parentStrength;
+      })
+      .distance(l => {
+        const w = isWeak(l.q);
+        if (l.type === 1) return w ? config.weakLinkDistance : config.conceptDistance;
+        if (l.type === 2) return w ? config.weakLinkDistance : config.trapDistance;
+        if (l.isBookCh) return config.bookChapterDistance;
+        return config.parentDistance;
+      });
+
+    const pull = d => (init.pinned[d.index] ? 0 : config.centerPull);
+    const collide = d => {
+      const i = d.index, k = kindName[i];
+      const base = config.collideRadius[k];
+      if (hubWeak && (k === 'concept' || k === 'trap') && hubWeak[i] > 0) return base + config.hubCollidePerWeak * Math.sqrt(hubWeak[i]);
+      return base;
+    };
+
+    const ticks = config.ticks;
+    const sim = d3.forceSimulation(nodes)
+      .randomSource(mulberry32(config.seed + 1))
+      .stop()
+      .alphaMin(0.001)
+      .alpha(config.alpha)
+      .alphaDecay(1 - Math.pow(0.001 / config.alpha, 1 / ticks));
+    sim
+      .force('link', linkForce)
+      .force('charge', d3.forceManyBody().strength(d => config.charge[kindName[d.index]]).distanceMax(config.chargeDistanceMax))
+      .force('x', d3.forceX(0).strength(pull))
+      .force('y', d3.forceY(0).strength(pull))
+      .force('collide', d3.forceCollide(collide).strength(config.collideStrength).iterations(2));
+    return { sim, nodes, ticks, init };
+  }
+
+  return {
+    GRAPH_LAYOUT, GRAPH_RUNTIME, GRAMMAR_CONCEPT_ORDER, GRAPH_GRAMMAR,
+    mulberry32, bookOfNodes, createSimulation, grammarInitialPositions, createGrammarSimulation,
+  };
 });

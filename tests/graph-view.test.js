@@ -1279,6 +1279,15 @@ test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async
       await page.keyboard.press('Escape');
       await page.click('#host .graph-chip[data-book="polaris2"]');
       await shot('polaris2');
+      await page.click('#host .graph-chip[data-book="all"]');
+      await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+      await settled(page);
+      await shot('grammar-fit');
+      const gci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+      const [gx, gy] = await page.evaluate(i => GraphView._debug.screenOf(i), gci);
+      await page.mouse.click(gx, gy);
+      await shot('grammar-sheet');
+      await page.keyboard.press('Escape');
     }
   }
 });
@@ -1378,4 +1387,162 @@ test('当たり判定: 苦手で大きくなった概念は、見た目の円の
   assert.ok(r.radius > 12, `概念が大きくなっていない: ${r.radius}`);
   assert.ok(r.tried > 0, '試せる方向がない');
   assert.equal(r.hit, r.tried, `外周で当たらない方向がある: ${JSON.stringify(r)}`);
+});
+
+test('文法軸モード: 切り替えると 13 概念が円周上に固定され、収束後は 1 秒間 rAF もタイマーも呼ばれない', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+  await settled(page);
+  const res = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, D = GraphView._debug, R = StudyCore.GRAPH_GRAMMAR.ringRadius;
+    const kCon = G.kinds.indexOf('concept');
+    const cons = [];
+    for (let i = 0; i < G.id.length; i++) if (G.kind[i] === kCon) {
+      const [x, y] = D.worldOf(i);
+      cons.push({ id: G.id[i], r: Math.hypot(x, y), x, y });
+    }
+    const pressed = [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode + ':' + b.getAttribute('aria-pressed'));
+    return { mode: D.mode, ticks: D.settleTicks, R, cons, pressed };
+  });
+  assert.equal(res.mode, 'grammar');
+  assert.equal(res.ticks, 140);
+  assert.deepEqual(res.pressed, ['book:false', 'grammar:true']);
+  assert.equal(res.cons.length, 13);
+  for (const c of res.cons) assert.ok(Math.abs(c.r - res.R) < 1e-3, `${c.id} の半径が円周上にない: ${c.r}`);
+  const svoc = res.cons.find(c => c.id === 'con:SVOC（文の骨格）');
+  assert.ok(Math.abs(svoc.x) < 1e-3 && Math.abs(svoc.y + res.R) < 1e-3, `SVOC が 12 時にない: ${JSON.stringify(svoc)}`);
+  // 収束後は rAF・タイマーが止まる
+  await new Promise(r => setTimeout(r, 200));
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
+  await new Promise(r => setTimeout(r, 1100));
+  assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 });
+});
+
+test('文法軸モード: 教材軸との往復はキャッシュが効いて再計算なしで即座に切り替わり、「再配置」で回し直す', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+  await settled(page);
+  const firstPos = await page.evaluate(() => GraphView._debug.worldOf(GraphView._debug.indexOf('ch:kin:1')));
+  await page.click('#host .graph-mode-btn[data-mode="book"]');
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 0);
+  await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 0, '2 回目の文法軸で再計算が走った');
+  const cachedPos = await page.evaluate(() => GraphView._debug.worldOf(GraphView._debug.indexOf('ch:kin:1')));
+  assert.deepEqual(cachedPos, firstPos, 'キャッシュ座標が一致しない');
+  // 再配置で現在の文法軸を回し直す
+  await page.locator('#host button[data-zoom="relayout"]').click();
+  assert.equal(await page.evaluate(() => GraphView._debug.settled), false);
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 140);
+});
+
+test('文法軸モード: d3 がなくても概念リングの初期配置で切り替わり、例外を出さない', async t => {
+  const page = await open(t);
+  await page.evaluate(() => { window.d3 = undefined; window.__mount(); });
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+  await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+  await settled(page);
+  const r = await page.evaluate(() => {
+    const D = GraphView._debug, R = StudyCore.GRAPH_GRAMMAR.ringRadius;
+    const svoc = D.worldOf(D.indexOf('con:SVOC（文の骨格）'));
+    return { mode: D.mode, settled: D.settled, ticks: D.settleTicks, dist: Math.hypot(svoc[0], svoc[1]), R };
+  });
+  assert.equal(r.mode, 'grammar');
+  assert.equal(r.settled, true);
+  assert.equal(r.ticks, 0);
+  assert.ok(Math.abs(r.dist - r.R) < 1e-3);
+});
+
+test('文法軸モード: initialMode で初期モードを指定でき、切替時に onModeChange が呼ばれる（不正値は book 扱い）', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    window.__changes = [];
+    const d1 = window.__deps();
+    d1.initialMode = 'bogus';
+    GraphView.mount(document.getElementById('host'), d1);
+  });
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  await page.evaluate(() => {
+    const d2 = window.__deps();
+    d2.initialMode = 'grammar';
+    d2.onModeChange = m => window.__changes.push(m);
+    GraphView.mount(document.getElementById('host'), d2);
+  });
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'grammar');
+  await page.click('#host .graph-mode-btn[data-mode="book"]');
+  await settled(page);
+  await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+  await settled(page);
+  assert.deepEqual(await page.evaluate(() => window.__changes), ['book', 'grammar']);
+});
+
+test('文法軸モード: 絞り込み・詳細シート・ハイライト・tick 例外リカバリが動作する', async t => {
+  const page = await open(t);
+  await seedWeak(page, 30);
+  await mountAndWait(page);
+  await settled(page);
+  await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+  await settled(page);
+  // 絞り込みとタップ詳細シート
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+  await tapNode(page, ci);
+  assert.equal(await sheetOpen(page), true);
+  assert.equal(await page.evaluate(() => GraphView._debug.focusNode), ci);
+  await page.click('#host .graph-chip[data-book="kin"]');
+  assert.equal(await page.evaluate(() => GraphView._debug.book), 'kin');
+  await page.click('#host .graph-weak-toggle');
+  assert.equal(await page.evaluate(() => GraphView._debug.weakOnly), true);
+  await page.keyboard.press('Escape');
+  // 力学 tick が例外を投げた場合は文法軸のベース配置（円周）に戻ってタップできる
+  await page.evaluate(() => {
+    const orig = StudyCore.createGrammarSimulation;
+    StudyCore.createGrammarSimulation = function () {
+      const made = orig.apply(this, arguments);
+      let calls = 0;
+      const tick = made.sim.tick;
+      made.sim.tick = function () { if (++calls === 2) throw new Error('boom-grammar'); return tick.apply(this, arguments); };
+      return made;
+    };
+    console.warn = function () {};
+  });
+  await page.locator('#host button[data-zoom="relayout"]').click();
+  await settled(page);
+  const recovered = await page.evaluate(i => {
+    const [x, y] = GraphView._debug.worldOf(i);
+    return { settled: GraphView._debug.settled, r: Math.hypot(x, y), R: StudyCore.GRAPH_GRAMMAR.ringRadius };
+  }, ci);
+  assert.equal(recovered.settled, true);
+  assert.ok(Math.abs(recovered.r - recovered.R) < 1e-3, '文法軸のベース配置に戻っていない');
+});
+
+test('性能: 文法軸モードの力学（CPU 4 倍スロットル、記録用。苦手 110 問）', async t => {
+  const out = {};
+  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+    const page = await open(t, { viewport: vp });
+    await seedWeak(page, 110);
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.evaluate(() => {
+      const deps = window.__deps();
+      deps.initialMode = 'grammar';
+      GraphView.mount(document.getElementById('host'), deps);
+    });
+    await settled(page);
+    out[vp.width] = await page.evaluate(() => ({
+      settleMs: Math.round(GraphView._debug.settleMs),
+      maxFrameMs: Math.round(GraphView._debug.settleMaxFrameMs),
+      ticks: GraphView._debug.settleTicks,
+      drawMs: Math.round(GraphView._debug.forceDraw() * 10) / 10,
+    }));
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    assert.ok(out[vp.width].settleMs < 10000, `文法軸の収束が長すぎる: ${out[vp.width].settleMs}ms`);
+  }
+  console.log('# 文法軸 力学（CPU 4 倍）', JSON.stringify(out));
 });

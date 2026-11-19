@@ -375,3 +375,28 @@ test('力学用のファイルが読めなくても、グラフは固定配置�
   assert.equal(await page.evaluate(() => GraphView._debug.settled), true);
   assert.equal(await page.evaluate(() => typeof d3), 'undefined');
 });
+
+test('文法軸モードの選択がこの端末に記憶され、再訪・リロード後も引き継がれる（壊れた値は教材軸に戻る）', async t => {
+  const { page } = await open(t);
+  await openReviewCard(page);
+  await drawn(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  await page.click('#graph-page .graph-mode-btn[data-mode="grammar"]');
+  await waitFor(page, () => GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('toeic_graph_mode_v1'))), 'grammar');
+  // 一度別ページへ離れて開き直す
+  await page.locator('#graph-page .graph-page-back').click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  // リロードしても引き継がれる
+  await page.reload();
+  await page.getByRole('tab', { name: '復習', exact: true }).click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  // 壊れた値が入っていれば教材軸にフォールバック
+  await page.evaluate(() => { localStorage.setItem('toeic_graph_mode_v1', '{broken'); });
+  await page.locator('#graph-page .graph-page-back').click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await drawn(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+});
