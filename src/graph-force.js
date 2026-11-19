@@ -74,13 +74,19 @@
     singleOutward: 70,         // 概念が 1 つだけの問題の初期位置を、円の外側へずらす距離
     jitter: 40,                // 初期位置のばらつき
     centerPull: 0.01,          // 非固定ノードを原点へごく弱く引く強さ（孤立ノードの発散防止）
+    bookCorners: { kin: [-1, -1], sekai: [1, -1], polaris2: [-1, 1], toplevel: [1, 1] },
+    bookCorner: 0.95,          // 本ノードを寄せる四隅の位置（ringRadius に対する縦横の倍率）
+    bookPull: 0.25,            // 本ノードを四隅へ引く強さ
+    chapterPull: 0.55,         // 章ノードを最多概念へ引く強さ
+    rulePull: 0.15,            // ルールノードを最多概念へ引く強さ
+    chapterRadiusFactor: 0.86, // 章・ルールの目標位置（最多概念の座標に対する比＝少し内側）
     conceptStrength: 0.45,
     conceptDistance: 65,
     weakConceptStrength: 0.7,
     parentStrength: 0.25,
     parentDistance: 32,
     weakParentFactor: 0.4,
-    bookChapterStrength: 0.06,
+    bookChapterStrength: 0.01,
     bookChapterDistance: 180,
     trapStrength: 0.15,
     trapDistance: 70,
@@ -187,14 +193,25 @@
     return { sim, nodes, ticks };
   }
 
+  // 既知の本（book:kin 等）ならリング外の四隅座標を返し、それ以外は null を返す。
+  function grammarBookCorner(id, config) {
+    if (id == null || !config.bookCorners) return null;
+    const s = String(id);
+    if (!s.startsWith('book:')) return null;
+    const c = config.bookCorners[s.slice(5)];
+    return c ? [c[0] * config.ringRadius * config.bookCorner, c[1] * config.ringRadius * config.bookCorner] : null;
+  }
+
   // 文法軸モードの初期位置（d3-force の出発点兼、d3 未ロード・計算失敗時のフォールバック）。
-  // 概念ノードを半径 ringRadius の円周上に均等配置し、問題は紐づく概念の重心、本・章・ルール・ひっかけは配下の問題の平均位置に置く。
+  // 概念ノードを半径 ringRadius の円周上に均等配置し、既知の本はリング外の四隅、章・ルールは配下で最多の概念の近く、
+  // 問題は紐づく概念の重心、ひっかけは関連問題の平均位置に置く。
   function grammarInitialPositions(input, config) {
     config = config || GRAPH_GRAMMAR;
     const ids = input.ids || [], kindName = input.kindName, edges = input.edges || [];
     const n = kindName.length;
     const x = new Float64Array(n), y = new Float64Array(n);
     const pinned = new Uint8Array(n);
+    const primaryConcept = new Int32Array(n).fill(-1);
     const order = new Map();
     for (let k = 0; k < GRAMMAR_CONCEPT_ORDER.length; k++) order.set(GRAMMAR_CONCEPT_ORDER[k], k);
 
@@ -216,10 +233,38 @@
 
     const parent = new Int32Array(n).fill(-1);
     const qSumX = new Float64Array(n), qSumY = new Float64Array(n), qCnt = new Int32Array(n);
+    const conTotal = new Int32Array(n);
     for (let k = 0; k + 2 < edges.length; k += 3) {
       const a = edges[k], b = edges[k + 1], t = edges[k + 2];
       if (t === 0) parent[b] = a;
-      else if (t === 1 && pinned[b]) { qSumX[a] += x[b]; qSumY[a] += y[b]; qCnt[a]++; }
+      else if (t === 1 && pinned[b]) { qSumX[a] += x[b]; qSumY[a] += y[b]; qCnt[a]++; conTotal[b]++; }
+    }
+
+    // 章・ルールごとに配下の問題が最も多く紐づく概念を 1 つ選ぶ（同数なら総問題数が少ない限定的な概念を優先）
+    const groupCounts = new Map();
+    for (let k = 0; k + 2 < edges.length; k += 3) {
+      if (edges[k + 2] !== 1) continue;
+      const q = edges[k], c = edges[k + 1];
+      if (!pinned[c]) continue;
+      let p = parent[q], guard = 0;
+      while (p !== -1 && guard++ < 8) {
+        if (kindName[p] === 'chapter' || kindName[p] === 'rule') {
+          let cnt = groupCounts.get(p);
+          if (!cnt) groupCounts.set(p, cnt = new Map());
+          cnt.set(c, (cnt.get(c) || 0) + 1);
+        }
+        p = parent[p];
+      }
+    }
+    for (const [i, cnt] of groupCounts) {
+      let best = -1, bestCount = -1;
+      for (const [c, v] of cnt) {
+        if (v > bestCount || (v === bestCount && (conTotal[c] < conTotal[best] || (conTotal[c] === conTotal[best] && c < best)))) {
+          best = c;
+          bestCount = v;
+        }
+      }
+      primaryConcept[i] = best;
     }
 
     const rand = mulberry32(config.seed);
@@ -261,29 +306,57 @@
     }
     for (let i = 0; i < n; i++) {
       if (pinned[i] || kindName[i] === 'question') continue;
+      const corner = kindName[i] === 'book' ? grammarBookCorner(ids[i], config) : null;
+      if (corner) {
+        x[i] = corner[0]; y[i] = corner[1];
+        continue;
+      }
+      const pc = (kindName[i] === 'chapter' || kindName[i] === 'rule') ? primaryConcept[i] : -1;
+      if (pc !== -1) {
+        const [jx, jy] = addJitter(config.jitter * 0.4);
+        x[i] = x[pc] * config.chapterRadiusFactor + jx;
+        y[i] = y[pc] * config.chapterRadiusFactor + jy;
+        continue;
+      }
       const px = gCnt[i] > 0 ? gSumX[i] / gCnt[i] : 0;
       const py = gCnt[i] > 0 ? gSumY[i] / gCnt[i] : 0;
       const [jx, jy] = addJitter(config.jitter * 0.6);
       x[i] = px + jx; y[i] = py + jy;
     }
-    return { x, y, pinned };
+    return { x, y, pinned, primaryConcept };
   }
 
   // 文法軸モードの力学シミュレーションを組み立てて返す（止めた状態）。
   // 概念ノードは fx / fy で円周上に固定し、それ以外のノードはリンクと反発・衝突で自然に配置する。
   function createGrammarSimulation(d3, input, config) {
     config = config || GRAPH_GRAMMAR;
-    const kindName = input.kindName, edges = input.edges || [];
+    const ids = input.ids || [], kindName = input.kindName, edges = input.edges || [];
     const n = kindName.length;
     const weakQ = input.weakQ || null;
     const hubWeak = input.hubWeak || null;
     const isWeak = i => !!(weakQ && weakQ[i]);
 
     const init = grammarInitialPositions(input, config);
+    const primaryConcept = init.primaryConcept;
     const nodes = new Array(n);
+    const targetX = new Float64Array(n), targetY = new Float64Array(n), pullStrength = new Float64Array(n);
     for (let i = 0; i < n; i++) {
       const nd = { index: i, x: init.x[i], y: init.y[i] };
-      if (init.pinned[i]) { nd.fx = init.x[i]; nd.fy = init.y[i]; }
+      if (init.pinned[i]) {
+        nd.fx = init.x[i]; nd.fy = init.y[i];
+      } else {
+        const corner = kindName[i] === 'book' ? grammarBookCorner(ids[i], config) : null;
+        if (corner) {
+          targetX[i] = corner[0]; targetY[i] = corner[1]; pullStrength[i] = config.bookPull;
+        } else if ((kindName[i] === 'chapter' || kindName[i] === 'rule') && primaryConcept[i] !== -1) {
+          const pc = primaryConcept[i];
+          targetX[i] = init.x[pc] * config.chapterRadiusFactor;
+          targetY[i] = init.y[pc] * config.chapterRadiusFactor;
+          pullStrength[i] = kindName[i] === 'chapter' ? config.chapterPull : config.rulePull;
+        } else {
+          pullStrength[i] = config.centerPull;
+        }
+      }
       nodes[i] = nd;
     }
 
@@ -313,7 +386,6 @@
         return config.parentDistance;
       });
 
-    const pull = d => (init.pinned[d.index] ? 0 : config.centerPull);
     const collide = d => {
       const i = d.index, k = kindName[i];
       const base = config.collideRadius[k];
@@ -331,8 +403,8 @@
     sim
       .force('link', linkForce)
       .force('charge', d3.forceManyBody().strength(d => config.charge[kindName[d.index]]).distanceMax(config.chargeDistanceMax))
-      .force('x', d3.forceX(0).strength(pull))
-      .force('y', d3.forceY(0).strength(pull))
+      .force('x', d3.forceX(d => targetX[d.index]).strength(d => pullStrength[d.index]))
+      .force('y', d3.forceY(d => targetY[d.index]).strength(d => pullStrength[d.index]))
       .force('collide', d3.forceCollide(collide).strength(config.collideStrength).iterations(2));
     return { sim, nodes, ticks, init };
   }

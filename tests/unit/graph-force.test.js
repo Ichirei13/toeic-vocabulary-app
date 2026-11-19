@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const GF = require('../../src/graph-force.js');
 const { makeFixture } = require('./helpers/graph-fixture.js');
 
@@ -106,6 +107,14 @@ test('文法軸: grammarInitialPositions は概念を円周上に均等配置し
   // 2 概念につながる q:5(10) は con:a(12) と con:c(14) の中点付近（円の内側寄り）
   const midX = (a.x[12] + a.x[14]) / 2, midY = (a.y[12] + a.y[14]) / 2;
   assert.ok(Math.hypot(a.x[10] - midX, a.y[10] - midY) < 80, '複数概念の中点付近にない');
+  // 戻り値に primaryConcept があり、既知の本はリング外の四隅に初期配置される
+  assert.ok(a.primaryConcept && a.primaryConcept.length === g.id.length, 'primaryConcept がない');
+  assert.strictEqual(a.primaryConcept[1], 12, 'ch:kin:1 の最多概念は con:a');
+  const bc = GF.GRAPH_GRAMMAR.bookCorner;
+  assert.ok(bc > 0 && GF.GRAPH_GRAMMAR.bookCorners, 'bookCorners の設定がない');
+  const kinD = Math.hypot(a.x[0], a.y[0]), sekaiD = Math.hypot(a.x[8], a.y[8]);
+  assert.ok(kinD > R && a.x[0] < 0 && a.y[0] < 0, `book:kin が左上リング外でない: (${a.x[0]}, ${a.y[0]})`);
+  assert.ok(sekaiD > R && a.x[8] > 0 && a.y[8] < 0, `book:sekai が右上リング外でない: (${a.x[8]}, ${a.y[8]})`);
 });
 
 test('文法軸: grammarInitialPositions は GRAMMAR_CONCEPT_ORDER の順を優先し、未知の概念は末尾に足す', () => {
@@ -145,4 +154,90 @@ d3test('文法軸: createGrammarSimulation は収束後も概念を円周上に�
   const w = runG({ weakQ, hubWeak });
   assert.ok(dist(w, 11, 15) < dist(a, 11, 15), '苦手問題が Trap に近づいていない');
   assert.ok(dist(w, 11, 14) < dist(a, 11, 14), '苦手問題が概念に近づいていない');
+});
+
+d3test('文法軸: 実データで概念はリングに固定され、本はリング外の四隅、章は最多概念の近くへ集まる', async () => {
+  const d3 = await loadD3();
+  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'data', 'grammar_graph.js'), 'utf8');
+  const g = vm.runInNewContext(src + ';GRAMMAR_GRAPH');
+  const n = g.id.length;
+  const kindName = g.kind.map(k => g.kinds[k]);
+  const E = g.edges;
+  const made = GF.createGrammarSimulation(d3, { ids: g.id, kindName, edges: E }, GF.GRAPH_GRAMMAR);
+  for (let t = 0; t < made.ticks; t++) made.sim.tick();
+  const P = made.nodes.map(nd => [nd.x, nd.y]);
+  const R = GF.GRAPH_GRAMMAR.ringRadius;
+
+  const cons = [];
+  for (let i = 0; i < n; i++) if (kindName[i] === 'concept') cons.push(i);
+  assert.strictEqual(cons.length, 13);
+  for (const ci of cons) {
+    assert.ok(Math.abs(Math.hypot(P[ci][0], P[ci][1]) - R) < 1e-6, `概念 ${g.id[ci]} がリングから動いた`);
+  }
+
+  const parent = new Int32Array(n).fill(-1);
+  const qCons = Array.from({ length: n }, () => []);
+  for (let k = 0; k + 2 < E.length; k += 3) {
+    if (E[k + 2] === 0) parent[E[k + 1]] = E[k];
+    else if (E[k + 2] === 1) qCons[E[k]].push(E[k + 1]);
+  }
+  const nearest = i => cons.reduce((b, c) => (dist(P, i, c) < dist(P, i, b) ? c : b), cons[0]);
+
+  let qOk = 0, qN = 0, s1 = 0, s1n = 0;
+  for (let i = 0; i < n; i++) {
+    if (kindName[i] !== 'question' || !qCons[i].length) continue;
+    qN++;
+    if (qCons[i].includes(nearest(i))) qOk++;
+    if (qCons[i].length === 1) {
+      s1n++;
+      if (qCons[i][0] === nearest(i)) s1++;
+    }
+  }
+  assert.strictEqual(s1n, 468);
+  assert.strictEqual(s1, 468, `単一概念の問題: ${s1}/${s1n}`);
+  assert.ok(qOk / qN >= 0.88, `問題全体の最寄り概念一致率: ${qOk}/${qN}`);
+
+  let top1 = 0, top2 = 0, chN = 0;
+  for (let i = 0; i < n; i++) {
+    if (kindName[i] !== 'chapter') continue;
+    const cnt = new Map();
+    for (let q = 0; q < n; q++) {
+      if (kindName[q] !== 'question') continue;
+      let p = parent[q], guard = 0;
+      while (p !== -1 && p !== i && guard++ < 8) p = parent[p];
+      if (p === i) for (const c of qCons[q]) cnt.set(c, (cnt.get(c) || 0) + 1);
+    }
+    const rank = [...cnt.entries()].sort((a, b) => b[1] - a[1]);
+    const nc = nearest(i);
+    const ncCount = cnt.get(nc) || 0;
+    const top1Count = rank[0][1];
+    const top2Count = rank[Math.min(1, rank.length - 1)][1];
+    chN++;
+    if (ncCount === top1Count) top1++;
+    if (ncCount >= top2Count) top2++;
+  }
+  assert.strictEqual(chN, 51);
+  assert.ok(top1 >= 48, `章の最多概念一致数: ${top1}/${chN}`);
+  assert.strictEqual(top2, 51, `章の上位2概念一致数: ${top2}/${chN}`);
+
+  const kin6 = g.id.indexOf('ch:kin:6');
+  const relCon = g.id.indexOf('con:関係代名詞・関係副詞');
+  assert.strictEqual(nearest(kin6), relCon, `ch:kin:6 の最寄り概念が関係詞でない: ${g.id[nearest(kin6)]}`);
+
+  const expectCorner = {
+    'book:kin': [-1, -1],
+    'book:sekai': [1, -1],
+    'book:polaris2': [-1, 1],
+    'book:toplevel': [1, 1],
+  };
+  let bookCount = 0;
+  for (let i = 0; i < n; i++) {
+    if (kindName[i] !== 'book') continue;
+    bookCount++;
+    const r = Math.hypot(P[i][0], P[i][1]);
+    assert.ok(r > R, `${g.id[i]} がリング外でない: r=${r}`);
+    const c = expectCorner[g.id[i]];
+    assert.ok(P[i][0] * c[0] > 0 && P[i][1] * c[1] > 0, `${g.id[i]} の四隅向きが合わない: (${P[i][0]}, ${P[i][1]})`);
+  }
+  assert.strictEqual(bookCount, 4);
 });

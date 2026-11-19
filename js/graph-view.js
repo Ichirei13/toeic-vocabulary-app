@@ -115,7 +115,7 @@
       baseR[i] = BASE_R[kindName(i)] || 3;
     }
     let bounds = { minX, maxX, minY, maxY };
-    const kConcept = kinds.indexOf('concept'), kTrap = kinds.indexOf('trap');
+    const kBook = kinds.indexOf('book'), kConcept = kinds.indexOf('concept'), kTrap = kinds.indexOf('trap');
     const kQuestion = kinds.indexOf('question'), kChapter = kinds.indexOf('chapter'), kRule = kinds.indexOf('rule');
     // ラベル: 表示用の文字列は今ここで 1 回だけ作る。幅は初めて置くときに測ってキャッシュ（NaN = 未計測）
     const labelText = new Array(n);
@@ -522,6 +522,8 @@
             const a = list[k], b = list[k + 1];
             if (!mask[a] || !mask[b] || !(inView[a] || inView[b])) continue;
             if (pass === 1 && !(lit[a] && lit[b])) continue;
+            // 文法軸の非選択時は本 → 章の長い横断線を描かず、中央をすっきりさせる（選択中は pass 1 で描く）
+            if (mode === 'grammar' && t === 0 && pass === 0 && graph.kind[a] === kBook) continue;
             ctx.moveTo(xs[a] * s + ox, ys[a] * s + oy);
             ctx.lineTo(xs[b] * s + ox, ys[b] * s + oy);
             any = true;

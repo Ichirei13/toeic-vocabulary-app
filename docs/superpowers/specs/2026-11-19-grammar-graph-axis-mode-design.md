@@ -80,6 +80,7 @@
 
 - 線色: CSS 変数 `--graph-ring-guide`（ライト: `rgba(60, 60, 67, 0.14)`、ダーク: `rgba(235, 235, 245, 0.16)`。`readColors()` でマウント時・テーマ変更時のみ取得し、描画中には `getComputedStyle` を呼ばない）。
 - 線幅: 1px、破線 `[4, 6]`。選択ハイライト中（`focus` あり）は `DIM_EDGE` で薄くする。
+- 未選択時（`pass === 0`）のエッジ描画では、`book → chapter` の長い横断線をスキップして中央を見やすく保つ（ノード選択時のハイライト `pass === 1` では描画する）。
 - ノード・エッジ・束ねた線・ラベル・凡例・詳細シート・近い問題出題の仕様は現行 v3 と同一。
 
 ## 4. 配置と力学（`src/graph-force.js`）
@@ -117,30 +118,32 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
    - 紐づく概念が 1 つだけの問題: 重心（その概念の位置）から原点と逆方向へ少し外側（`singleOutward`）へずらし、小さなジッターを加える。
    - 紐づく概念が 2 つ以上の問題: 重心（自然と円の内側寄りになる）に小さなジッターを加える。
    - 紐づく概念が 0 個の問題（将来の未分類データ・テスト用）: 原点 `[0, 0]` 付近にジッターで置く。
-3. **ルール・章・本・ひっかけ（`rule` / `chapter` / `book` / `trap`）**:
-   - 配下につながる問題ノード（`rule`/`chapter`/`book` は親子エッジをたどった配下、`trap` は `type === 2` エッジの相手）の初期位置の平均に、小さなジッターを加える。
-   - 配下に問題が 0 個の場合は原点 `[0, 0]` 付近に置く。
+3. **本（`book`）**: 既知の 4 冊（`bookCorners`: `kin` 左上、`sekai` 右上、`polaris2` 左下、`toplevel` 右下）はリング外の四隅 `[±ringRadius * bookCorner, ±ringRadius * bookCorner]` に置く（未知の本は配下の問題の平均位置＋ジッター）。
+4. **章・ルール（`chapter` / `rule`）**: 配下の問題が最も多く紐づく概念 `primaryConcept[i]` を求める（同数の場合は総問題数が少ない限定的な概念を優先、さらに同数ならノード添字昇順）。見つかった場合はその概念の少し内側（`chapterRadiusFactor` 倍）＋小さなジッター（`jitter * 0.4`）に置き、見つからない場合のみ配下の問題の平均＋ジッターに置く。
+5. **ひっかけ（`trap`）**: `type === 2` エッジでつながる問題の初期位置の平均に、小さなジッターを加える（0 個の場合は原点付近）。
 
-返り値は `{ x, y, pinned }`（`pinned[i] === 1` なら固定する概念ノード）。
+返り値は `{ x, y, pinned, primaryConcept }`（`pinned[i] === 1` なら固定する概念ノード、`primaryConcept[i]` は章・ルールの最多概念または `-1`）。
 
 ### 4.3 力学の定義（`GRAPH_GRAMMAR` と `createGrammarSimulation`）
 
 既存の `GRAPH_LAYOUT`・`GRAPH_RUNTIME`・`createSimulation` は一切変更しない。文法軸用の設定 `GRAPH_GRAMMAR` と関数 `createGrammarSimulation(d3, input, config)` を追加する。
 
 - **固定（ピン留め）**: `concept` ノードは `node.fx = x0[i]; node.fy = y0[i]` で円周上に完全固定する。
-- **中心への力**: `d3.forceCenter` は**使わない**（固定ノードがある状態で `forceCenter` を使うと、非固定ノード全体が重心補正でリングからずれるため）。代わりに原点 `(0, 0)` へのごく弱い引き寄せ（`centerPull: 0.01`）を非固定ノードだけに掛け、孤立ノードの発散を防ぐ。本の四隅アンカーは使わない。
+- **中心・各目標への引き寄せ（`forceX` / `forceY`）**: `d3.forceCenter` は**使わない**（固定ノードがある状態で `forceCenter` を使うと、非固定ノード全体が重心補正でリングからずれるため）。各非固定ノードに次のターゲットへの力を掛ける：
+  - 既知の `book`: 四隅 `[±ringRadius * bookCorner, ±ringRadius * bookCorner]` へ `bookPull: 0.25` で引き、リング中央を空けて四隅に控えめに配置する。
+  - `chapter` / `rule`（`primaryConcept[i] !== -1`）: 最多概念の少し内側（`chapterRadiusFactor: 0.86` 倍）へ `chapterPull: 0.55` / `rulePull: 0.15` で引き、章のずれを防ぐ。
+  - それ以外（`question`・`trap`・未一致ノード）: 原点 `(0, 0)` へごく弱く（`centerPull: 0.01`）引き、孤立ノードの発散を防ぐ。
 - **リンクの力（`forceLink`）**:
   - **概念リンク（`type === 1`、問題 → 概念）**: 主軸。通常 `conceptStrength: 0.45`・距離 `conceptDistance: 65`。苦手問題なら `weakConceptStrength: 0.7`・距離 `weakLinkDistance: 44`。
   - **親子リンク（`type === 0`）**:
-    - `book → chapter`（親が `book`）: 本が文法クラスタを中央へ引っ張り戻さないよう弱め（`bookChapterStrength: 0.06`・距離 `bookChapterDistance: 180`）。
+    - `book → chapter`（親が `book`）: 本が文法クラスタを引っ張り戻さず、章も本に引っ張られないようごく弱め（`bookChapterStrength: 0.01`・距離 `bookChapterDistance: 180`）。
     - それ以外の親子（`chapter → rule` / `chapter → question` / `rule → question`）: 章・ルールが問題群に自然についてくる強さ（`parentStrength: 0.25`・距離 `parentDistance: 32`）。苦手問題につながる親子リンクは `weakParentFactor: 0.4` を掛けて、苦手問題が概念・ひっかけへ寄りやすくする。
   - **ひっかけリンク（`type === 2`、問題 → Trap）**: 通常 `trapStrength: 0.15`・距離 `trapDistance: 70`。苦手問題なら `weakTrapStrength: 0.8`・距離 `weakLinkDistance: 44`。
 - **反発（`forceManyBody`）と衝突（`forceCollide`）**:
   - 種類ごとの反発（`charge`: `{ book: -320, chapter: -140, rule: -28, concept: -420, trap: -260, question: -6 }`、`chargeDistanceMax: 420`）。
   - 衝突半径は `GRAPH_LAYOUT.collideRadius` を基準とし、`hubWeak` がある概念・ひっかけには `hubCollidePerWeak * Math.sqrt(hubWeak[i])` を足す（現行 v3 と同じ考え方）。
 - **実行回数と減衰**:
-  - `seed: 20261119`、`ringRadius: 600`、`ticks: 140`、`alpha: 0.7`、`alphaDecay = 1 - Math.pow(0.001 / alpha, 1 / ticks)`、`alphaMin(0.001)`。
-  - 実装後にデスクトップ Chromium（CPU 4 倍制限、375×812・1280×800）で収束時間と見た目を計測・確認し、必要なら `GRAPH_GRAMMAR` の係数だけを調整する。
+  - `seed: 20261119`、`ringRadius: 600`、`bookCorner: 0.95`、`ticks: 140`、`alpha: 0.7`、`alphaDecay = 1 - Math.pow(0.001 / alpha, 1 / ticks)`、`alphaMin(0.001)`。
 
 ## 5. 画面内の状態管理とキャッシュ（`js/graph-view.js`）
 
@@ -189,10 +192,11 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
 
 ### 追加するテスト
 - **単体（`tests/unit/graph-force.test.js`）**:
-  - `grammarInitialPositions`: 概念ノードが半径 `R` の円周上に等間隔・指定順で配置され、全座標が有限かつ決定論的であること。
+  - `grammarInitialPositions`: 概念ノードが半径 `R` の円周上に等間隔・指定順で配置され、既知の本がリング外の四隅に置かれ、`primaryConcept` を返し、全座標が有限かつ決定論的であること。
   - `createGrammarSimulation`: 収束後も概念ノードが円周上から動かないこと、同じ入力で同じ座標になること、単一概念の問題が対応概念の近くへ寄ること、苦手問題が非苦手時より概念・ひっかけへ近づくこと、未知の概念 ID があっても落ちないこと。
+  - 実データ（`data/grammar_graph.js`）での配置品質: 単一概念の問題 100%（468/468）・問題全体 88% 以上が紐づく概念へ寄り、章は最多概念一致 48/51 以上・上位 2 概念一致 51/51（`ch:kin:6` が関係代名詞・関係副詞最寄り）、全 4 冊の本がリング外の四隅に分かれること。
 - **ブラウザ（`tests/graph-view.test.js`）**:
-  - 初期表示は `'book'`。モードボタンで `'grammar'` へ切り替えると力学が収束し、13 概念が円周上（半径 `R`）に並び、収束後は `requestAnimationFrame` の呼び出しが 0 回で止まること。
+  - 初期表示は `'book'`。モードボタンで `'grammar'` へ切り替えると力学が収束し、13 概念が円周上（半径 `R`）に並び、4 冊の本がリング外にあり、`ch:kin:6` が関係代名詞・関係副詞側へ寄ること。収束後は `requestAnimationFrame` の呼び出しが 0 回で止まること。
   - 文法軸 → 教材軸 → 文法軸の往復でキャッシュが効き、再計算（`settleTicks === 0`）なしに即座に切り替わること。
   - 文法軸で「再配置」を押すと力学が再実行されること。
   - d3-force なしでも文法軸へ切り替えられ、概念リングの初期配置で落ちずに表示されること。
@@ -201,9 +205,9 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
   - `home.js` 経由の画面結合で、選択したモードが `toeic_graph_mode_v1` に保存され、再マウント後も引き継がれること。
 - **性能計測・視覚確認**:
   - デスクトップ Chromium（CPU 4 倍制限、苦手 110 問、140 tick、iPhone では未計測）での実測値（`tests/graph-view.test.js`）:
-    - 375×812: 収束 `2747 ms`・最長フレーム `34 ms`・1 フレーム描画 `0.9 ms`
-    - 1280×800: 収束 `3225 ms`・最長フレーム `33 ms`・1 フレーム描画 `1.0 ms`
-  - 375×812・1280×800 のスクリーンショットで 13 概念の円周配置、ガイド円、ツールバーの折り返し、詳細シート表示を確認済み。
+    - 375×812: 収束 `2733 ms`・最長フレーム `33 ms`・1 フレーム描画 `0.8 ms`
+    - 1280×800: 収束 `3190 ms`・最長フレーム `33 ms`・1 フレーム描画 `0.2 ms`
+  - 375×812・1280×800 のスクリーンショットで 13 概念の円周配置、ガイド円、四隅の本、最多概念へ寄った章、ツールバーの折り返し、詳細シート表示を確認済み。
 
 ### 完成の基準
 1. グラフ画面の切り替え UI で「教材軸」↔「文法軸」をいつでも切り替えられる。

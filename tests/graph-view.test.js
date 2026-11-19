@@ -1397,20 +1397,33 @@ test('文法軸モード: 切り替えると 13 概念が円周上に固定さ�
   await settled(page);
   const res = await page.evaluate(() => {
     const G = GRAMMAR_GRAPH, D = GraphView._debug, R = StudyCore.GRAPH_GRAMMAR.ringRadius;
-    const kCon = G.kinds.indexOf('concept');
-    const cons = [];
-    for (let i = 0; i < G.id.length; i++) if (G.kind[i] === kCon) {
-      const [x, y] = D.worldOf(i);
-      cons.push({ id: G.id[i], r: Math.hypot(x, y), x, y });
+    const kCon = G.kinds.indexOf('concept'), kBook = G.kinds.indexOf('book');
+    const cons = [], books = [];
+    for (let i = 0; i < G.id.length; i++) {
+      if (G.kind[i] === kCon) {
+        const [x, y] = D.worldOf(i);
+        cons.push({ id: G.id[i], r: Math.hypot(x, y), x, y });
+      } else if (G.kind[i] === kBook) {
+        const [x, y] = D.worldOf(i);
+        books.push({ id: G.id[i], r: Math.hypot(x, y) });
+      }
     }
+    const ch = D.worldOf(D.indexOf('ch:kin:6'));
+    const rel = D.worldOf(D.indexOf('con:関係代名詞・関係副詞'));
+    const adj = D.worldOf(D.indexOf('con:形容詞と副詞の修飾関係'));
+    const dRel = Math.hypot(ch[0] - rel[0], ch[1] - rel[1]);
+    const dAdj = Math.hypot(ch[0] - adj[0], ch[1] - adj[1]);
     const pressed = [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode + ':' + b.getAttribute('aria-pressed'));
-    return { mode: D.mode, ticks: D.settleTicks, R, cons, pressed };
+    return { mode: D.mode, ticks: D.settleTicks, R, cons, books, dRel, dAdj, pressed };
   });
   assert.equal(res.mode, 'grammar');
   assert.equal(res.ticks, 140);
   assert.deepEqual(res.pressed, ['book:false', 'grammar:true']);
   assert.equal(res.cons.length, 13);
   for (const c of res.cons) assert.ok(Math.abs(c.r - res.R) < 1e-3, `${c.id} の半径が円周上にない: ${c.r}`);
+  assert.equal(res.books.length, 4);
+  for (const b of res.books) assert.ok(b.r > res.R, `${b.id} がリング外にない: r=${b.r}`);
+  assert.ok(res.dRel < res.dAdj, `ch:kin:6 が関係詞より形容詞・副詞に近い: ${res.dRel} >= ${res.dAdj}`);
   const svoc = res.cons.find(c => c.id === 'con:SVOC（文の骨格）');
   assert.ok(Math.abs(svoc.x) < 1e-3 && Math.abs(svoc.y + res.R) < 1e-3, `SVOC が 12 時にない: ${JSON.stringify(svoc)}`);
   // 収束後は rAF・タイマーが止まる
