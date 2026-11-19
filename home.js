@@ -1469,8 +1469,33 @@ function leaveGraphPage() {
   if (typeof GraphView !== 'undefined' && typeof GraphView.destroy === 'function') GraphView.destroy();
 }
 
-// グラフの配置軸の記憶（この端末だけの設定。バックアップ・同期・他タブ同期の RECORD_KEYS / EXTRA_KEYS / CROSS_TAB_KEYS に足さない）
+// グラフの配置軸と座標キャッシュ（この端末だけの設定／揮発キャッシュ。バックアップ・同期・他タブ同期の RECORD_KEYS / EXTRA_KEYS / CROSS_TAB_KEYS に足さない）
 const GRAPH_MODE_KEY = 'toeic_graph_mode_v1';
+const GRAPH_GRAMMAR_CACHE_KEY = 'toeic_graph_grammar_cache_v1';
+let graphGrammarLayoutCache = null;
+
+function readGraphGrammarCache(sig) {
+  if (!sig) return null;
+  if (graphGrammarLayoutCache && graphGrammarLayoutCache.sig === sig) return graphGrammarLayoutCache;
+  try {
+    const raw = localStorage.getItem(GRAPH_GRAMMAR_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.sig === sig && Array.isArray(parsed.x) && Array.isArray(parsed.y)) {
+      graphGrammarLayoutCache = parsed;
+      return parsed;
+    }
+  } catch (e) { /* 壊れたキャッシュは無視して再計算する */ }
+  return null;
+}
+
+function writeGraphGrammarCache(sig, coords) {
+  if (!sig || !coords || !Array.isArray(coords.x) || !Array.isArray(coords.y)) return;
+  const entry = { sig, x: coords.x, y: coords.y };
+  graphGrammarLayoutCache = entry;
+  // キャッシュ保存の失敗（容量不足など）で学習記録の保存エラー扱い（saveJSON / failedSaveKeys）にしない
+  try { localStorage.setItem(GRAPH_GRAMMAR_CACHE_KEY, JSON.stringify(entry)); } catch (e) { /* 無視 */ }
+}
 
 // 読み込み中 → 読み込み → マウント。失敗したら理由と「再試行」
 async function showGraphPage() {
@@ -1505,6 +1530,8 @@ async function showGraphPage() {
       isDue,
       initialMode: savedMode,
       onModeChange: mode => { saveJSON(GRAPH_MODE_KEY, mode === 'grammar' ? 'grammar' : 'book'); },
+      getLayoutCache: (mode, sig) => (mode === 'grammar' ? readGraphGrammarCache(sig) : null),
+      setLayoutCache: (mode, sig, coords) => { if (mode === 'grammar') writeGraphGrammarCache(sig, coords); },
       onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },
     });
   } catch (e) {

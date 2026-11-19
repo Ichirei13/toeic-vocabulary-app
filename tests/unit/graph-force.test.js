@@ -81,8 +81,9 @@ test('文法軸: 定数（GRAMMAR_CONCEPT_ORDER は 13 概念、GRAPH_GRAMMAR �
   assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER.length, 13);
   assert.strictEqual(new Set(GF.GRAMMAR_CONCEPT_ORDER).size, 13);
   assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER[0], 'con:SVOC（文の骨格）');
-  assert.ok(GF.GRAPH_GRAMMAR.ringRadius > 0);
-  assert.ok(GF.GRAPH_GRAMMAR.ticks > 0 && GF.GRAPH_GRAMMAR.alpha > 0);
+  assert.strictEqual(GF.GRAPH_GRAMMAR.ringRadius > 0, true);
+  assert.strictEqual(GF.GRAPH_GRAMMAR.ticks, 120);
+  assert.ok(GF.GRAPH_GRAMMAR.alpha > 0);
 });
 
 test('文法軸: grammarInitialPositions は概念を円周上に均等配置し、同じ入力から同じ座標を返す', () => {
@@ -240,4 +241,27 @@ d3test('文法軸: 実データで概念はリングに固定され、本はリ�
     assert.ok(P[i][0] * c[0] > 0 && P[i][1] * c[1] > 0, `${g.id[i]} の四隅向きが合わない: (${P[i][0]}, ${P[i][1]})`);
   }
   assert.strictEqual(bookCount, 4);
+});
+
+test('文法軸: grammarLayoutSignature は決定論的で、データ・設定・苦手集合の違いを検知する', () => {
+  const g = makeFixture();
+  const kindName = g.kind.map(k => g.kinds[k]);
+  const zero = new Uint8Array(g.id.length);
+  const s0 = GF.grammarLayoutSignature(g, null, GF.GRAPH_GRAMMAR);
+  const sZero = GF.grammarLayoutSignature({ ids: g.id, kindName, edges: g.edges }, zero, GF.GRAPH_GRAMMAR);
+  assert.strictEqual(typeof s0, 'string');
+  assert.ok(s0.length > 0);
+  assert.strictEqual(s0, sZero, 'graph 形式と input 形式、および null と全ゼロ weakQ は同じ署名');
+
+  const w1 = new Uint8Array(g.id.length); w1[3] = 1;
+  const w2 = new Uint8Array(g.id.length); w2[4] = 1;
+  const s1 = GF.grammarLayoutSignature(g, w1, GF.GRAPH_GRAMMAR);
+  const s2 = GF.grammarLayoutSignature(g, w2, GF.GRAPH_GRAMMAR);
+  assert.notStrictEqual(s1, s0, '苦手 1 問で署名が変わる');
+  assert.notStrictEqual(s1, s2, '別の問題が苦手なら署名が変わる');
+
+  const sCfg = GF.grammarLayoutSignature(g, w1, { ...GF.GRAPH_GRAMMAR, ticks: GF.GRAPH_GRAMMAR.ticks + 1 });
+  assert.notStrictEqual(sCfg, s1, '設定変更で署名が変わる');
+  const sLen = GF.grammarLayoutSignature({ id: g.id, edges: g.edges.slice(0, -3) }, w1, GF.GRAPH_GRAMMAR);
+  assert.notStrictEqual(sLen, s1, 'エッジ変更で署名が変わる');
 });

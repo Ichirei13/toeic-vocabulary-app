@@ -173,6 +173,7 @@
     let colors = null;
     let sheetIndex = -1;
     let settle = null;          // 力学の実行中だけ { sim, nodes, left, t0, maxFrame, quiet }
+    let settleSig = null;       // 文法軸の力学計算が正常完走したときにキャッシュへ保存する署名
     let focusEdges = 0;               // 浮かび上がらせる線の本数（両端が浮かび上がっているもの）
     let focus = null, focusNode = -1; // 選択中: 浮かび上がらせるノード（Uint8Array）と、選択したノード
     let anim = null;                  // 移動のアニメーション中だけ { from, to, t0 }
@@ -360,13 +361,29 @@
       return !!(d3 && typeof d3.forceSimulation === 'function' && typeof S.createSimulation === 'function');
     }
     function stopSettle() {
+      settleSig = null;
       if (!settle) return;
       settle.sim.stop();
       settle = null;
     }
+    function validCachedCoords(c) {
+      if (!c || !c.x || !c.y || c.x.length !== n || c.y.length !== n) return false;
+      for (let i = 0; i < n; i++) if (!Number.isFinite(+c.x[i]) || !Number.isFinite(+c.y[i])) return false;
+      return true;
+    }
     // 収まった（または回さなかった）後の後始末。fromFrame = onFrame の中から呼ばれた（直後に描くので要求しない）
-    function finishSettle(fromFrame) {
+    function finishSettle(fromFrame, saveSig) {
       modeCoords[mode] = { x: xs.slice(), y: ys.slice() };
+      if (saveSig && mode === 'grammar' && typeof deps.setLayoutCache === 'function') {
+        // 固定概念は厳密さを保つため小数第 4 位、それ以外は小数第 1 位に丸めてキャッシュを軽量化する
+        const cx = new Array(n), cy = new Array(n);
+        for (let i = 0; i < n; i++) {
+          const f = graph.kind[i] === kConcept ? 10000 : 10;
+          cx[i] = Math.round(xs[i] * f) / f;
+          cy[i] = Math.round(ys[i] * f) / f;
+        }
+        try { deps.setLayoutCache('grammar', saveSig, { x: cx, y: cy }); } catch (e) { /* キャッシュ保存失敗で操作を止めない */ }
+      }
       updateBounds();
       refit();
       maskKey = '';                 // 当たり判定用の座標（hitXs）を作り直させる
@@ -374,7 +391,7 @@
       debug.settled = true;
       if (!fromFrame) requestDraw();
     }
-    function startSettle() {
+    function startSettle(skipCache) {
       stopSettle();
       stopAnim();
       applyBasePositions(mode);
@@ -384,20 +401,31 @@
       for (let i = 0; i < n; i++) if (graph.kind[i] === kQuestion && mastery.weak[i] > 0) { weakQ[i] = 1; anyWeak = true; }
       let made;
       if (mode === 'grammar') {
-        if (!canSettle() || typeof S.createGrammarSimulation !== 'function') { finishSettle(false); return; }
+        const sig = typeof S.grammarLayoutSignature === 'function' ? S.grammarLayoutSignature(graph, weakQ, S.GRAPH_GRAMMAR) : null;
+        if (!skipCache && sig && typeof deps.getLayoutCache === 'function') {
+          let cached = null;
+          try { cached = deps.getLayoutCache('grammar', sig); } catch (e) { cached = null; }
+          if (validCachedCoords(cached)) {
+            for (let i = 0; i < n; i++) { xs[i] = +cached.x[i]; ys[i] = +cached.y[i]; }
+            finishSettle(false, null);
+            return;
+          }
+        }
+        if (!canSettle() || typeof S.createGrammarSimulation !== 'function') { finishSettle(false, null); return; }
         try {
           made = S.createGrammarSimulation(root.d3, {
             ids: graph.id, kindName: kindNames, edges: E, weakQ, hubWeak: mastery.weak,
           }, S.GRAPH_GRAMMAR);
-        } catch (e) { finishSettle(false); return; }
+          settleSig = sig;
+        } catch (e) { finishSettle(false, null); return; }
       } else {
         // 苦手が 1 問もなければ、力はビルド時と同じ。回しても揺れるだけなので、固定配置のまま出す
-        if (!anyWeak || !canSettle()) { finishSettle(false); return; }
+        if (!anyWeak || !canSettle()) { finishSettle(false, null); return; }
         try {
           made = S.createSimulation(root.d3, {
             kindName: kindNames, edges: E, bookOf: S.bookOfNodes(graph.id, kindNames, E), x: xs, y: ys, weakQ, hubWeak: mastery.weak,
           }, S.GRAPH_LAYOUT, S.GRAPH_RUNTIME);
-        } catch (e) { finishSettle(false); return; } // 組み立てに失敗したら固定配置
+        } catch (e) { finishSettle(false, null); return; } // 組み立てに失敗したら固定配置
       }
       const mq = typeof root.matchMedia === 'function' ? root.matchMedia('(prefers-reduced-motion: reduce)') : null;
       settle = { sim: made.sim, nodes: made.nodes, left: made.ticks, t0: performance.now(), maxFrame: 0, quiet: !!(mq && mq.matches) };
@@ -411,21 +439,22 @@
       } catch (e) {
         // 力学が例外を投げたら、座標が壊れたときと同じく現在モードのベース配置に戻す（settle を残すとタップが永久に効かない）
         console.warn('graph-view: 力学の計算に失敗したため、固定配置に戻します', e);
-        stopSettle(); applyBasePositions(mode); finishSettle(true);
+        stopSettle(); applyBasePositions(mode); finishSettle(true, null);
         return;
       }
       const nodes = settle.nodes;
       let finite = true;
       for (let i = 0; i < n; i++) if (!Number.isFinite(nodes[i].x) || !Number.isFinite(nodes[i].y)) { finite = false; break; }
-      if (!finite) { stopSettle(); applyBasePositions(mode); finishSettle(true); return; } // 壊れたら現在モードのベース配置に戻す
+      if (!finite) { stopSettle(); applyBasePositions(mode); finishSettle(true, null); return; } // 壊れたら現在モードのベース配置に戻す
       for (let i = 0; i < n; i++) { xs[i] = nodes[i].x; ys[i] = nodes[i].y; }
       const dt = performance.now() - t0;
       if (dt > settle.maxFrame) settle.maxFrame = dt;
       if (settle.left > 0) { updateBounds(); refit(); return; }
       debug.settleMs = performance.now() - settle.t0;
       debug.settleMaxFrameMs = settle.maxFrame;
+      const doneSig = settleSig;
       stopSettle();
-      finishSettle(true);
+      finishSettle(true, doneSig);
     }
     function setMode(next) {
       const target = next === 'grammar' ? 'grammar' : 'book';
@@ -948,7 +977,7 @@
       const b = e.target.closest('button[data-zoom]');
       if (!b || !cam) return;
       stopAnim();
-      if (b.dataset.zoom === 'relayout') { closeSheet(); modeCoords[mode] = null; startSettle(); return; }
+      if (b.dataset.zoom === 'relayout') { closeSheet(); modeCoords[mode] = null; startSettle(true); return; }
       if (b.dataset.zoom === 'fit') { cam = S.createCamera(width, height, bounds); interacted = false; requestDraw(); }
       else zoomBy(width / 2, height / 2, b.dataset.zoom === 'in' ? 1.6 : 1 / 1.6);
     }

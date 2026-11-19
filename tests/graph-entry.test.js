@@ -400,3 +400,63 @@ test('文法軸モードの選択がこの端末に記憶され、再訪・リ�
   await drawn(page);
   assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
 });
+
+test('文法軸の座標キャッシュ（toeic_graph_grammar_cache_v1）が再訪・リロードで効き、苦手変化で再計算、破損や容量超過でもエラーを出さない', async t => {
+  const { page } = await open(t);
+  await openReviewCard(page);
+  await drawn(page);
+  await page.click('#graph-page .graph-mode-btn[data-mode="grammar"]');
+  await waitFor(page, () => GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  const firstTicks = await page.evaluate(() => GraphView._debug.settleTicks);
+  const expectedTicks = await page.evaluate(() => StudyCore.GRAPH_GRAMMAR.ticks);
+  assert.equal(firstTicks, expectedTicks);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('toeic_graph_grammar_cache_v1')));
+  assert.ok(saved && typeof saved.sig === 'string' && Array.isArray(saved.x) && saved.x.length === 1201, 'キャッシュが保存されていない');
+
+  // 1. ページ移動後の再訪は 0 tick で開く
+  await page.locator('#graph-page .graph-page-back').click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 0);
+
+  // 2. リロード後も 0 tick で開き、概念は円周上にある
+  await page.reload();
+  await page.getByRole('tab', { name: '復習', exact: true }).click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  const reloadRes = await page.evaluate(() => {
+    const D = GraphView._debug, R = StudyCore.GRAPH_GRAMMAR.ringRadius;
+    const svoc = D.worldOf(D.indexOf('con:SVOC（文の骨格）'));
+    return { ticks: D.settleTicks, rDiff: Math.abs(Math.hypot(svoc[0], svoc[1]) - R) };
+  });
+  assert.equal(reloadRes.ticks, 0);
+  assert.ok(reloadRes.rDiff < 1e-3);
+
+  // 3. 苦手が変化すると自動で再計算される
+  await page.evaluate(() => {
+    const qid = GRAMMAR_GRAPH.qids[0];
+    localStorage.setItem('toeic_weak_grammar', JSON.stringify({ [qid]: { streak: 0, added: Date.now() - 1000, due: Date.now() + 86400000 } }));
+    reloadRecordsFromStorage(false);
+  });
+  await page.locator('#graph-page .graph-page-back').click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), expectedTicks);
+
+  // 4. キャッシュ破損 ＋ 容量不足エラーでもグラフが開き、学習エラー警告トーストを出さない（リロードでメモリキャッシュも空にする）
+  await page.evaluate(() => { localStorage.setItem('toeic_graph_grammar_cache_v1', '{broken'); });
+  await page.reload();
+  await page.evaluate(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === 'toeic_graph_grammar_cache_v1') throw new DOMException('quota', 'QuotaExceededError');
+      return orig.call(this, k, v);
+    };
+  });
+  await page.getByRole('tab', { name: '復習', exact: true }).click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), expectedTicks);
+  const toasts = await page.evaluate(() => [...document.querySelectorAll('.toast')].map(el => el.textContent));
+  assert.equal(toasts.some(t => t.includes('保存できませんでした')), false, `キャッシュ保存失敗で学習エラー警告が出た: ${JSON.stringify(toasts)}`);
+});

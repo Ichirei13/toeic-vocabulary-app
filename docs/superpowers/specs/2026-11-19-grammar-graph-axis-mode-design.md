@@ -42,11 +42,11 @@
 
 | ファイル | 役割 |
 |---|---|
-| `src/graph-force.js` | 文法軸用の定数（`GRAMMAR_CONCEPT_ORDER`・`GRAPH_GRAMMAR`）と純粋関数（`grammarInitialPositions`・`createGrammarSimulation`）を追加 |
-| `js/graph-view.js` | モード状態（`'book'` / `'grammar'`）、切り替え UI、モードごとの座標キャッシュ、文法軸の力学実行・フォールバック、薄いガイド円の描画、デバッグ観測値の追加 |
+| `src/graph-force.js` | 文法軸用の定数（`GRAMMAR_CONCEPT_ORDER`・`GRAPH_GRAMMAR`）と純粋関数（`grammarInitialPositions`・`createGrammarSimulation`・`grammarLayoutSignature`）を追加 |
+| `js/graph-view.js` | モード状態（`'book'` / `'grammar'`）、切り替え UI、モードごとの座標キャッシュおよび外部キャッシュ連携、文法軸の力学実行・フォールバック、薄いガイド円の描画、デバッグ観測値の追加 |
 | `css/graph.css` | ツールバー内のモード切り替え UI（`.graph-mode`）のスタイルと、ガイド円用の CSS 変数（`--graph-ring-guide`） |
-| `home.js` | 端末限定の保存キー `toeic_graph_mode_v1` の読み書きと、`GraphView.mount` への `initialMode` / `onModeChange` 受け渡し |
-| `sw.js` | `CACHE` の版を `toeic-drill-v15` → `toeic-drill-v16` に上げる |
+| `home.js` | 端末限定の保存キー `toeic_graph_mode_v1` と座標キャッシュ `toeic_graph_grammar_cache_v1` の管理、`GraphView.mount` への `initialMode` / `onModeChange` / `getLayoutCache` / `setLayoutCache` 受け渡し |
+| `sw.js` | `CACHE` の版を `toeic-drill-v15` → `toeic-drill-v17` に上げる |
 | `tests/unit/graph-force.test.js` | 文法軸の初期配置・力学（円周固定、決定論性、概念近接、苦手引き寄せ、未知概念耐性）の単体テストを追加 |
 | `tests/graph-view.test.js` | モード切替、収束後 rAF 0 回、キャッシュ往復、再配置、d3 なしフォールバック、`initialMode` / `onModeChange`、フィルター/詳細シート/近い問題併用、性能計測のテストを追加 |
 
@@ -143,7 +143,9 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
   - 種類ごとの反発（`charge`: `{ book: -320, chapter: -140, rule: -28, concept: -420, trap: -260, question: -6 }`、`chargeDistanceMax: 420`）。
   - 衝突半径は `GRAPH_LAYOUT.collideRadius` を基準とし、`hubWeak` がある概念・ひっかけには `hubCollidePerWeak * Math.sqrt(hubWeak[i])` を足す（現行 v3 と同じ考え方）。
 - **実行回数と減衰**:
-  - `seed: 20261119`、`ringRadius: 600`、`bookCorner: 0.95`、`ticks: 140`、`alpha: 0.7`、`alphaDecay = 1 - Math.pow(0.001 / alpha, 1 / ticks)`、`alphaMin(0.001)`。
+  - `seed: 20261119`、`ringRadius: 600`、`bookCorner: 0.95`、`ticks: 120`、`alpha: 0.7`、`alphaDecay = 1 - Math.pow(0.001 / alpha, 1 / ticks)`、`alphaMin(0.001)`（`ticks: 100` も検証したが、フィクスチャの苦手問題引き寄せで概念への距離がわずかに収束しきらなかったため教材軸と同じ `120` とした）。
+- **配置キャッシュの署名（`grammarLayoutSignature(input, weakQ, config)`）**:
+  - ノード数・エッジ数・`GRAMMAR_CONCEPT_ORDER`・`GRAPH_GRAMMAR` 全定数・`weakQ` で苦手の問題添字から FNV-1a 32bit で決定論的な署名文字列 `g1:<n>:<edgeLen>:<weakCount>:<hash>` を生成する。
 
 ## 5. 画面内の状態管理とキャッシュ（`js/graph-view.js`）
 
@@ -154,16 +156,16 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
   - `modeCoords`: `{ book: null, grammar: null }`。各モードの収束済み座標 `{ x: Float64Array, y: Float64Array }` を保持する。
 - **起動時**:
   - `mode === 'book'` のとき: 現行 v3 と完全に同じ（ビルド済み座標から、苦手があれば 120 tick 力学、なければ即確定して `modeCoords.book` に保存）。
-  - `mode === 'grammar'` のとき（記憶から復元）: `grammarInitialPositions` を適用して 1 回描き、d3 が使えるなら `createGrammarSimulation` を分割実行して収束後に `modeCoords.grammar` へ保存。d3 が無ければ初期配置のまま即確定（`settled = true`）。
+  - `mode === 'grammar'` のとき（記憶から復元）: `grammarInitialPositions` を適用して 1 回描き、`deps.getLayoutCache('grammar', sig)` で有効なキャッシュが返れば力学を回さず（`settleTicks = 0`）即表示。無ければ `createGrammarSimulation` を分割実行して正常完走後に `deps.setLayoutCache` へ保存する（概念ノードは小数第 4 位、その他は小数第 1 位に丸めて約 14.5KB）。d3 無し・途中例外時は保存せず初期配置のまま即確定する。
 - **モード切り替え時（`setMode(next)`）**:
   1. `next === mode` なら何もしない。
   2. `stopSettle()`・`stopAnim()`・`closeSheet()` を呼ぶ。
   3. `mode = next`、ボタンの `aria-pressed` と `debug.mode` を更新し、`deps.onModeChange(mode)` があれば呼ぶ（例外は握りつぶして画面を止めない）。
   4. `interacted = false` に戻す（新しい軸の全体像を見せるため）。
-  5. `modeCoords[mode]` にキャッシュがあれば、`xs` / `ys` にコピーして `finishSettle(false)`（即座に全体表示・格子再構築・1 フレーム描画。力学は回さない）。
-  6. キャッシュが無ければ `startSettle()` を呼ぶ。
+  5. `modeCoords[mode]` にキャッシュがあれば、`xs` / `ys` にコピーして `finishSettle(false, null)`（即座に全体表示・格子再構築・1 フレーム描画。力学は回さない）。
+  6. キャッシュが無ければ `startSettle(false)` を呼ぶ（外部キャッシュが一致すれば 0 tick、不一致なら力学を実行）。
 - **「再配置」ボタン（`relayout`）**:
-  - `closeSheet()` のあと `modeCoords[mode] = null` にして `startSettle()` を呼ぶ（現在表示中のモードだけを今の記録で回し直す）。
+  - `closeSheet()` のあと `modeCoords[mode] = null` にして `startSettle(true)`（`skipCache = true`）を呼ぶ（現在表示中のモードだけを今の記録で回し直し、文法軸なら完了後に外部キャッシュを上書きする）。
 - **`refresh()`（学習記録の更新）**:
   - 現行 v3 と同じ。色・大きさ・束ねた線・詳細シートだけを更新し、現在の配置は動かさない。
 - **力学の途中中断・失敗時のリカバリ**:
@@ -173,12 +175,15 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
 - **デバッグ観測値（`GraphView._debug`）**:
   - `debug.mode`（現在の `'book'` / `'grammar'`）を追加する。
 
-## 6. 端末への記憶（`home.js`）
+## 6. 端末への記憶と座標キャッシュ（`home.js`）
 
-- 保存キー: `const GRAPH_MODE_KEY = 'toeic_graph_mode_v1';`
-- 読み込み: `loadJSON(GRAPH_MODE_KEY, 'book')` を読み、`'grammar'` なら `'grammar'`、それ以外は `'book'` を `GraphView.mount` の `deps.initialMode` に渡す。
-- 書き込み: `deps.onModeChange` で `saveJSON(GRAPH_MODE_KEY, mode)` を呼ぶ（`CLAUDE.md` 約束 3 準拠）。
-- 隔離ルール: `RECORD_KEYS`・`EXTRA_KEYS`・`CROSS_TAB_KEYS` には**入れない**（`toeic_near_drill_v1` と同じ扱い。バックアップ・Google ドライブ同期・他タブ再読込の対象外）。
+- モード保存キー: `const GRAPH_MODE_KEY = 'toeic_graph_mode_v1';`
+  - 読み込み: `loadJSON(GRAPH_MODE_KEY, 'book')` を読み、`'grammar'` なら `'grammar'`、それ以外は `'book'` を `GraphView.mount` の `deps.initialMode` に渡す。
+  - 書き込み: `deps.onModeChange` で `saveJSON(GRAPH_MODE_KEY, mode)` を呼ぶ（`CLAUDE.md` 約束 3 準拠）。
+- 座標キャッシュキー: `const GRAPH_GRAMMAR_CACHE_KEY = 'toeic_graph_grammar_cache_v1';` ＋ メモリ内変数 `graphGrammarLayoutCache`
+  - 読み込み・書き込みは `deps.getLayoutCache` / `deps.setLayoutCache` 経由で `GraphView` に渡す。
+  - キャッシュは消えても再計算できる揮発データのため、`saveJSON`（`failedSaveKeys` による学習記録エラー通知）は使わず `localStorage.setItem` を直接 `try/catch` で囲み、容量不足・破損時は静かに無視して再計算へ戻す。
+- 隔離ルール: どちらも `RECORD_KEYS`・`EXTRA_KEYS`・`CROSS_TAB_KEYS` には**入れない**（`toeic_near_drill_v1` と同じ扱い。バックアップ・Google ドライブ同期・他タブ再読込の対象外）。
 - `js/graph-view.js` は `localStorage` に直接触れない（依存は `deps` のみ）。
 
 ## 7. テストと完成の基準
@@ -204,9 +209,10 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
   - 文法軸モードで教材絞り込み・「苦手のみ」・ノードタップによる詳細シート＆ハイライト・シート内問題タップのジャンプが動作すること。
   - `home.js` 経由の画面結合で、選択したモードが `toeic_graph_mode_v1` に保存され、再マウント後も引き継がれること。
 - **性能計測・視覚確認**:
-  - デスクトップ Chromium（CPU 4 倍制限、苦手 110 問、140 tick、iPhone では未計測）での実測値（`tests/graph-view.test.js`）:
-    - 375×812: 収束 `2733 ms`・最長フレーム `33 ms`・1 フレーム描画 `0.8 ms`
-    - 1280×800: 収束 `3190 ms`・最長フレーム `33 ms`・1 フレーム描画 `0.2 ms`
+  - デスクトップ Chromium（CPU 4 倍制限、苦手 110 問、120 tick、iPhone では未計測）での実測値（`tests/graph-view.test.js`）:
+    - 375×812: 収束 `2534 ms`・最長フレーム `35 ms`・1 フレーム描画 `0.8 ms`
+    - 1280×800: 収束 `2985 ms`・最長フレーム `34 ms`・1 フレーム描画 `1.0 ms`
+  - 同一状態での再訪・リロード時は座標キャッシュ命中により `0 tick` で即表示。
   - 375×812・1280×800 のスクリーンショットで 13 概念の円周配置、ガイド円、四隅の本、最多概念へ寄った章、ツールバーの折り返し、詳細シート表示を確認済み。
 
 ### 完成の基準

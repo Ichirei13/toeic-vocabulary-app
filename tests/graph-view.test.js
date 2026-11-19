@@ -1414,10 +1414,10 @@ test('文法軸モード: 切り替えると 13 概念が円周上に固定さ�
     const dRel = Math.hypot(ch[0] - rel[0], ch[1] - rel[1]);
     const dAdj = Math.hypot(ch[0] - adj[0], ch[1] - adj[1]);
     const pressed = [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode + ':' + b.getAttribute('aria-pressed'));
-    return { mode: D.mode, ticks: D.settleTicks, R, cons, books, dRel, dAdj, pressed };
+    return { mode: D.mode, ticks: D.settleTicks, expectedTicks: StudyCore.GRAPH_GRAMMAR.ticks, R, cons, books, dRel, dAdj, pressed };
   });
   assert.equal(res.mode, 'grammar');
-  assert.equal(res.ticks, 140);
+  assert.equal(res.ticks, res.expectedTicks);
   assert.deepEqual(res.pressed, ['book:false', 'grammar:true']);
   assert.equal(res.cons.length, 13);
   for (const c of res.cons) assert.ok(Math.abs(c.r - res.R) < 1e-3, `${c.id} の半径が円周上にない: ${c.r}`);
@@ -1451,7 +1451,8 @@ test('文法軸モード: 教材軸との往復はキャッシュが効いて再
   await page.locator('#host button[data-zoom="relayout"]').click();
   assert.equal(await page.evaluate(() => GraphView._debug.settled), false);
   await settled(page);
-  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), 140);
+  const expectedTicks = await page.evaluate(() => StudyCore.GRAPH_GRAMMAR.ticks);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), expectedTicks);
 });
 
 test('文法軸モード: d3 がなくても概念リングの初期配置で切り替わり、例外を出さない', async t => {
@@ -1558,4 +1559,81 @@ test('性能: 文法軸モードの力学（CPU 4 倍スロットル、記録用
     assert.ok(out[vp.width].settleMs < 10000, `文法軸の収束が長すぎる: ${out[vp.width].settleMs}ms`);
   }
   console.log('# 文法軸 力学（CPU 4 倍）', JSON.stringify(out));
+});
+
+test('文法軸モード: getLayoutCache / setLayoutCache によるキャッシュ命中・再配置更新・破損・d3 なしフォールバック', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    window.__cacheStore = {};
+    window.__cacheReads = [];
+    window.__cacheWrites = [];
+    window.__mountCached = function (initialMode) {
+      const deps = window.__deps();
+      deps.initialMode = initialMode || 'grammar';
+      deps.getLayoutCache = function (mode, sig) {
+        window.__cacheReads.push({ mode, sig });
+        return window.__cacheStore[mode + ':' + sig] || null;
+      };
+      deps.setLayoutCache = function (mode, sig, coords) {
+        window.__cacheWrites.push({ mode, sig, len: coords.x.length });
+        window.__cacheStore[mode + ':' + sig] = coords;
+      };
+      GraphView.mount(document.getElementById('host'), deps);
+    };
+  });
+  // 1. d3 なしの初期配置フォールバックではキャッシュ保存しない
+  await page.evaluate(() => { window.__origD3 = window.d3; window.d3 = undefined; window.__mountCached('grammar'); });
+  await settled(page);
+  assert.equal(await page.evaluate(() => window.__cacheWrites.length), 0, 'd3 なしでキャッシュ保存してはならない');
+  // 2. d3 あり初回マウント → 120 tick 計算し、概念は高精度・その他は小数1位のキャッシュを 1 回保存
+  await page.evaluate(() => { window.d3 = window.__origD3; window.__mountCached('grammar'); });
+  await settled(page);
+  const first = await page.evaluate(() => ({
+    ticks: GraphView._debug.settleTicks,
+    expected: StudyCore.GRAPH_GRAMMAR.ticks,
+    writes: window.__cacheWrites.length,
+    sig: window.__cacheWrites[0]?.sig,
+    len: window.__cacheWrites[0]?.len,
+    svoc: GraphView._debug.worldOf(GraphView._debug.indexOf('con:SVOC（文の骨格）')),
+  }));
+  assert.equal(first.ticks, first.expected);
+  assert.equal(first.writes, 1);
+  assert.equal(typeof first.sig, 'string');
+  assert.equal(first.len, 1201);
+  // 3. 同じ条件で再マウント → キャッシュ命中により 0 tick で即表示し、再保存しない
+  await page.evaluate(() => { window.__mountCached('grammar'); });
+  await settled(page);
+  const second = await page.evaluate(() => {
+    const D = GraphView._debug, R = StudyCore.GRAPH_GRAMMAR.ringRadius;
+    const svoc = D.worldOf(D.indexOf('con:SVOC（文の骨格）'));
+    return {
+      ticks: D.settleTicks,
+      writes: window.__cacheWrites.length,
+      rDiff: Math.abs(Math.hypot(svoc[0], svoc[1]) - R),
+    };
+  });
+  assert.equal(second.ticks, 0, 'キャッシュ命中時は 0 tick であるべき');
+  assert.equal(second.writes, 1, 'キャッシュ命中時は再書き込みしない');
+  assert.ok(second.rDiff < 1e-3, `概念ノードの半径誤差が大きい: ${second.rDiff}`);
+  // 4. 再配置ボタンを押すとキャッシュがあっても再計算し、上書き保存する
+  await page.locator('#host button[data-zoom="relayout"]').click();
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), first.expected);
+  assert.equal(await page.evaluate(() => window.__cacheWrites.length), 2);
+  // 5. 壊れたキャッシュ値が入っていた場合は無視して再計算する
+  await page.evaluate(() => {
+    const key = 'grammar:' + window.__cacheWrites[0].sig;
+    window.__cacheStore[key] = { x: [NaN], y: [0] };
+    window.__mountCached('grammar');
+  });
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), first.expected);
+  assert.equal(await page.evaluate(() => window.__cacheWrites.length), 3);
+  // 6. 苦手が変わると sig が変わりキャッシュミスで再計算される
+  await seedWeak(page, 5);
+  await page.evaluate(() => { window.__mountCached('grammar'); });
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), first.expected);
+  assert.equal(await page.evaluate(() => window.__cacheWrites.length), 4);
+  assert.notEqual(await page.evaluate(() => window.__cacheWrites[3].sig), first.sig);
 });

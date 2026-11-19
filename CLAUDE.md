@@ -9,7 +9,7 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
 - `src/*.js`: DOM にも localStorage にも触れない純粋ロジック（ブラウザでは `StudyCore.*`、Node では `require`）。単体テストは `tests/unit/`。
 - `vendor/`: d3-force 3.0.0 とその依存（UMD、無改変）。グラフを開いたときだけ読む。配置の力の定義は `src/graph-force.js` で、
   ビルド（`tools/lib/layout.mjs`）とアプリ（`js/graph-view.js`）が共有する。`GRAPH_LAYOUT` を変えると生成物 `data/grammar_graph.js` の座標が変わる
-  （`tests/build_graph.test.js` がコミット済みの座標の再現を確かめる）。実行時の調整は `GRAPH_RUNTIME` だけで行う。
+  （`tests/build_graph.test.js` がコミット済みの座標の再現を確かめる）。実行時の調整は教材軸が `GRAPH_RUNTIME`、文法軸（13 概念の円周配置）は `GRAPH_GRAMMAR` で行う。
 - `data/`: `words.js` / `grammar.js`（983問。教材ごとに ID 範囲が分かれる: 1〜、1001〜、2001〜、3001〜）/ `tips.js` / `grammar_graph.js`。
 - `data/grammar_graph.js` は**生成物**。手で直さない。`tools/build_grammar_graph.mjs` が Obsidian Vault（`/Users/reiji/projects/English_study`）から作る（`VAULT_DIR` か引数で Vault を指定）。
 - `next/`: 「Study Desk」の試用版。**公開対象ではない**（`upload.py` の `FILES` にも `sw.js` にも入っていない）。保存キーは別（`toeic_next_v1`）。
@@ -45,7 +45,11 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
     通常の出題に戻る経路（`applyGrammarFilters`・`restoreSession`・`restoreBookSessionSnapshot`）は `clearNearDrill()` を呼ぶ。
     記録の読み込み直し（`js/backup-io.js` の `refreshPoolAfterRecordSync`）でも出題を作り直さない（出題中は先頭で戻る）。`tests/graph-drill.test.js` で確かめる。
 12. **グラフは、力学が収まった後と移動のアニメーションが終わった後は描かない。** `requestAnimationFrame` を呼び続けるのは、
-    開いたときの力学（`GRAPH_RUNTIME.ticks` 回）と移動（約 0.3 秒）の間だけ。`tests/graph-view.test.js` が、その後の呼び出しが 0 回であることを確かめる。
+    開いたときの力学（`GRAPH_RUNTIME.ticks` 回。文法軸は `GRAPH_GRAMMAR.ticks` 回）と移動（約 0.3 秒）の間だけ。`tests/graph-view.test.js` が、その後の呼び出しが 0 回であることを確かめる。
+13. **グラフの「文法軸」のモード選択と計算キャッシュは端末限定で扱う。** 選択中の配置軸は `toeic_graph_mode_v1`、計算済み座標キャッシュは
+    `toeic_graph_grammar_cache_v1` に置き、どちらもバックアップ・同期・別タブ再読込の対象外（`RECORD_KEYS` / `EXTRA_KEYS` / `CROSS_TAB_KEYS` に足さない）。
+    特に座標キャッシュは揮発データのため `saveJSON`（`failedSaveKeys`）に乗せず、保存失敗時はエラーを出さず再計算へ戻す。
+    `tests/graph-entry.test.js` と `tests/graph-view.test.js` で確かめる。
 
 7〜10 と保存まわりの消失・巻き戻りは `tests/data-safety.test.js` で確かめる（経緯: 2026-11-10 の調査。番号 1〜5 のシナリオ）。
 

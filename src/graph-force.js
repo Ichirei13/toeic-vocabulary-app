@@ -69,7 +69,7 @@
   const GRAPH_GRAMMAR = {
     seed: 20261119,
     ringRadius: 600,
-    ticks: 140,
+    ticks: 120,
     alpha: 0.7,
     singleOutward: 70,         // 概念が 1 つだけの問題の初期位置を、円の外側へずらす距離
     jitter: 40,                // 初期位置のばらつき
@@ -409,8 +409,54 @@
     return { sim, nodes, ticks, init };
   }
 
+  // 文法軸モードの配置キャッシュ用の署名（純関数）。ノード数・エッジ数・設定値・苦手の問題集合から決定論的な文字列を返す。
+  function grammarLayoutSignature(input, weakQ, config) {
+    config = config || GRAPH_GRAMMAR;
+    input = input || {};
+    const n = input.n != null ? input.n : (input.id ? input.id.length : (input.ids ? input.ids.length : (input.kindName ? input.kindName.length : 0)));
+    const edgeLen = input.edgeLen != null ? input.edgeLen : (input.edges ? input.edges.length : 0);
+    let h = 2166136261;
+    const mixStr = s => {
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      h ^= 0xff;
+      h = Math.imul(h, 16777619) >>> 0;
+    };
+    const mixVal = v => mixStr(v == null ? '' : String(v));
+    mixVal(n);
+    mixVal(edgeLen);
+    for (let k = 0; k < GRAMMAR_CONCEPT_ORDER.length; k++) mixStr(GRAMMAR_CONCEPT_ORDER[k]);
+    for (const k of [
+      'seed', 'ringRadius', 'ticks', 'alpha', 'singleOutward', 'jitter', 'centerPull',
+      'bookCorner', 'bookPull', 'chapterPull', 'rulePull', 'chapterRadiusFactor',
+      'conceptStrength', 'conceptDistance', 'weakConceptStrength', 'parentStrength', 'parentDistance',
+      'weakParentFactor', 'bookChapterStrength', 'bookChapterDistance', 'trapStrength', 'trapDistance',
+      'weakTrapStrength', 'weakLinkDistance', 'chargeDistanceMax', 'collideStrength', 'hubCollidePerWeak',
+    ]) mixVal(config[k]);
+    if (config.bookCorners) {
+      for (const k of Object.keys(config.bookCorners).sort()) {
+        const c = config.bookCorners[k];
+        mixStr(k + ':' + (c ? c[0] + ',' + c[1] : ''));
+      }
+    }
+    if (config.charge) for (const k of Object.keys(config.charge).sort()) mixStr(k + ':' + config.charge[k]);
+    if (config.collideRadius) for (const k of Object.keys(config.collideRadius).sort()) mixStr(k + ':' + config.collideRadius[k]);
+    let weakCount = 0;
+    if (weakQ) {
+      for (let i = 0; i < n; i++) {
+        if (weakQ[i] > 0) {
+          weakCount++;
+          mixVal(i);
+        }
+      }
+    }
+    return `g1:${n}:${edgeLen}:${weakCount}:${(h >>> 0).toString(36)}`;
+  }
+
   return {
     GRAPH_LAYOUT, GRAPH_RUNTIME, GRAMMAR_CONCEPT_ORDER, GRAPH_GRAMMAR,
-    mulberry32, bookOfNodes, createSimulation, grammarInitialPositions, createGrammarSimulation,
+    mulberry32, bookOfNodes, createSimulation, grammarInitialPositions, createGrammarSimulation, grammarLayoutSignature,
   };
 });
