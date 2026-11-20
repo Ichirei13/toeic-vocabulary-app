@@ -26,6 +26,7 @@ const GRAPH_FILES = [
   'src/graph-geometry.js',
   'src/graph-detail.js',
   'src/graph-near.js',
+  'src/graph-report.js',
   'js/graph-view.js',
   // 力学用（読めなくてもグラフは開く）。graph-view.js の後に差し込まれる
   'vendor/d3-dispatch.min.js',
@@ -400,6 +401,14 @@ test('文法軸モードの選択がこの端末に記憶され、再訪・リ�
   await page.locator('#review-page [data-home-action="open-graph"]').click();
   await drawn(page);
   assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  // レーダーチャートモードも記憶され、リロード後も開く
+  await page.click('#graph-page .graph-mode-btn[data-mode="radar"]');
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'));
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('toeic_graph_mode_v1'))), 'radar');
+  await page.reload();
+  await page.getByRole('tab', { name: '復習', exact: true }).click();
+  await page.locator('#review-page [data-home-action="open-graph"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'));
 });
 
 test('文法軸の座標キャッシュ（toeic_graph_grammar_cache_v1）が再訪・リロードで効き、苦手変化で再計算、破損や容量超過でもエラーを出さない', async t => {

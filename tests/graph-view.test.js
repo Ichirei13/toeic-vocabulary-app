@@ -24,6 +24,7 @@ ${extraHead}
 <script src="/src/graph-geometry.js"></script>
 <script src="/src/graph-detail.js"></script>
 <script src="/src/graph-near.js"></script>
+<script src="/src/graph-report.js"></script>
 <script src="/vendor/d3-dispatch.min.js"></script>
 <script src="/vendor/d3-quadtree.min.js"></script>
 <script src="/vendor/d3-timer.min.js"></script>
@@ -1283,6 +1284,11 @@ test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async
       await page.click('#host .graph-mode-btn[data-mode="grammar"]');
       await settled(page);
       await shot('grammar-fit');
+      await page.click('#host .graph-mode-btn[data-mode="radar"]');
+      await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+      await shot('radar');
+      await page.click('#host .graph-mode-btn[data-mode="grammar"]');
+      await settled(page);
       const gci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
       const [gx, gy] = await page.evaluate(i => GraphView._debug.screenOf(i), gci);
       await page.mouse.click(gx, gy);
@@ -1418,7 +1424,7 @@ test('文法軸モード: 切り替えると 13 概念が円周上に固定さ�
   });
   assert.equal(res.mode, 'grammar');
   assert.equal(res.ticks, res.expectedTicks);
-  assert.deepEqual(res.pressed, ['book:false', 'grammar:true']);
+  assert.deepEqual(res.pressed, ['book:false', 'grammar:true', 'radar:false']);
   assert.equal(res.cons.length, 13);
   for (const c of res.cons) assert.ok(Math.abs(c.r - res.R) < 1e-3, `${c.id} の半径が円周上にない: ${c.r}`);
   assert.equal(res.books.length, 4);
@@ -1636,4 +1642,122 @@ test('文法軸モード: getLayoutCache / setLayoutCache によるキャッシ�
   assert.equal(await page.evaluate(() => GraphView._debug.settleTicks), first.expected);
   assert.equal(await page.evaluate(() => window.__cacheWrites.length), 4);
   assert.notEqual(await page.evaluate(() => window.__cacheWrites[3].sig), first.sig);
+});
+
+test('レーダーチャートモード: 切り替えで SVG レーダー(13軸)と横棒グラフが出て rAF は 0 回、教材・苦手・カテゴリ・ソートが連動する', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    // 合成の記録: 複数教材・複数概念に正誤と苦手を混ぜる
+    window.__stats = {};
+    window.__weak = {};
+    for (let i = 0; i < 60; i++) {
+      const qid = GRAMMAR_GRAPH.qids[i];
+      window.__stats[qid] = { a: 4, c: i % 3 === 0 ? 1 : 4 };
+      if (i % 5 === 0) window.__weak[qid] = { due: i === 0 ? Date.now() - 1000 : Date.now() + 86400000 };
+    }
+    window.__mount();
+  });
+  await settled(page);
+  await page.click('#host .graph-mode-btn[data-mode="radar"]');
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+
+  const initial = await page.evaluate(() => ({
+    mode: GraphView._debug.mode,
+    canvasHidden: document.querySelector('#host canvas').hidden,
+    radarHidden: document.querySelector('#host .graph-radar-panel').hidden,
+    axes: document.querySelectorAll('#host .graph-radar-axis-btn').length,
+    bars: document.querySelectorAll('#host .graph-bar-row').length,
+    scoreNum: document.querySelector('#host .graph-radar-score-num')?.textContent,
+    pressed: [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode + ':' + b.getAttribute('aria-pressed')),
+  }));
+  assert.equal(initial.mode, 'radar');
+  assert.equal(initial.canvasHidden, true);
+  assert.equal(initial.radarHidden, false);
+  assert.equal(initial.axes, 13);
+  assert.equal(initial.bars, 13);
+  assert.match(initial.scoreNum, /^\d+%$/);
+  assert.deepEqual(initial.pressed, ['book:false', 'grammar:false', 'radar:true']);
+
+  // レーダーチャート中は rAF・タイマーが 0 回
+  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
+  await new Promise(r => setTimeout(r, 500));
+  assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 });
+
+  // 教材チップで絞るとサマリーの問題数が変わる
+  await page.click('#host .graph-chip[data-book="kin"]');
+  const kinScope = await page.locator('#host .graph-radar-scope').innerText();
+  assert.match(kinScope, /金の文法/);
+  assert.match(kinScope, /160問/);
+
+  // すべてに戻してカテゴリ切替（ひっかけ -> 教材別）とソート（弱い順）
+  await page.click('#host .graph-chip[data-book="all"]');
+  await page.click('#host .graph-bars-tab[data-radar-cat="trap"]');
+  assert.equal(await page.locator('#host .graph-bar-row').count(), 12);
+  await page.click('#host .graph-bars-tab[data-radar-cat="book"]');
+  assert.equal(await page.locator('#host .graph-bar-row').count(), 4);
+  await page.click('#host .graph-bars-tab[data-radar-cat="concept"]');
+  await page.click('#host .graph-bars-sort[data-radar-sort="weakness"]');
+  assert.equal(await page.locator('#host .graph-bars-sort[data-radar-sort="weakness"]').getAttribute('aria-pressed'), 'true');
+
+  // 苦手のみトグルで苦手 0 問の概念を絞れる
+  await page.click('#host .graph-weak-toggle');
+  const weakBarsCount = await page.locator('#host .graph-bar-row').count();
+  assert.ok(weakBarsCount > 0 && weakBarsCount <= 13);
+  await page.click('#host .graph-weak-toggle');
+
+  // 着手率オーバーレイトグル
+  assert.equal(await page.locator('#host .graph-radar-poly-cov').count(), 1);
+  await page.click('#host [data-radar-cov]');
+  assert.equal(await page.locator('#host .graph-radar-poly-cov').count(), 0);
+});
+
+test('レーダーチャートモード: 頂点・バータップで詳細シートが開き、問題タップでネットワーク図へ移動する', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    window.__stats = { [GRAMMAR_GRAPH.qids[0]]: { a: 3, c: 1 } };
+    window.__weak = { [GRAMMAR_GRAPH.qids[0]]: { due: Date.now() + 86400000 } };
+    const deps = window.__deps();
+    deps.initialMode = 'radar';
+    window.__changes = [];
+    deps.onModeChange = m => window.__changes.push(m);
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+
+  // 1. 棒グラフ行タップで詳細シートが開く
+  await page.locator('#host .graph-bar-row').first().click();
+  assert.equal(await sheetOpen(page), true);
+  assert.equal(await page.locator('#host .graph-bar-row.is-active').count(), 1);
+  await page.keyboard.press('Escape');
+  assert.equal(await sheetOpen(page), false);
+
+  // 2. レーダー軸タップで詳細シートが開き、中の問題行タップで book モードへ飛ぶ
+  await page.locator('#host .graph-radar-axis-btn').first().click();
+  assert.equal(await sheetOpen(page), true);
+  const firstQ = page.locator('#host .graph-q[data-node]').first();
+  if (await firstQ.count()) {
+    await firstQ.click();
+    await settled(page);
+    assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+    assert.equal(await page.evaluate(() => document.querySelector('#host canvas').hidden), false);
+    assert.equal(await sheetOpen(page), true);
+    assert.deepEqual(await page.evaluate(() => window.__changes), ['book']);
+  }
+});
+
+test('レーダーチャートモード: スマホ(375px)とPC(1280px)で横はみ出しがない', async t => {
+  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
+    const page = await open(t, { viewport: vp });
+    await page.evaluate(() => {
+      const deps = window.__deps();
+      deps.initialMode = 'radar';
+      GraphView.mount(document.getElementById('host'), deps);
+    });
+    await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+    const overflow = await page.evaluate(() => {
+      const p = document.querySelector('#host .graph-radar-panel');
+      return p.scrollWidth - p.clientWidth;
+    });
+    assert.ok(overflow <= 1, `vp=${vp.width} で横スクロールが発生した: overflow=${overflow}`);
+  }
 });
