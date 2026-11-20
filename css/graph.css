@@ -773,8 +773,11 @@
 }
 .graph-radar-axis-label {
   fill: var(--graph-label);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
+}
+.graph-radar-svg.is-compact .graph-radar-axis-label {
+  font-size: 16px;
 }
 .graph-radar-axis-pct {
   fill: var(--graph-label-muted);

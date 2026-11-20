@@ -78,7 +78,7 @@
     frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0, lastFarQuestionLabels: 0, focusEdges: 0, lastFocusEdgeWidth: 0,
     drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, mode: 'book', book: 'all', weakOnly: false, lastTap: -1,
     settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
-    focusNode: -1, focusCount: 0, animating: false,
+    focusNode: -1, focusCount: 0, animating: false, radarCompact: false,
   };
   let inst = null;
 
@@ -171,6 +171,9 @@
     let radarCategory = 'concept';
     let radarSort = 'default';
     let radarShowCoverage = true;
+    let radarCompact = false;   // レーダーを詰めた配置（狭い画面用）で描いたか
+    // SVG を入れる枠の幅がこれ未満なら詰めた配置にする。通常の配置（文字 12・viewBox 幅 420）で実効 11px を保てる最小の幅（12 × 385 ÷ 420 = 11.0）
+    const RADAR_COMPACT_BELOW_PX = 385;
     let pendingJumpNode = -1;
     const kindNames = new Array(n);
     for (let i = 0; i < n; i++) kindNames[i] = kindName(i);
@@ -482,7 +485,14 @@
     function pctText(ratio) {
       return ratio == null ? '—' : Math.round(ratio * 100) + '%';
     }
-    function renderRadarReport() {
+    // レーダーを詰めた配置にするか。枠（.graph-radar-svg-wrap）の実際の幅で決める。枠がまだ無い最初の描画では、パネルの幅で仮に決める
+    // （radarPanel は try ブロックの中で作るので、この関数もブロックの中に置く）
+    function wantRadarCompact() {
+      const wrap = radarPanel.querySelector('.graph-radar-svg-wrap');
+      const px = wrap ? wrap.clientWidth : radarPanel.clientWidth;
+      return px > 0 && px < RADAR_COMPACT_BELOW_PX;
+    }
+    function renderRadarReport(recheck = true) {
       if (typeof S.computeGraphReport !== 'function' || typeof S.computeRadarGeometry !== 'function') {
         radarPanel.innerHTML = '<div class="graph-radar-empty">レポートを読み込めませんでした。</div>';
         return;
@@ -542,8 +552,12 @@
           highlightsHtml +
         `</section>`;
 
-      // 2. 13 概念レーダーチャート（SVG）
-      const geo = S.computeRadarGeometry(rep.concepts, { width: 420, height: 330, radius: 96, labelOffset: 20 });
+      // 2. 13 概念レーダーチャート（SVG）。狭い枠では半径を小さくして文字を大きくする（viewBox は共通）
+      radarCompact = wantRadarCompact();
+      debug.radarCompact = radarCompact;
+      const geo = S.computeRadarGeometry(rep.concepts, radarCompact
+        ? { width: 420, height: 330, radius: 76, labelOffset: 16 }
+        : { width: 420, height: 330, radius: 96, labelOffset: 20 });
       const ringsSvg = geo.rings.map(r =>
         `<polygon class="graph-radar-ring${r.isTarget ? ' is-target' : ''}" points="${fmtPts(r.points)}"></polygon>`
       ).join('');
@@ -597,7 +611,7 @@
       }).join('');
 
       const radarSvg =
-        `<svg class="graph-radar-svg" viewBox="0 0 420 330" role="img" aria-label="13文法概念のレーダーチャート">` +
+        `<svg class="graph-radar-svg${radarCompact ? ' is-compact' : ''}" viewBox="0 0 420 330" role="img" aria-label="13文法概念のレーダーチャート">` +
           ringsSvg +
           axesSvg +
           covPolySvg +
@@ -681,6 +695,8 @@
           `<div class="graph-radar-col-main">${summaryHtml}${radarCardHtml}</div>` +
           `<div class="graph-radar-col-bars">${barsCardHtml}</div>` +
         `</div>`;
+      // 枠の幅は描いてみないと分からない（列の幅で決まる）。仮の判断が外れていたら 1 回だけ描き直す
+      if (recheck && wantRadarCompact() !== radarCompact) renderRadarReport(false);
     }
     function setMode(next, opts) {
       const target = normalizeMode(next);
@@ -1380,7 +1396,11 @@
     }
     if (typeof ResizeObserver === 'function') {
       const ro = new ResizeObserver(entries => {
-        if (mode === 'radar') return;
+        // レーダー表示中は、幅の区分が変わったときだけ描き直す（DOM の組み立てだけで rAF は使わない）
+        if (mode === 'radar') {
+          if (wantRadarCompact() !== radarCompact) renderRadarReport();
+          return;
+        }
         const r = entries[entries.length - 1].contentRect;
         const w = Math.round(r.width), h = Math.round(r.height);
         if (w !== width || h !== height) resize(w, h); // 初回の通知（大きさが同じ）では描き直さない
@@ -1468,7 +1488,7 @@
     if (inst) destroy();
     debug.frames = 0; debug.lastTap = -1; debug.lod = 0; debug.mode = 'book'; debug.book = 'all'; debug.weakOnly = false;
     debug.settled = true; debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
-    debug.focusNode = -1; debug.focusCount = 0; debug.animating = false;
+    debug.focusNode = -1; debug.focusCount = 0; debug.animating = false; debug.radarCompact = false;
     inst = createInstance(container, deps);
   }
   function refresh() { if (inst) inst.refresh(); }

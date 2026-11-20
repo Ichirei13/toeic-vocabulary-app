@@ -1962,3 +1962,50 @@ test('レーダーチャートモード: 1280px・375px で全軸 100% でもラ
     assert.ok(r >= 4.5, `theme=ios(dark) ${sel} のコントラスト比が 4.5 未満: ${r}`);
   }
 });
+
+test('レーダーチャートモード: 軸ラベルの実効文字サイズが 375px・768px・900px・1280px で 11px 以上で、viewBox からはみ出さない', async t => {
+  // 900px は 2 列になる最小の幅（レーダーが左の列に入る）。768px は 1 列でパネルは広い
+  for (const vp of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 900, height: 800 }, { width: 1280, height: 800 }]) {
+    const page = await open(t, { viewport: vp });
+    await page.evaluate(() => {
+      window.__stats = {};
+      for (const qid of GRAMMAR_GRAPH.qids) window.__stats[qid] = { a: 4, c: 4 };
+      const deps = window.__deps();
+      deps.initialMode = 'radar';
+      GraphView.mount(document.getElementById('host'), deps);
+    });
+    await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+    const res = await page.evaluate(() => {
+      const svg = document.querySelector('#host .graph-radar-svg');
+      const scale = svg.getBoundingClientRect().width / 420;
+      const out = { minPx: Infinity, outside: [] };
+      for (const el of svg.querySelectorAll('.graph-radar-axis-label')) {
+        out.minPx = Math.min(out.minPx, parseFloat(getComputedStyle(el).fontSize) * scale);
+        const b = el.getBBox();
+        if (b.x < 0 || b.x + b.width > 420 || b.y < 0 || b.y + b.height > 330) out.outside.push(el.textContent);
+      }
+      out.minPx = Math.round(out.minPx * 10) / 10;
+      return out;
+    });
+    assert.ok(res.minPx >= 11, `vp=${vp.width} で軸ラベルの実効文字サイズが ${res.minPx}px（11px 未満）`);
+    assert.deepEqual(res.outside, [], `vp=${vp.width} で viewBox からはみ出したラベル: ${JSON.stringify(res.outside)}`);
+  }
+});
+
+test('レーダーチャートモード: 表示中に画面幅が狭い⇔広いと変わると、詰めた配置へ描き直す', async t => {
+  const page = await open(t, { viewport: { width: 1280, height: 800 } });
+  await page.evaluate(() => {
+    const deps = window.__deps();
+    deps.initialMode = 'radar';
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+  assert.equal(await page.evaluate(() => GraphView._debug.radarCompact), false);
+  assert.equal(await page.locator('#host .graph-radar-svg.is-compact').count(), 0);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await waitFor(page, () => GraphView._debug.radarCompact === true && !!document.querySelector('#host .graph-radar-svg.is-compact'));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await waitFor(page, () => GraphView._debug.radarCompact === false && !document.querySelector('#host .graph-radar-svg.is-compact'));
+  // 描き直しでも rAF は使わない
+  assert.equal(await page.evaluate(() => GraphView._debug.pending), false);
+});
