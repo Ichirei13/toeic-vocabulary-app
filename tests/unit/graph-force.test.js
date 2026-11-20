@@ -264,4 +264,24 @@ test('文法軸: grammarLayoutSignature は決定論的で、データ・設定�
   assert.notStrictEqual(sCfg, s1, '設定変更で署名が変わる');
   const sLen = GF.grammarLayoutSignature({ id: g.id, edges: g.edges.slice(0, -3) }, w1, GF.GRAPH_GRAMMAR);
   assert.notStrictEqual(sLen, s1, 'エッジ変更で署名が変わる');
+
+  // 件数が同じでも中身が変われば署名が変わる（グラフを作り直して概念タグを付け替えたとき、古い座標を出さない）
+  const conceptIdx = g.kind.map((k, i) => (g.kinds[k] === 'concept' ? i : -1)).filter(i => i >= 0);
+  assert.ok(conceptIdx.length >= 2, 'フィクスチャに概念が 2 つ以上ある');
+  const retarget = g.edges.slice();
+  let moved = false;
+  for (let k = 0; k + 2 < retarget.length; k += 3) {
+    if (retarget[k + 2] !== 1) continue;
+    retarget[k + 1] = conceptIdx.find(c => c !== retarget[k + 1]);
+    moved = true;
+    break;
+  }
+  assert.ok(moved, 'フィクスチャに概念リンクがある');
+  const sRetarget = GF.grammarLayoutSignature({ id: g.id, edges: retarget }, w1, GF.GRAPH_GRAMMAR);
+  assert.notStrictEqual(sRetarget, s1, '件数が同じでも、概念リンクの行き先が変われば署名が変わる');
+  const renamed = g.id.slice();
+  renamed[0] = renamed[0] + ':renamed';
+  const sRenamed = GF.grammarLayoutSignature({ id: renamed, edges: g.edges }, w1, GF.GRAPH_GRAMMAR);
+  assert.notStrictEqual(sRenamed, s1, '件数が同じでも、ノードの id が変われば署名が変わる');
+  assert.ok(s1.startsWith('g2:'), '中身を含める形式に変えたので版は g2');
 });

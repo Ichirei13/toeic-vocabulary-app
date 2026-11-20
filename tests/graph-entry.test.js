@@ -470,3 +470,32 @@ test('文法軸の座標キャッシュ（toeic_graph_grammar_cache_v1）が再�
   const toasts = await page.evaluate(() => [...document.querySelectorAll('.toast')].map(el => el.textContent));
   assert.equal(toasts.some(t => t.includes('保存できませんでした')), false, `キャッシュ保存失敗で学習エラー警告が出た: ${JSON.stringify(toasts)}`);
 });
+
+test('配置軸の保存に失敗しても、学習記録の保存エラーとして扱わず、別タブの保存の読み込み直しを止めない', async t => {
+  const { page } = await open(t);
+  await openReviewCard(page);
+  await drawn(page);
+  await page.evaluate(() => {
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === 'toeic_graph_mode_v1') throw new DOMException('quota', 'QuotaExceededError');
+      return orig.call(this, k, v);
+    };
+  });
+  await page.click('#graph-page .graph-mode-btn[data-mode="grammar"]');
+  await waitFor(page, () => GraphView._debug.mode === 'grammar' && GraphView._debug.settled === true, undefined, 15000);
+  const res = await page.evaluate(() => ({
+    failed: [...failedSaveKeys],
+    toasts: [...document.querySelectorAll('.toast')].map(el => el.textContent),
+  }));
+  assert.deepEqual(res.failed, [], '配置軸のキーが保存失敗として残ると、このタブは別タブの保存を読み込み直さなくなる');
+  assert.equal(res.toasts.some(s => s.includes('保存できませんでした')), false, `配置軸の保存失敗で学習エラー警告が出た: ${JSON.stringify(res.toasts)}`);
+  // 別タブが苦手リストを保存したら、このタブも読み込み直す
+  const qid = await page.evaluate(() => GRAMMAR_GRAPH.qids[0]);
+  await page.evaluate(q => {
+    const raw = JSON.stringify({ [q]: { streak: 0, added: Date.now() - 1000, due: Date.now() + 86400000, u: Date.now() } });
+    localStorage.setItem('toeic_weak_grammar', raw);
+    reloadRecordsSavedElsewhere();
+  }, qid);
+  await waitFor(page, q => !!(state.grammarWeakData && state.grammarWeakData[q]), qid);
+});

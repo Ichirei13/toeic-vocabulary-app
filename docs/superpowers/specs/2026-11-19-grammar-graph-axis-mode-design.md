@@ -145,7 +145,8 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
 - **実行回数と減衰**:
   - `seed: 20261119`、`ringRadius: 600`、`bookCorner: 0.95`、`ticks: 120`、`alpha: 0.7`、`alphaDecay = 1 - Math.pow(0.001 / alpha, 1 / ticks)`、`alphaMin(0.001)`（`ticks: 100` も検証したが、フィクスチャの苦手問題引き寄せで概念への距離がわずかに収束しきらなかったため教材軸と同じ `120` とした）。
 - **配置キャッシュの署名（`grammarLayoutSignature(input, weakQ, config)`）**:
-  - ノード数・エッジ数・`GRAMMAR_CONCEPT_ORDER`・`GRAPH_GRAMMAR` 全定数・`weakQ` で苦手の問題添字から FNV-1a 32bit で決定論的な署名文字列 `g1:<n>:<edgeLen>:<weakCount>:<hash>` を生成する。
+  - ノード数・エッジ数・ノードの id すべて・エッジの全要素・`GRAMMAR_CONCEPT_ORDER`・`GRAPH_GRAMMAR` 全定数・`weakQ` で苦手の問題添字から FNV-1a 32bit で決定論的な署名文字列 `g2:<n>:<edgeLen>:<weakCount>:<hash>` を生成する。
+  - 2026-11-20 改訂（`g1` → `g2`）: 当初は件数だけを見ていたため、グラフを作り直して概念タグを付け替えても（件数は同じ）古い座標が出た。id とエッジの中身を混ぜて防ぐ（計算は 1 ミリ秒未満）。
 
 ## 5. 画面内の状態管理とキャッシュ（`js/graph-view.js`）
 
@@ -179,7 +180,9 @@ d3-force の出発点であり、d3-force 未ロード時・計算失敗時の�
 
 - モード保存キー: `const GRAPH_MODE_KEY = 'toeic_graph_mode_v1';`
   - 読み込み: `loadJSON(GRAPH_MODE_KEY, 'book')` を読み、`'grammar'` なら `'grammar'`、それ以外は `'book'` を `GraphView.mount` の `deps.initialMode` に渡す。
-  - 書き込み: `deps.onModeChange` で `saveJSON(GRAPH_MODE_KEY, mode)` を呼ぶ（`CLAUDE.md` 約束 3 準拠）。
+  - 書き込み: `deps.onModeChange` で `writeGraphMode(mode)` を呼び、`localStorage.setItem` を直接 `try/catch` で囲んで書く（2026-11-20 改訂）。
+    当初は `saveJSON` を使っていたが、保存に失敗するとキーが `failedSaveKeys` に残り、次にモードを切り替えて保存できるまで、
+    そのタブが別タブの保存を読み込み直さなくなる（`js/boot.js` の `reloadRecordsSavedElsewhere`）。表示の好みは学習記録ではないので、座標キャッシュと同じ扱いにした。
 - 座標キャッシュキー: `const GRAPH_GRAMMAR_CACHE_KEY = 'toeic_graph_grammar_cache_v1';` ＋ メモリ内変数 `graphGrammarLayoutCache`
   - 読み込み・書き込みは `deps.getLayoutCache` / `deps.setLayoutCache` 経由で `GraphView` に渡す。
   - キャッシュは消えても再計算できる揮発データのため、`saveJSON`（`failedSaveKeys` による学習記録エラー通知）は使わず `localStorage.setItem` を直接 `try/catch` で囲み、容量不足・破損時は静かに無視して再計算へ戻す。
