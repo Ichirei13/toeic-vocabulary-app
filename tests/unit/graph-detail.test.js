@@ -304,3 +304,29 @@ test('book フィルタ: 指定教材に属する問題・成績・苦手だけ�
   const dSekaiBook = D.buildDetail(g2, m, 1, { stats, weak, isDue, book: 'kin' });
   assert.strictEqual(dSekaiBook.questions.length, 2);
 });
+
+test('book フィルタ: 詳細シートの状態は、同じ教材で絞ったレーダーの状態と一致する（実グラフ）', () => {
+  const R = require('../../src/graph-report.js');
+  const g = loadRealGraph();
+  const stats = {}, weak = {};
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  g.qids.forEach(q => {
+    if (rnd() < 0.6) { const a = 1 + Math.floor(rnd() * 6); stats[q] = { a, c: Math.floor(a * rnd()) }; }
+    if (rnd() < 0.08) weak[q] = { due: rnd() < 0.3 ? 1 : 2 };
+  });
+  const isDue = e => e.due === 1;
+  const m = M.computeMastery(g, stats, weak, isDue);
+  const STATE_LABELS = ['未着手', '要復習', '苦手', '練習不足', 'もう少し', '定着'];
+  for (const book of ['kin', 'sekai', 'polaris2', 'toplevel']) {
+    const rep = R.computeGraphReport(g, stats, weak, isDue, { book });
+    for (const it of [...rep.concepts, ...rep.traps]) {
+      if (it.total === 0) continue;
+      const d = D.buildDetail(g, m, it.nodeIndex, { stats, weak, isDue, book, getQuestion: () => undefined });
+      assert.strictEqual(d.stateLabel, STATE_LABELS[M.MASTERY_STATES.indexOf(it.state)], `${book} / ${it.id}`);
+      assert.strictEqual(d.answered, it.answered, `${book} / ${it.id} の解答数`);
+      assert.strictEqual(d.correct, it.correct, `${book} / ${it.id} の正解数`);
+      assert.strictEqual(d.weakCount, it.weak, `${book} / ${it.id} の苦手数`);
+    }
+  }
+});

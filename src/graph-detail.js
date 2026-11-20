@@ -1,10 +1,11 @@
 // 文法グラフのノード詳細（詳細シートの中身）の組み立て。DOM にも保存にも触れない純関数。
 // HTML は作らない（画面側が escapeHtml を通して組む）。
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root.StudyCore = root.StudyCore || {}, api);
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./mastery.js'));
+  else Object.assign(root.StudyCore = root.StudyCore || {}, factory(root.StudyCore || {}));
+})(typeof self !== 'undefined' ? self : this, function (M) {
+  // 教材で絞ったときの集計と判定は src/mastery.js の readQuestionArrays・classifyMastery を使う
+  // （レーダーと同じ読み方・同じ判定にするため）。ブラウザでは home.js の GRAPH_SCRIPTS で mastery.js が先に読み込まれている。
   // graph.kinds の順（book, chapter, rule, concept, trap, question）に対応する表示名
   const KIND_LABELS = ['本', '章', 'ルール', '概念', 'ひっかけ(Trap)', '問題'];
   // MASTERY_STATES の順（unseen, due, weak, few, mid, good）に対応する表示名
@@ -131,44 +132,21 @@
 
     let answered, correct, weakCount, rate, stateLabel;
     if (bookOrds) {
+      // 教材で絞ったときは、レーダー（graph-report.js）と同じ読み方・同じ判定で集計する
+      const q = M.readQuestionArrays(graph, stats, weak, dueFn);
       let aSum = 0, cSum = 0, wSum = 0, dSum = 0;
-      for (const qid of qidList) {
-        const key = String(qid);
-        if (hasOwn(stats, key)) {
-          const rec = stats[key];
-          if (rec && typeof rec === 'object') {
-            const a = Math.floor(Number(rec.a));
-            if (Number.isFinite(a) && a >= 1) {
-              let c = Math.floor(Number(rec.c));
-              if (!Number.isFinite(c) || c < 0) c = 0;
-              const ca = Math.min(a, 1000000);
-              aSum += ca;
-              cSum += Math.min(c, ca);
-            }
-          }
-        }
-        if (hasOwn(weak, key)) {
-          wSum++;
-          if (dueFn) {
-            let due = false;
-            try { due = !!dueFn(weak[key]); } catch (e) { due = false; }
-            if (due) dSum++;
-          }
-        }
+      const counted = new Set();
+      for (let k = graph.memberStart[nodeIndex]; k < graph.memberStart[nodeIndex + 1]; k++) {
+        const o = graph.members[k];
+        if (!(o >= 0 && o < q.nq) || counted.has(o) || !bookOrds.has(o)) continue;
+        counted.add(o);
+        aSum += q.qa[o]; cSum += q.qc[o]; wSum += q.qw[o]; dSum += q.qd[o];
       }
       answered = aSum;
       correct = cSum;
       weakCount = wSum;
-      const r = (cSum + 1) / (aSum + 2);
-      rate = aSum > 0 ? r : null;
-      let sIdx;
-      if (aSum === 0) sIdx = 0;
-      else if (dSum > 0) sIdx = 1;
-      else if (wSum > 0 || (aSum >= 3 && r < 0.6)) sIdx = 2;
-      else if (aSum < 3) sIdx = 3;
-      else if (r >= 0.8 && wSum === 0) sIdx = 5;
-      else sIdx = 4;
-      stateLabel = STATE_LABELS[sIdx];
+      rate = aSum > 0 ? (cSum + 1) / (aSum + 2) : null;
+      stateLabel = STATE_LABELS[M.classifyMastery(aSum, cSum, wSum, dSum)];
     } else {
       answered = mastery.answered[nodeIndex];
       correct = mastery.correct ? mastery.correct[nodeIndex] : 0;
