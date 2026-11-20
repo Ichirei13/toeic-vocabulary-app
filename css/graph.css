@@ -972,21 +972,25 @@
 /* 状態別の色（サマリー・レーダードット・横棒） */
 .graph-radar-dot.is-state-unseen { fill: var(--graph-unseen); }
 .graph-radar-dot.is-state-weak { fill: var(--graph-weak); }
+.graph-radar-dot.is-state-due { fill: var(--graph-due); }
 .graph-radar-dot.is-state-few { fill: var(--graph-few); }
 .graph-radar-dot.is-state-mid { fill: var(--graph-mid); }
 .graph-radar-dot.is-state-good { fill: var(--graph-good); }
 
 .graph-bar-fill.is-state-unseen { background: var(--graph-unseen); }
 .graph-bar-fill.is-state-weak { background: var(--graph-weak); }
+.graph-bar-fill.is-state-due { background: var(--graph-due); }
 .graph-bar-fill.is-state-few { background: var(--graph-few); }
 .graph-bar-fill.is-state-mid { background: var(--graph-mid); }
 .graph-bar-fill.is-state-good { background: var(--graph-good); }
 
 .graph-bar-pct.is-state-good { color: var(--graph-good); }
 .graph-bar-pct.is-state-weak { color: var(--graph-weak); }
+.graph-bar-pct.is-state-due { color: var(--graph-weak); }
 
 .graph-radar-state.is-state-good { background: var(--graph-badge-good-bg); color: var(--graph-badge-good-fg); }
 .graph-radar-state.is-state-weak { background: var(--graph-badge-weak-bg); color: var(--graph-badge-weak-fg); }
+.graph-radar-state.is-state-due { background: var(--graph-badge-weak-bg); color: var(--graph-badge-weak-fg); }
 
 .graph-radar-hl:focus-visible,
 .graph-radar-mini-toggle:focus-visible,

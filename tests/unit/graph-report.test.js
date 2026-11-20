@@ -6,6 +6,7 @@ const vm = require('node:vm');
 
 const R = require('../../src/graph-report.js');
 const F = require('../../src/graph-force.js');
+const M = require('../../src/mastery.js');
 
 const KINDS = ['book', 'chapter', 'rule', 'concept', 'trap', 'question'];
 const NEVER_DUE = () => false;
@@ -119,9 +120,9 @@ test('computeGraphReport: 教材別フィルタが概念・ひっかけ・サマ
   assert.equal(kin.concepts[0].correct, 5);
   assert.equal(kin.concepts[1].total, 1); // q3 のみ
   assert.equal(kin.concepts[1].accuracy, 1);
-  assert.equal(kin.concepts[1].state, 'good'); // 3/3 = 100% -> good
-  assert.equal(kin.concepts[0].state, 'mid');  // 5/8 = 62.5% -> mid (苦手1ありでも正答率帯で判定)
-  assert.equal(all.concepts[0].state, 'weak'); // 5/13 = 38.5% -> weak
+  assert.equal(kin.concepts[1].state, 'good'); // 3/3 → (3+1)/(3+2)=0.8 → good
+  assert.equal(kin.concepts[0].state, 'due');  // 要復習 1 問を含む（computeMastery と同じく、正答率より要復習を優先）
+  assert.equal(all.concepts[0].state, 'due');  // 要復習 1 問を含む
   assert.equal(kin.traps[0].total, 1); // q2 のみ
 
   // books 一覧は比較のため常に 4 冊（サンプルでは 2 冊）それぞれの総数を保つ
@@ -235,4 +236,57 @@ test('sortReportItems & summary: total=0（収録なし）は最下位、苦手�
   );
   assert.equal(rep.summary.strongest, null);
   assert.equal(rep.summary.weakest?.id, 'con:SVOC（文の骨格）');
+});
+
+function loadRealGraph() {
+  const code = fs.readFileSync(path.join(__dirname, '../../data/grammar_graph.js'), 'utf8');
+  const ctx = {};
+  vm.runInNewContext(code + '; this.GRAMMAR_GRAPH = GRAMMAR_GRAPH;', ctx);
+  return ctx.GRAMMAR_GRAPH;
+}
+
+test('computeGraphReport: 概念・ひっかけ・教材の state は computeMastery と一致する（実グラフ、苦手・要復習あり）', () => {
+  const g = loadRealGraph();
+  const stats = {}, weak = {};
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  g.qids.forEach(q => {
+    if (rnd() < 0.6) { const a = 1 + Math.floor(rnd() * 6); stats[q] = { a, c: Math.floor(a * rnd()) }; }
+    if (rnd() < 0.08) weak[q] = { due: rnd() < 0.3 ? 1 : 2 };
+  });
+  const isDue = e => e.due === 1;
+  const m = M.computeMastery(g, stats, weak, isDue);
+  const rep = R.computeGraphReport(g, stats, weak, isDue, { conceptOrder: F.GRAMMAR_CONCEPT_ORDER });
+  for (const it of [...rep.concepts, ...rep.traps, ...rep.books]) {
+    assert.equal(it.state, M.MASTERY_STATES[m.state[it.nodeIndex]], `${it.id} の state がネットワーク図と違う`);
+  }
+});
+
+test('computeGraphReport: 正答率 90% でも苦手があれば weak、要復習があれば due', () => {
+  const stats = { 1: { a: 10, c: 9 }, 2: { a: 10, c: 9 }, 4: { a: 10, c: 9 }, 3: { a: 10, c: 9 }, 5: { a: 10, c: 9 } };
+  const weakOnly = R.computeGraphReport(SAMPLE_GRAPH, stats, { 1: { due: 2 } }, () => false);
+  assert.equal(weakOnly.concepts[0].state, 'weak'); // SVOC: 90%・苦手 1
+  assert.equal(weakOnly.concepts[1].state, 'good'); // 受動態: 90%・苦手 0
+  const due = R.computeGraphReport(SAMPLE_GRAPH, stats, { 1: { due: 1 } }, e => e.due === 1);
+  assert.equal(due.concepts[0].state, 'due');
+  assert.equal(due.summary.state, 'due');
+});
+
+test('summary.strongest / weakest: 着手した問題が 3 問未満の分野は、正答率だけでは得意にも要強化にもならない', () => {
+  const g = makeGraph([
+    { id: 'con:SVOC（文の骨格）', kind: 'concept', label: 'SVOC（文の骨格）', members: [1, 2, 3, 4] },
+    { id: 'con:能動態と受動態', kind: 'concept', label: '能動態と受動態', members: [5, 6, 7, 8] },
+    { id: 'con:分詞（現在分詞・過去分詞）', kind: 'concept', label: '分詞（現在分詞・過去分詞）', members: [9, 10, 11] },
+  ]);
+  const stats = {
+    1: { a: 3, c: 3 },                                    // SVOC: 1 問を 3 回解いて全問正解（着手 1 問）
+    5: { a: 2, c: 2 }, 6: { a: 2, c: 2 }, 7: { a: 2, c: 1 }, // 受動態: 着手 3 問・5/6 = 83%
+    9: { a: 1, c: 0 },                                    // 分詞: 1 問 1 回だけ不正解（着手 1 問）
+  };
+  const rep = R.computeGraphReport(g, stats, {}, () => false);
+  assert.equal(rep.summary.strongest?.id, 'con:能動態と受動態', '着手 1 問・100% の SVOC は得意にしない');
+  assert.equal(rep.summary.weakest, null, '着手 1 問・0% の分詞は、苦手登録がなければ要強化にしない');
+
+  const withWeak = R.computeGraphReport(g, stats, { 9: { due: 2 } }, () => false);
+  assert.equal(withWeak.summary.weakest?.id, 'con:分詞（現在分詞・過去分詞）', '苦手登録があれば着手数に関係なく要強化の候補');
 });

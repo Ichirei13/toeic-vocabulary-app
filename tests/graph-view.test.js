@@ -1937,7 +1937,7 @@ test('レーダーチャートモード: 1280px・375px で全軸 100% でもラ
       const l1 = lum(parse(c1)), l2 = lum(parse(c2));
       return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
     };
-    const selectors = ['.graph-radar-state.is-state-good', '.graph-bar-badge.is-due', '.graph-bar-badge.is-weak'];
+    const selectors = ['.graph-radar-state.is-state-good', '.graph-radar-state.is-state-due', '.graph-bar-badge.is-due', '.graph-bar-badge.is-weak'];
     const res = {};
     for (const sel of selectors) {
       const el = document.querySelector('#host ' + sel);

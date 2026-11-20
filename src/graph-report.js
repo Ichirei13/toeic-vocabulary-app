@@ -1,13 +1,14 @@
 // 文法グラフの「レーダーチャート（模試結果風レポート）」用の集計・幾何計算。
 // DOM にも localStorage にも触れない純関数（ブラウザでは StudyCore.*、Node では require）。
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root.StudyCore = root.StudyCore || {}, api);
-})(typeof self !== 'undefined' ? self : this, function () {
-  const MASTERY_STATES = ['unseen', 'due', 'weak', 'few', 'mid', 'good'];
-  const THRESHOLDS = { minAnswers: 3, weakBelow: 0.6, goodFrom: 0.8 };
-  const MAX_ANSWERS = 1000000;
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./mastery.js'));
+  else Object.assign(root.StudyCore = root.StudyCore || {}, factory(root.StudyCore || {}));
+})(typeof self !== 'undefined' ? self : this, function (M) {
+  // 判定の規則と記録の読み方は src/mastery.js に一本化している（ネットワーク図・詳細シートと状態をそろえるため）。
+  // ブラウザでは home.js の GRAPH_SCRIPTS で mastery.js が先に読み込まれている。
+  const { MASTERY_STATES, MASTERY_THRESHOLDS, classifyMastery, readQuestionArrays } = M;
+  // 得意・要強化を正答率で選ぶのに必要な、着手した問題の最小数（判定の「解答数が少なすぎる」と同じ値）
+  const MIN_ATTEMPTED_FOR_HIGHLIGHT = MASTERY_THRESHOLDS.minAnswers;
   const KIND_NAMES = ['book', 'chapter', 'rule', 'concept', 'trap', 'question'];
 
   const CONCEPT_SHORT_LABELS = {
@@ -37,70 +38,24 @@
     return stripped.length > 10 ? stripped.slice(0, 9) + '…' : stripped;
   }
 
-  function classifyState(answered, accuracy) {
-    if (answered === 0 || accuracy == null) return 'unseen';
-    if (answered < THRESHOLDS.minAnswers) return 'few';
-    if (accuracy >= THRESHOLDS.goodFrom) return 'good';
-    if (accuracy >= THRESHOLDS.weakBelow) return 'mid';
-    return 'weak';
-  }
-
-  function buildQuestionArrays(graph, stats, weak, isDue) {
-    const qids = graph.qids || [];
-    const nq = qids.length;
-    stats = stats && typeof stats === 'object' ? stats : {};
-    weak = weak && typeof weak === 'object' ? weak : {};
-    const dueFn = typeof isDue === 'function' ? isDue : null;
-
-    const qa = new Int32Array(nq);
-    const qc = new Int32Array(nq);
-    const qw = new Int32Array(nq);
-    const qd = new Int32Array(nq);
-
-    for (let o = 0; o < nq; o++) {
-      const key = String(qids[o]);
-      if (hasOwn(stats, key)) {
-        const rec = stats[key];
-        if (rec && typeof rec === 'object') {
-          const a = Math.floor(Number(rec.a));
-          if (Number.isFinite(a) && a >= 1) {
-            let c = Math.floor(Number(rec.c));
-            if (!Number.isFinite(c) || c < 0) c = 0;
-            const ca = Math.min(a, MAX_ANSWERS);
-            qa[o] = ca;
-            qc[o] = Math.min(c, ca);
-          }
-        }
-      }
-      if (hasOwn(weak, key)) {
-        qw[o] = 1;
-        if (dueFn) {
-          let due = false;
-          try { due = !!dueFn(weak[key]); } catch (e) { due = false; }
-          if (due) qd[o] = 1;
-        }
-      }
-    }
-    return { qa, qc, qw, qd, nq };
-  }
-
   function aggregateOrdinals(ordList, arrays) {
     const { qa, qc, qw, qd } = arrays;
+    const { minAnswers, goodFrom } = MASTERY_THRESHOLDS;
     let total = 0, attempted = 0, mastered = 0, answered = 0, correct = 0, weak = 0, due = 0;
     for (let idx = 0; idx < ordList.length; idx++) {
       const o = ordList[idx];
       const a = qa[o], c = qc[o], w = qw[o], d = qd[o];
       total++;
       if (a > 0) attempted++;
-      if (a >= THRESHOLDS.minAnswers && w === 0 && (c + 1) / (a + 2) >= THRESHOLDS.goodFrom) mastered++;
+      if (a >= minAnswers && w === 0 && (c + 1) / (a + 2) >= goodFrom) mastered++;
       answered += a;
       correct += c;
       weak += w;
       due += d;
     }
-    const accuracy = answered > 0 ? correct / answered : null;
+    const accuracy = answered > 0 ? correct / answered : null; // 画面に出す正答率（詳細シートと同じ素の比率）
     const coverage = total > 0 ? attempted / total : 0;
-    const state = classifyState(answered, accuracy);
+    const state = MASTERY_STATES[classifyMastery(answered, correct, weak, due)];
     return { total, attempted, mastered, answered, correct, weak, due, accuracy, coverage, state };
   }
 
@@ -125,7 +80,7 @@
     const tierOf = x => {
       if (x.total === 0) return 4; // 選択教材に収録なし
       if (x.answered === 0 && x.weak === 0) return 3; // 完全未着手
-      if (x.answered > 0 && x.weak === 0 && x.accuracy != null && x.accuracy >= THRESHOLDS.goodFrom) return 2; // 良好（80%以上・苦手0）
+      if (x.answered > 0 && x.weak === 0 && x.accuracy != null && x.accuracy >= MASTERY_THRESHOLDS.goodFrom) return 2; // 良好（80%以上・苦手0）
       if (x.answered === 0 && x.weak > 0) return 1; // 未解答だが苦手登録あり
       return 0; // 解答済みで 80% 未満または苦手あり
     };
@@ -161,7 +116,7 @@
     const kConcept = kinds.indexOf('concept');
     const kTrap = kinds.indexOf('trap');
     const n = graph.id.length;
-    const arrays = buildQuestionArrays(graph, stats, weak, isDue);
+    const arrays = readQuestionArrays(graph, stats, weak, isDue);
     const { nq } = arrays;
 
     // 対象教材のマスクを作る（'all' なら全問）
@@ -228,9 +183,12 @@
       return item;
     });
 
-    // 得意分野と要強化分野のハイライト（苦手ありで 80% 未満の単一分野を「得意」に誤分類しない）
+    // 得意分野と要強化分野のハイライト。
+    // 得意: 状態が good / mid（苦手・要復習・解答不足を含まない）で、着手した問題が MIN_ATTEMPTED_FOR_HIGHLIGHT 問以上
+    // 要強化: 苦手登録がある、または着手 MIN_ATTEMPTED_FOR_HIGHLIGHT 問以上で正答率が goodFrom 未満
+    // （1 問だけ解いて 100% や 0% になった分野を、得意・要強化と言い切らない）
     const strongCandidates = concepts.filter(
-      c => c.answered > 0 && c.accuracy != null && (c.accuracy >= THRESHOLDS.goodFrom || (c.accuracy >= THRESHOLDS.weakBelow && c.weak === 0))
+      c => (c.state === 'good' || c.state === 'mid') && c.attempted >= MIN_ATTEMPTED_FOR_HIGHLIGHT && c.accuracy != null
     );
     let strongest = null;
     if (strongCandidates.length > 0) {
@@ -241,7 +199,10 @@
       strongest = sortedHigh[0];
     }
     const weakCandidates = sortReportItems(
-      concepts.filter(c => c.total > 0 && (c.answered > 0 || c.weak > 0) && (c.weak > 0 || (c.accuracy != null && c.accuracy < THRESHOLDS.goodFrom))),
+      concepts.filter(c => c.total > 0 && (
+        c.weak > 0 ||
+        (c.attempted >= MIN_ATTEMPTED_FOR_HIGHLIGHT && c.accuracy != null && c.accuracy < MASTERY_THRESHOLDS.goodFrom)
+      )),
       'weakness'
     );
     let weakest = weakCandidates.length > 0 ? weakCandidates[0] : null;
@@ -279,7 +240,7 @@
         const ang = -Math.PI / 2 + (2 * Math.PI * i) / Math.max(1, n);
         pts.push(pointAt(ang, radius * lv));
       }
-      return { level: lv, isTarget: Math.abs(lv - THRESHOLDS.goodFrom) < 1e-6, points: pts };
+      return { level: lv, isTarget: Math.abs(lv - MASTERY_THRESHOLDS.goodFrom) < 1e-6, points: pts };
     });
 
     const axes = list.map((item, i) => {
