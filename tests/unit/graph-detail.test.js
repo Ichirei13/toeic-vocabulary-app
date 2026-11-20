@@ -275,3 +275,32 @@ test('実グラフ: 「…」で終わるルールの title は先頭メンバ�
   }
   assert.ok(checked > 0);
 });
+
+test('book フィルタ: 指定教材に属する問題・成績・苦手だけを集計して返す（本ノード自身は絞らない）', () => {
+  const g2 = makeGraph([
+    { id: 'book:kin', kind: 'book', label: '金の文法', members: [1, 2] },
+    { id: 'book:sekai', kind: 'book', label: '世界一', members: [3, 4] },
+    { id: 'con:SVOC', kind: 'concept', label: 'SVOC', members: [1, 2, 3, 4] },
+  ]);
+  const stats = { 1: { a: 4, c: 4 }, 2: { a: 4, c: 1 }, 3: { a: 5, c: 0 } };
+  const weak = { 2: { due: 10 }, 3: { due: 9999999999 } };
+  const isDue = e => e.due === 10;
+  const m = M.computeMastery(g2, stats, weak, isDue);
+
+  const dAll = D.buildDetail(g2, m, 2, { stats, weak, isDue });
+  assert.strictEqual(dAll.answered, 13);
+  assert.strictEqual(dAll.correct, 5);
+  assert.strictEqual(dAll.weakCount, 2);
+  assert.strictEqual(dAll.questions.length, 4);
+
+  const dKin = D.buildDetail(g2, m, 2, { stats, weak, isDue, book: 'kin' });
+  assert.strictEqual(dKin.answered, 8);
+  assert.strictEqual(dKin.correct, 5);
+  assert.strictEqual(dKin.weakCount, 1);
+  assert.strictEqual(dKin.stateLabel, '要復習');
+  assert.deepStrictEqual(dKin.questions.map(q => q.qid), [2, 1]);
+
+  // 本ノード自身は book フィルタが別教材でも自身の全問題を返す
+  const dSekaiBook = D.buildDetail(g2, m, 1, { stats, weak, isDue, book: 'kin' });
+  assert.strictEqual(dSekaiBook.questions.length, 2);
+});

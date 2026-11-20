@@ -72,10 +72,29 @@
     ctx = ctx && typeof ctx === 'object' ? ctx : {};
     const stats = ctx.stats && typeof ctx.stats === 'object' ? ctx.stats : {};
     const weak = ctx.weak && typeof ctx.weak === 'object' ? ctx.weak : {};
+    const bookFilter = typeof ctx.book === 'string' && ctx.book && ctx.book !== 'all' ? ctx.book : null;
+    const dueFn = typeof ctx.isDue === 'function' ? ctx.isDue : null;
 
     const kindIdx = graph.kind[nodeIndex];
     const kindName = graph.kinds ? graph.kinds[kindIdx] : KIND_NAMES[kindIdx];
     const label = graph.label && graph.label[nodeIndex] != null ? String(graph.label[nodeIndex]) : String(graph.id[nodeIndex]);
+
+    // 教材フィルタが指定されている場合（本ノード自身・問題ノード自身は対象外）
+    let bookOrds = null;
+    if (bookFilter && kindName !== 'book' && kindName !== 'question') {
+      bookOrds = new Set();
+      const targetBookId = 'book:' + bookFilter;
+      const kBook = graph.kinds ? graph.kinds.indexOf('book') : 0;
+      for (let i = 0; i < n; i++) {
+        if (graph.kind[i] === kBook && graph.id[i] === targetBookId) {
+          for (let k = graph.memberStart[i]; k < graph.memberStart[i + 1]; k++) {
+            const o = graph.members[k];
+            if (o >= 0 && o < graph.qids.length) bookOrds.add(o);
+          }
+          break;
+        }
+      }
+    }
 
     // 問題番号の一覧（ノード自身が問題なら自分だけ）
     let qidList;
@@ -87,6 +106,7 @@
       for (let k = graph.memberStart[nodeIndex]; k < graph.memberStart[nodeIndex + 1]; k++) {
         const o = graph.members[k];
         if (!(o >= 0 && o < graph.qids.length) || seen.has(o)) continue;
+        if (bookOrds && !bookOrds.has(o)) continue;
         seen.add(o);
         qidList.push(graph.qids[o]);
       }
@@ -109,14 +129,62 @@
       return { qid: it.qid, text: t != null ? t : '#' + it.qid, status: it.status };
     });
 
-    const answered = mastery.answered[nodeIndex];
+    let answered, correct, weakCount, rate, stateLabel;
+    if (bookOrds) {
+      let aSum = 0, cSum = 0, wSum = 0, dSum = 0;
+      for (const qid of qidList) {
+        const key = String(qid);
+        if (hasOwn(stats, key)) {
+          const rec = stats[key];
+          if (rec && typeof rec === 'object') {
+            const a = Math.floor(Number(rec.a));
+            if (Number.isFinite(a) && a >= 1) {
+              let c = Math.floor(Number(rec.c));
+              if (!Number.isFinite(c) || c < 0) c = 0;
+              const ca = Math.min(a, 1000000);
+              aSum += ca;
+              cSum += Math.min(c, ca);
+            }
+          }
+        }
+        if (hasOwn(weak, key)) {
+          wSum++;
+          if (dueFn) {
+            let due = false;
+            try { due = !!dueFn(weak[key]); } catch (e) { due = false; }
+            if (due) dSum++;
+          }
+        }
+      }
+      answered = aSum;
+      correct = cSum;
+      weakCount = wSum;
+      const r = (cSum + 1) / (aSum + 2);
+      rate = aSum > 0 ? r : null;
+      let sIdx;
+      if (aSum === 0) sIdx = 0;
+      else if (dSum > 0) sIdx = 1;
+      else if (wSum > 0 || (aSum >= 3 && r < 0.6)) sIdx = 2;
+      else if (aSum < 3) sIdx = 3;
+      else if (r >= 0.8 && wSum === 0) sIdx = 5;
+      else sIdx = 4;
+      stateLabel = STATE_LABELS[sIdx];
+    } else {
+      answered = mastery.answered[nodeIndex];
+      correct = mastery.correct ? mastery.correct[nodeIndex] : 0;
+      weakCount = mastery.weak[nodeIndex];
+      rate = answered > 0 ? mastery.rate[nodeIndex] : null;
+      stateLabel = STATE_LABELS[mastery.state[nodeIndex]] || STATE_LABELS[0];
+    }
     const detail = {
       title,
       kindLabel: KIND_LABELS[kindIdx] || String(kindName),
-      stateLabel: STATE_LABELS[mastery.state[nodeIndex]] || STATE_LABELS[0],
-      rate: answered > 0 ? mastery.rate[nodeIndex] : null,
+      stateLabel,
+      rate,
       answered,
-      weakCount: mastery.weak[nodeIndex],
+      correct,
+      weakCount,
+      allQids: items.map(it => it.qid),
     };
 
     if ((kindName === 'concept' || kindName === 'trap') && graph.text && hasOwn(graph.text, String(nodeIndex))) {

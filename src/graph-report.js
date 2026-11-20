@@ -25,6 +25,8 @@
     '接続詞 vs 前置詞の識別': '接続詞/前置詞',
     '倒置・強調・並列構造': '倒置・強調',
   };
+  // src/graph-force.js が未読み込み（オフライン・力学アセット失敗）でも 13 軸の順序を保つための既定順
+  const DEFAULT_CONCEPT_ORDER = Object.keys(CONCEPT_SHORT_LABELS).map(k => 'con:' + k);
 
   const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -121,6 +123,7 @@
     const list = Array.isArray(items) ? items.slice() : [];
     if (sortMode !== 'weakness') return list;
     const tierOf = x => {
+      if (x.total === 0) return 4; // 選択教材に収録なし
       if (x.answered === 0 && x.weak === 0) return 3; // 完全未着手
       if (x.answered > 0 && x.weak === 0 && x.accuracy != null && x.accuracy >= THRESHOLDS.goodFrom) return 2; // 良好（80%以上・苦手0）
       if (x.answered === 0 && x.weak > 0) return 1; // 未解答だが苦手登録あり
@@ -129,6 +132,7 @@
     return list.sort((a, b) => {
       const aTier = tierOf(a), bTier = tierOf(b);
       if (aTier !== bTier) return aTier - bTier;
+      if (aTier === 4) return 0;
       if (aTier === 3) return b.total - a.total;
       if (aTier === 1) return b.weak !== a.weak ? b.weak - a.weak : b.total - a.total;
       const accA = a.accuracy == null ? 0 : a.accuracy;
@@ -149,7 +153,9 @@
     }
     opts = opts && typeof opts === 'object' ? opts : {};
     const book = typeof opts.book === 'string' && opts.book ? opts.book : 'all';
-    const conceptOrder = Array.isArray(opts.conceptOrder) ? opts.conceptOrder : [];
+    const conceptOrder = Array.isArray(opts.conceptOrder) && opts.conceptOrder.length
+      ? opts.conceptOrder
+      : DEFAULT_CONCEPT_ORDER;
     const kinds = graph.kinds || KIND_NAMES;
     const kBook = kinds.indexOf('book');
     const kConcept = kinds.indexOf('concept');
@@ -222,18 +228,20 @@
       return item;
     });
 
-    // 得意分野と要強化分野のハイライト
-    const answeredConcepts = concepts.filter(c => c.answered > 0 && c.accuracy != null);
+    // 得意分野と要強化分野のハイライト（苦手ありで 80% 未満の単一分野を「得意」に誤分類しない）
+    const strongCandidates = concepts.filter(
+      c => c.answered > 0 && c.accuracy != null && (c.accuracy >= THRESHOLDS.goodFrom || (c.accuracy >= THRESHOLDS.weakBelow && c.weak === 0))
+    );
     let strongest = null;
-    if (answeredConcepts.length > 0) {
-      const sortedHigh = answeredConcepts.slice().sort((a, b) => {
+    if (strongCandidates.length > 0) {
+      const sortedHigh = strongCandidates.slice().sort((a, b) => {
         if (Math.abs(b.accuracy - a.accuracy) > 1e-9) return b.accuracy - a.accuracy;
         return b.answered - a.answered;
       });
-      if (sortedHigh[0].accuracy >= THRESHOLDS.weakBelow) strongest = sortedHigh[0];
+      strongest = sortedHigh[0];
     }
     const weakCandidates = sortReportItems(
-      concepts.filter(c => (c.answered > 0 || c.weak > 0) && (c.weak > 0 || (c.accuracy != null && c.accuracy < THRESHOLDS.goodFrom))),
+      concepts.filter(c => c.total > 0 && (c.answered > 0 || c.weak > 0) && (c.weak > 0 || (c.accuracy != null && c.accuracy < THRESHOLDS.goodFrom))),
       'weakness'
     );
     let weakest = weakCandidates.length > 0 ? weakCandidates[0] : null;
@@ -310,6 +318,7 @@
   return {
     MASTERY_STATES,
     CONCEPT_SHORT_LABELS,
+    DEFAULT_CONCEPT_ORDER,
     shortConceptLabel,
     computeGraphReport,
     sortReportItems,

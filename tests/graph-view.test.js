@@ -1761,3 +1761,204 @@ test('レーダーチャートモード: スマホ(375px)とPC(1280px)で横は�
     assert.ok(overflow <= 1, `vp=${vp.width} で横スクロールが発生した: overflow=${overflow}`);
   }
 });
+
+test('レーダーチャートモード: 教材フィルタと詳細シート・0問項目・問題ジャンプのフィルタ解除・refresh が整合する', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    window.__stats = {};
+    window.__weak = {};
+    // kin (1001〜) と sekai (1〜) の両方に SVOC の解答を入れる
+    const g = GRAMMAR_GRAPH;
+    const svocIdx = g.id.indexOf('con:SVOC（文の骨格）');
+    const qids = [];
+    for (let k = g.memberStart[svocIdx]; k < g.memberStart[svocIdx + 1]; k++) qids.push(g.qids[g.members[k]]);
+    const kinQ = qids.find(q => q >= 1001 && q < 2000);
+    const sekaiQ = qids.find(q => q >= 1 && q < 1000);
+    window.__stats[kinQ] = { a: 4, c: 3 }; // 75%
+    window.__stats[sekaiQ] = { a: 4, c: 0 }; // 0%
+    window.__weak[sekaiQ] = { due: Date.now() - 1000 };
+    window.__testQids = { kinQ, sekaiQ };
+    const deps = window.__deps();
+    deps.initialMode = 'radar';
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+
+  // 1. 金の文法に絞り込み → SVOC の詳細シートは金の文法だけの成績（75%, 解答数 4, 苦手 0）になる
+  await page.click('#host .graph-chip[data-book="kin"]');
+  await page.locator('#host .graph-bar-row').first().click();
+  assert.equal(await sheetOpen(page), true);
+  const kinSheet = await page.evaluate(() => {
+    const dds = [...document.querySelectorAll('#host .graph-stats dd')].map(el => el.textContent);
+    const qNos = [...document.querySelectorAll('#host .graph-q-no')].map(el => Number(el.textContent.slice(1)));
+    return { kind: document.querySelector('#host .graph-sheet-kind').textContent, dds, qNos };
+  });
+  assert.match(kinSheet.kind, /金の文法/);
+  assert.equal(kinSheet.dds[1], '75%');
+  assert.equal(kinSheet.dds[2], '4');
+  assert.equal(kinSheet.dds[3], '0');
+  assert.ok(kinSheet.qNos.every(q => q >= 1001 && q < 2000), '他教材の問題が混ざっている');
+
+  // 2. シートを開いたまま教材を「すべて」に切り替えるとシートの成績も合算（38%, 解答数 8, 苦手 1）へ更新される
+  await page.click('#host .graph-chip[data-book="all"]');
+  const allSheet = await page.evaluate(() => [...document.querySelectorAll('#host .graph-stats dd')].map(el => el.textContent));
+  assert.equal(allSheet[1], '38%');
+  assert.equal(allSheet[2], '8');
+  assert.equal(allSheet[3], '1');
+
+  // 3. 空白クリックでシートが閉じる
+  await page.locator('#host .graph-radar-summary').click({ position: { x: 8, y: 8 } });
+  assert.equal(await sheetOpen(page), false);
+
+  // 4. トップレベルのひっかけタブでは収録 0 問項目が disabled かつ「収録なし」表示になる
+  await page.click('#host .graph-chip[data-book="toplevel"]');
+  await page.click('#host .graph-bars-tab[data-radar-cat="trap"]');
+  const unavail = await page.evaluate(() => ({
+    disabled: document.querySelectorAll('#host .graph-bar-row.is-unavailable:disabled').length,
+    text: document.querySelector('#host .graph-bar-row.is-unavailable')?.textContent || '',
+  }));
+  assert.ok(unavail.disabled >= 10, `トップレベルの収録なしひっかけが不足: ${unavail.disabled}`);
+  assert.match(unavail.text, /収録なし/);
+
+  // 5. refresh() で記録更新がレーダーのスコアに反映される
+  await page.click('#host .graph-chip[data-book="kin"]');
+  await page.click('#host .graph-bars-tab[data-radar-cat="concept"]');
+  await page.evaluate(() => {
+    window.__stats[window.__testQids.kinQ] = { a: 4, c: 4 };
+    GraphView.refresh();
+  });
+  assert.equal(await page.locator('#host .graph-radar-score-num').innerText(), '100%');
+
+  // 6. weakOnly ON で非苦手問題へジャンプしてもフィルタが解除され対象ノードが可視になる
+  await page.click('#host .graph-chip[data-book="all"]');
+  await page.click('#host .graph-weak-toggle');
+  await page.locator('#host .graph-bar-row').first().click();
+  const nonWeakQ = page.locator('#host .graph-q:not(.graph-q-weak)[data-node]').first();
+  const jumpTarget = Number(await nonWeakQ.getAttribute('data-node'));
+  await nonWeakQ.click();
+  await settled(page);
+  const afterJump = await page.evaluate(idx => ({
+    mode: GraphView._debug.mode,
+    weakOnly: GraphView._debug.weakOnly,
+    visible: GraphView._debug.isVisible(idx),
+  }), jumpTarget);
+  assert.equal(afterJump.mode, 'book');
+  assert.equal(afterJump.weakOnly, false);
+  assert.equal(afterJump.visible, true);
+});
+
+test('レーダーチャートモード: シート展開中の book→radar 切替で残留 rAF 描画が起きず、graph-force 欠落でも 13 軸順を保つ', async t => {
+  const page = await open(t);
+  await mountAndWait(page);
+  // book モードで概念シートを開く
+  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
+  await tapNode(page, ci);
+  assert.equal(await sheetOpen(page), true);
+  // radar へ切り替え直後に保留中 rAF がなく、追加の Canvas draw() が走らない
+  const beforeFrames = await page.evaluate(() => GraphView._debug.frames);
+  await page.click('#host .graph-mode-btn[data-mode="radar"]');
+  const rightAfter = await page.evaluate(() => ({ mode: GraphView._debug.mode, pending: GraphView._debug.pending }));
+  await new Promise(r => setTimeout(r, 300));
+  const afterFrames = await page.evaluate(() => GraphView._debug.frames);
+  assert.equal(rightAfter.mode, 'radar');
+  assert.equal(rightAfter.pending, false);
+  assert.equal(afterFrames, beforeFrames, 'radar 切替後に非表示 Canvas が追加描画された');
+
+  // graph-force.js（GRAMMAR_CONCEPT_ORDER）が欠落しても 13 軸の順序は既定順を保つ
+  const orderRes = await page.evaluate(() => {
+    const expected = StudyCore.GRAMMAR_CONCEPT_ORDER.slice();
+    const orig = StudyCore.GRAMMAR_CONCEPT_ORDER;
+    StudyCore.GRAMMAR_CONCEPT_ORDER = undefined;
+    try {
+      const deps = window.__deps();
+      deps.initialMode = 'radar';
+      GraphView.mount(document.getElementById('host'), deps);
+      const labels = [...document.querySelectorAll('#host .graph-radar-axis-btn')].map(el => el.getAttribute('aria-label'));
+      return { first: labels[0], second: labels[1], count: labels.length, expectedLen: expected.length };
+    } finally {
+      StudyCore.GRAMMAR_CONCEPT_ORDER = orig;
+    }
+  });
+  assert.equal(orderRes.count, orderRes.expectedLen);
+  assert.match(orderRes.first, /^SVOC/);
+  assert.match(orderRes.second, /^能動態と受動態/);
+});
+
+test('レーダーチャートモード: 1280px・375px で全軸 100% でもラベルがカード枠内に収まり、全 8 テーマでバッジコントラスト 4.5 以上', async t => {
+  // 1. 1280px / 375px でのラベル枠内収まり（全問 100% 正解）
+  for (const vp of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
+    const page = await open(t, { viewport: vp });
+    await page.evaluate(() => {
+      window.__stats = {};
+      for (const qid of GRAMMAR_GRAPH.qids) window.__stats[qid] = { a: 4, c: 4 };
+      const deps = window.__deps();
+      deps.initialMode = 'radar';
+      GraphView.mount(document.getElementById('host'), deps);
+    });
+    await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+    const clipped = await page.evaluate(() => {
+      const card = document.querySelector('#host .graph-radar-chart-card').getBoundingClientRect();
+      const out = [];
+      for (const el of document.querySelectorAll('#host .graph-radar-axis-label')) {
+        const r = el.getBoundingClientRect();
+        if (r.left < card.left - 1 || r.right > card.right + 1) {
+          out.push({ text: el.textContent, left: Math.round(r.left - card.left), right: Math.round(card.right - r.right) });
+        }
+      }
+      return out;
+    });
+    assert.deepEqual(clipped, [], `vp=${vp.width} でレーダーラベルがカード枠外にはみ出した: ${JSON.stringify(clipped)}`);
+  }
+
+  // 2. 全 8 テーマ + ios dark でバッジコントラスト比 >= 4.5（WCAG AA）
+  const page = await open(t, { path: '/__graph_theme_test.html', viewport: { width: 1280, height: 800 } });
+  await page.evaluate(() => {
+    window.__stats = {};
+    window.__weak = {};
+    for (let i = 0; i < 40; i++) {
+      const qid = GRAMMAR_GRAPH.qids[i];
+      window.__stats[qid] = { a: 4, c: 4 };
+      if (i < 5) window.__weak[qid] = { due: Date.now() - 1000 };
+    }
+    const deps = window.__deps();
+    deps.initialMode = 'radar';
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-bar-badge.is-due'));
+
+  const themes = ['ink', 'duolingo', 'navy', 'forest', 'nordic', 'quizlet', 'light', 'ios'];
+  const checkContrast = () => page.evaluate(() => {
+    const parse = s => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+    const lum = ([r, g, b]) => {
+      const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const ratio = (c1, c2) => {
+      const l1 = lum(parse(c1)), l2 = lum(parse(c2));
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+    const selectors = ['.graph-radar-state.is-state-good', '.graph-bar-badge.is-due', '.graph-bar-badge.is-weak'];
+    const res = {};
+    for (const sel of selectors) {
+      const el = document.querySelector('#host ' + sel);
+      if (!el) continue;
+      const cs = getComputedStyle(el);
+      res[sel] = Math.round(ratio(cs.backgroundColor, cs.color) * 100) / 100;
+    }
+    return res;
+  });
+
+  for (const id of themes) {
+    await page.evaluate(tid => document.documentElement.setAttribute('data-theme', tid), id);
+    const ratios = await checkContrast();
+    for (const [sel, r] of Object.entries(ratios)) {
+      assert.ok(r >= 4.5, `theme=${id} ${sel} のコントラスト比が 4.5 未満: ${r}`);
+    }
+  }
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'ios'));
+  const iosDarkRatios = await checkContrast();
+  for (const [sel, r] of Object.entries(iosDarkRatios)) {
+    assert.ok(r >= 4.5, `theme=ios(dark) ${sel} のコントラスト比が 4.5 未満: ${r}`);
+  }
+});

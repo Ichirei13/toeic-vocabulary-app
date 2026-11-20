@@ -209,3 +209,30 @@ test('実グラフ (GRAMMAR_GRAPH): 13 概念・12 Trap・4 教材の集計と�
   // 先頭は SVOC
   assert.equal(rep.concepts[0].id, 'con:SVOC（文の骨格）');
 });
+
+test('computeGraphReport: conceptOrder 省略時（graph-force.js 未読込時）も既定の 13 概念順を維持する', () => {
+  const code = fs.readFileSync(path.join(__dirname, '../../data/grammar_graph.js'), 'utf8');
+  const ctx = {};
+  vm.runInNewContext(code + '; this.GRAMMAR_GRAPH = GRAMMAR_GRAPH;', ctx);
+  const g = ctx.GRAMMAR_GRAPH;
+  const repNoOrder = R.computeGraphReport(g, {}, {}, NEVER_DUE);
+  assert.deepEqual(repNoOrder.concepts.map(c => c.id), F.GRAMMAR_CONCEPT_ORDER);
+});
+
+test('sortReportItems & summary: total=0（収録なし）は最下位、苦手あり67%の単一概念は得意ではなく要強化になる', () => {
+  const items = [
+    { id: 'unavailable', total: 0, answered: 0, weak: 0, accuracy: null },
+    { id: 'unseen', total: 10, answered: 0, weak: 0, accuracy: null },
+    { id: 'weak', total: 10, answered: 3, weak: 1, accuracy: 0.5 },
+  ];
+  assert.deepEqual(R.sortReportItems(items, 'weakness').map(x => x.id), ['weak', 'unseen', 'unavailable']);
+
+  const rep = R.computeGraphReport(
+    SAMPLE_GRAPH,
+    { 1: { a: 3, c: 2 } }, // SVOC: 67%, 苦手 1 問（唯一の解答済み概念）
+    { 1: { due: 9999999999999 } },
+    NEVER_DUE
+  );
+  assert.equal(rep.summary.strongest, null);
+  assert.equal(rep.summary.weakest?.id, 'con:SVOC（文の骨格）');
+});

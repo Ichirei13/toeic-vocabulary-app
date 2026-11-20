@@ -272,7 +272,7 @@
     function onFrame() {
       rafId = 0;
       debug.pending = false;
-      if (!alive || document.hidden) return; // dirty は残し、見えるようになったら描く（力学の続きもそこから）
+      if (!alive || document.hidden || mode === 'radar') return; // dirty は残し、見えるようになったら描く（力学の続きもそこから）
       if (settle) {
         const quiet = settle.quiet;
         stepSettle();
@@ -543,7 +543,7 @@
         `</section>`;
 
       // 2. 13 概念レーダーチャート（SVG）
-      const geo = S.computeRadarGeometry(rep.concepts, { width: 380, height: 310, radius: 98, labelOffset: 20 });
+      const geo = S.computeRadarGeometry(rep.concepts, { width: 420, height: 330, radius: 96, labelOffset: 20 });
       const ringsSvg = geo.rings.map(r =>
         `<polygon class="graph-radar-ring${r.isTarget ? ' is-target' : ''}" points="${fmtPts(r.points)}"></polygon>`
       ).join('');
@@ -562,6 +562,7 @@
         : '';
       const dotsSvg = geo.axes.map(ax => {
         const it = ax.item;
+        if (it.total === 0) return '';
         const dimCls = weakOnly && it.weak === 0 ? ' is-dim' : '';
         const actCls = sheetIndex === it.nodeIndex ? ' is-active' : '';
         return (
@@ -573,22 +574,30 @@
       }).join('');
       const nodesSvg = geo.axes.map(ax => {
         const it = ax.item;
-        const pct = pctText(it.accuracy);
-        const dimCls = weakOnly && it.weak === 0 ? ' is-dim' : '';
-        const actCls = sheetIndex === it.nodeIndex ? ' is-active' : '';
+        const unavailable = it.total === 0;
+        const pct = unavailable ? '収録なし' : pctText(it.accuracy);
+        const dimCls = unavailable ? ' is-unavailable' : (weakOnly && it.weak === 0 ? ' is-dim' : '');
+        const actCls = !unavailable && sheetIndex === it.nodeIndex ? ' is-active' : '';
+        const sin = Math.sin(ax.angle);
+        const labelDy = sin < -0.65 ? -10 : sin > 0.65 ? 5 : -2;
+        const lx = ax.labelPos.x.toFixed(1);
+        const ly = (ax.labelPos.y + labelDy).toFixed(1);
+        const interactiveAttrs = unavailable
+          ? ` aria-disabled="true" aria-label="${esc(it.label)} この教材には収録なし"`
+          : ` data-node="${it.nodeIndex}" role="button" tabindex="0" aria-label="${esc(it.label)} 正答率 ${esc(pct)}"`;
         return (
-          `<g class="graph-radar-axis-btn${dimCls}${actCls}" data-node="${it.nodeIndex}" role="button" tabindex="0" aria-label="${esc(it.label)} 正答率 ${esc(pct)}">` +
-            `<circle class="graph-radar-hit" cx="${ax.labelPos.x.toFixed(1)}" cy="${ax.labelPos.y.toFixed(1)}" r="22"></circle>` +
-            `<text class="graph-radar-axis-label" x="${ax.labelPos.x.toFixed(1)}" y="${(ax.labelPos.y + ax.dy).toFixed(1)}" text-anchor="${ax.textAnchor}">` +
-              `<tspan>${esc(it.shortLabel)}</tspan>` +
-              `<tspan class="graph-radar-axis-pct"> ${esc(pct)}</tspan>` +
+          `<g class="graph-radar-axis-btn${dimCls}${actCls}"${interactiveAttrs}>` +
+            (unavailable ? '' : `<circle class="graph-radar-hit" cx="${lx}" cy="${ax.labelPos.y.toFixed(1)}" r="22"></circle>`) +
+            `<text class="graph-radar-axis-label" x="${lx}" y="${ly}" text-anchor="${ax.textAnchor}">` +
+              `<tspan x="${lx}">${esc(it.shortLabel)}</tspan>` +
+              `<tspan class="graph-radar-axis-pct" x="${lx}" dy="1.2em">${esc(pct)}</tspan>` +
             `</text>` +
           `</g>`
         );
       }).join('');
 
       const radarSvg =
-        `<svg class="graph-radar-svg" viewBox="0 0 380 310" role="img" aria-label="13文法概念のレーダーチャート">` +
+        `<svg class="graph-radar-svg" viewBox="0 0 420 330" role="img" aria-label="13文法概念のレーダーチャート">` +
           ringsSvg +
           axesSvg +
           covPolySvg +
@@ -620,18 +629,22 @@
       const barsListHtml = items.length === 0
         ? '<p class="graph-radar-empty">該当する項目がありません。</p>'
         : items.map(it => {
-            const acc = pctText(it.accuracy);
-            const accWidth = it.accuracy == null ? 0 : Math.round(it.accuracy * 100);
-            const covWidth = Math.round(it.coverage * 100);
+            const unavailable = it.total === 0;
+            const acc = unavailable ? '—' : pctText(it.accuracy);
+            const accWidth = unavailable || it.accuracy == null ? 0 : Math.round(it.accuracy * 100);
+            const covWidth = unavailable ? 0 : Math.round(it.coverage * 100);
             const isSelBook = radarCategory === 'book' && book !== 'all' && it.selected;
-            const badges =
-              (isSelBook ? '<span class="graph-bar-badge is-sel">選択中</span>' : '') +
-              (it.weak > 0 ? `<span class="graph-bar-badge is-weak">苦手 ${esc(it.weak)}</span>` : '') +
-              (it.due > 0 ? `<span class="graph-bar-badge is-due">復習 ${esc(it.due)}</span>` : '');
-            const subText = `${esc(it.attempted)}/${esc(it.total)}問 着手（${esc(covWidth)}%）` +
-              (it.answered > 0 ? ` ・ ${esc(it.correct)}/${esc(it.answered)} 正解` : ' ・ 未解答');
+            const badges = unavailable
+              ? '<span class="graph-bar-badge is-muted">収録なし</span>'
+              : (isSelBook ? '<span class="graph-bar-badge is-sel">選択中</span>' : '') +
+                (it.weak > 0 ? `<span class="graph-bar-badge is-weak">苦手 ${esc(it.weak)}</span>` : '') +
+                (it.due > 0 ? `<span class="graph-bar-badge is-due">復習 ${esc(it.due)}</span>` : '');
+            const subText = unavailable
+              ? 'この教材には収録なし'
+              : `${esc(it.attempted)}/${esc(it.total)}問 着手（${esc(covWidth)}%）` +
+                (it.answered > 0 ? ` ・ ${esc(it.correct)}/${esc(it.answered)} 正解` : ' ・ 未解答');
             return (
-              `<button type="button" class="graph-bar-row${sheetIndex === it.nodeIndex ? ' is-active' : ''}" data-node="${it.nodeIndex}" aria-pressed="${sheetIndex === it.nodeIndex}">` +
+              `<button type="button" class="graph-bar-row${unavailable ? ' is-unavailable' : ''}${!unavailable && sheetIndex === it.nodeIndex ? ' is-active' : ''}"${unavailable ? ' disabled' : ` data-node="${it.nodeIndex}" aria-pressed="${sheetIndex === it.nodeIndex}"`}>` +
                 `<div class="graph-bar-top">` +
                   `<span class="graph-bar-name">${esc(it.label)}</span>` +
                   `<span class="graph-bar-badges">${badges}</span>` +
@@ -669,8 +682,9 @@
           `<div class="graph-radar-col-bars">${barsCardHtml}</div>` +
         `</div>`;
     }
-    function setMode(next) {
+    function setMode(next, opts) {
       const target = normalizeMode(next);
+      pendingJumpNode = opts && Number.isInteger(opts.jumpNode) ? opts.jumpNode : -1;
       if (target === mode) return;
       stopSettle();
       stopAnim();
@@ -683,6 +697,9 @@
       }
       syncStageVisibility();
       if (mode === 'radar') {
+        // closeSheet() や力学・移動で予約された rAF が残っていれば確実に取り消す
+        if (rafId) { cancelAnimationFrame(rafId); rafId = 0; debug.pending = false; }
+        dirty = false;
         debug.settled = true;
         renderRadarReport();
         return;
@@ -1050,11 +1067,17 @@
 
     // ---- 詳細シート ----
     function renderSheet(i) {
-      const d = S.buildDetail(graph, mastery, i, { stats, weak, getQuestion: deps.getQuestion });
+      const sheetBook = mode === 'radar' && book !== 'all' ? book : null;
+      const d = S.buildDetail(graph, mastery, i, {
+        stats, weak, getQuestion: deps.getQuestion, book: sheetBook, isDue: deps.isDue,
+      });
       if (!d) return false;
-      sheetKind.textContent = d.kindLabel;
+      const isBookFiltered = !!(sheetBook && graph.kind[i] !== kBook && graph.kind[i] !== kQuestion);
+      const total = d.questions.length + (d.moreCount || 0);
+      if (isBookFiltered && total === 0) return false;
+      sheetKind.textContent = isBookFiltered ? `${d.kindLabel}・${BOOK_NAMES[sheetBook] || sheetBook}` : d.kindLabel;
       sheetTitle.textContent = d.title;
-      const correct = mastery.correct[i];
+      const correct = typeof d.correct === 'number' ? d.correct : mastery.correct[i];
       const pct = d.answered > 0 ? Math.round((100 * correct) / d.answered) + '%' : '—';
       let html =
         '<dl class="graph-stats">' +
@@ -1066,14 +1089,19 @@
       if (d.desc) html += `<p class="graph-desc">${richText(d.desc)}</p>`;
       if (d.advice) html += `<p class="graph-advice"><span class="graph-advice-label">対策</span>${richText(d.advice)}</p>`;
       sheetPick = null;
-      if (typeof deps.onStartDrill === 'function' && typeof S.pickNear === 'function') {
-        const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
-        if (pick.ids.length > 0) {
-          sheetPick = { ids: pick.ids, label: d.title };
-          html += `<button type="button" class="graph-drill-btn">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
+      if (typeof deps.onStartDrill === 'function') {
+        if (isBookFiltered && Array.isArray(d.allQids) && d.allQids.length > 0) {
+          const ids = d.allQids.slice(0, FOCUS_NEAR);
+          sheetPick = { ids, label: `${d.title}（${BOOK_NAMES[sheetBook] || sheetBook}）` };
+          html += `<button type="button" class="graph-drill-btn">この分野を ${esc(ids.length)} 問解く</button>`;
+        } else if (typeof S.pickNear === 'function') {
+          const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
+          if (pick.ids.length > 0) {
+            sheetPick = { ids: pick.ids, label: d.title };
+            html += `<button type="button" class="graph-drill-btn">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
+          }
         }
       }
-      const total = d.questions.length + (d.moreCount || 0);
       html += `<h3 class="graph-qs-head">問題（${esc(total)}）</h3><ul class="graph-qs">`;
       for (const q of d.questions) {
         const node = qidNode.has(q.qid) ? qidNode.get(q.qid) : -1;
@@ -1188,6 +1216,27 @@
       const [x, y] = localXY(e);
       if (cam) zoomBy(x, y, Math.exp(-dy * k));
     }
+    function jumpFromRadar(target) {
+      if (!(target >= 0 && target < n)) return;
+      if (book !== 'all') {
+        const mBook = S.visibleMask(graph, mastery, { book, weakOnly: false, lod: 2, showWeakQuestions: true });
+        if (!mBook[target]) {
+          book = 'all';
+          debug.book = 'all';
+          filterEl.querySelectorAll('.graph-chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.book === 'all')));
+        }
+      }
+      if (weakOnly) {
+        const mWeak = S.visibleMask(graph, mastery, { book, weakOnly: true, lod: 2, showWeakQuestions: true });
+        if (!mWeak[target]) {
+          weakOnly = false;
+          debug.weakOnly = false;
+          const tog = filterEl.querySelector('.graph-weak-toggle');
+          if (tog) tog.setAttribute('aria-pressed', 'false');
+        }
+      }
+      setMode('book', { jumpNode: target });
+    }
     function onFilterClick(e) {
       const mb = e.target.closest('.graph-mode-btn');
       if (mb && mb.dataset.mode) {
@@ -1199,8 +1248,12 @@
         book = chip.dataset.book;
         debug.book = book;
         filterEl.querySelectorAll('.graph-chip').forEach(b => b.setAttribute('aria-pressed', String(b === chip)));
-        if (mode === 'radar') renderRadarReport();
-        else requestDraw();
+        if (mode === 'radar') {
+          if (sheetIndex >= 0 && !renderSheet(sheetIndex)) closeSheet();
+          renderRadarReport();
+        } else {
+          requestDraw();
+        }
         return;
       }
       const tog = e.target.closest('.graph-weak-toggle');
@@ -1212,29 +1265,40 @@
         else requestDraw();
       }
     }
+    function focusRadarControl(selector) {
+      const el = radarPanel.querySelector(selector);
+      if (el && typeof el.focus === 'function') {
+        try { el.focus({ preventScroll: true }); } catch (e) { /* 古いブラウザ */ }
+      }
+    }
     function onRadarClick(e) {
       const cat = e.target.closest('[data-radar-cat]');
       if (cat && cat.dataset.radarCat) {
         radarCategory = cat.dataset.radarCat;
         renderRadarReport();
+        focusRadarControl(`[data-radar-cat="${radarCategory}"]`);
         return;
       }
       const sortBtn = e.target.closest('[data-radar-sort]');
       if (sortBtn && sortBtn.dataset.radarSort) {
         radarSort = sortBtn.dataset.radarSort;
         renderRadarReport();
+        focusRadarControl(`[data-radar-sort="${radarSort}"]`);
         return;
       }
       if (e.target.closest('[data-radar-cov]')) {
         radarShowCoverage = !radarShowCoverage;
         renderRadarReport();
+        focusRadarControl('[data-radar-cov]');
         return;
       }
       const nodeEl = e.target.closest('[data-node]');
       if (nodeEl) {
         const idx = Number(nodeEl.dataset.node);
         if (Number.isInteger(idx) && idx >= 0 && idx < n) openSheet(idx);
+        return;
       }
+      if (!sheet.hidden && !e.target.closest('button')) closeSheet();
     }
     function onZoomClick(e) {
       const b = e.target.closest('button[data-zoom]');
@@ -1255,11 +1319,7 @@
       const li = e.target.closest('.graph-q[data-node]');
       if (li) {
         const target = Number(li.dataset.node);
-        if (mode === 'radar') {
-          pendingJumpNode = target;
-          setMode('book');
-          return;
-        }
+        if (mode === 'radar') { jumpFromRadar(target); return; }
         jumpTo(target);
       }
     }
@@ -1271,7 +1331,7 @@
           if (li) {
             e.preventDefault();
             const target = Number(li.dataset.node);
-            if (mode === 'radar') { pendingJumpNode = target; setMode('book'); return; }
+            if (mode === 'radar') { jumpFromRadar(target); return; }
             jumpTo(target);
           }
           return;
@@ -1295,8 +1355,7 @@
     }
     function onTheme() {
       readColors();
-      if (mode === 'radar') renderRadarReport();
-      else requestDraw();
+      if (mode !== 'radar') requestDraw();
     }
 
     on(canvas, 'pointerdown', onPointerDown);
@@ -1321,6 +1380,7 @@
     }
     if (typeof ResizeObserver === 'function') {
       const ro = new ResizeObserver(entries => {
+        if (mode === 'radar') return;
         const r = entries[entries.length - 1].contentRect;
         const w = Math.round(r.width), h = Math.round(r.height);
         if (w !== width || h !== height) resize(w, h); // 初回の通知（大きさが同じ）では描き直さない
@@ -1354,6 +1414,7 @@
       destroy() {
         if (!alive) return;
         alive = false;
+        pendingJumpNode = -1;
         stopSettle();
         stopAnim();
         if (rafId) cancelAnimationFrame(rafId);

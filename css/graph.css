@@ -37,6 +37,12 @@
   --graph-radar-cov-fill: rgba(100, 116, 139, 0.10);
   --graph-radar-cov-stroke: rgba(60, 60, 67, 0.45);
   --graph-radar-grid: rgba(60, 60, 67, 0.18);
+  --graph-badge-good-bg: #15803d;
+  --graph-badge-good-fg: #ffffff;
+  --graph-badge-due-bg: #b45309;
+  --graph-badge-due-fg: #ffffff;
+  --graph-badge-weak-bg: #c81e1e;
+  --graph-badge-weak-fg: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -71,6 +77,12 @@
     --graph-radar-cov-fill: rgba(148, 163, 184, 0.12);
     --graph-radar-cov-stroke: rgba(235, 235, 245, 0.45);
     --graph-radar-grid: rgba(235, 235, 245, 0.18);
+    --graph-badge-good-bg: #4ade80;
+    --graph-badge-good-fg: #0b120e;
+    --graph-badge-due-bg: #fbbf24;
+    --graph-badge-due-fg: #1a1204;
+    --graph-badge-weak-bg: #f87171;
+    --graph-badge-weak-fg: #1c0909;
   }
 }
 
@@ -111,6 +123,12 @@
   --graph-radar-cov-fill: rgba(148, 163, 184, 0.12);
   --graph-radar-cov-stroke: rgba(235, 235, 245, 0.45);
   --graph-radar-grid: rgba(235, 235, 245, 0.18);
+  --graph-badge-good-bg: #4ade80;
+  --graph-badge-good-fg: #0b120e;
+  --graph-badge-due-bg: #fbbf24;
+  --graph-badge-due-fg: #1a1204;
+  --graph-badge-weak-bg: #f87171;
+  --graph-badge-weak-fg: #1c0909;
 }
 
 [data-theme="light"] .graph-view {
@@ -144,6 +162,12 @@
   --graph-radar-cov-fill: rgba(100, 116, 139, 0.10);
   --graph-radar-cov-stroke: rgba(60, 60, 67, 0.45);
   --graph-radar-grid: rgba(60, 60, 67, 0.18);
+  --graph-badge-good-bg: #15803d;
+  --graph-badge-good-fg: #ffffff;
+  --graph-badge-due-bg: #b45309;
+  --graph-badge-due-fg: #ffffff;
+  --graph-badge-weak-bg: #c81e1e;
+  --graph-badge-weak-fg: #ffffff;
 }
 
 /* アプリのテーマの色に寄せる（変数が無いページでは括弧内の値） */
@@ -641,10 +665,9 @@
   font-weight: 700;
   padding: 1px 6px;
   border-radius: 999px;
-  color: #ffffff;
 }
-.graph-radar-hl.is-strong .graph-radar-hl-tag { background: var(--graph-good); }
-.graph-radar-hl.is-weak .graph-radar-hl-tag { background: var(--graph-weak); }
+.graph-radar-hl.is-strong .graph-radar-hl-tag { background: var(--graph-badge-good-bg); color: var(--graph-badge-good-fg); }
+.graph-radar-hl.is-weak .graph-radar-hl-tag { background: var(--graph-badge-weak-bg); color: var(--graph-badge-weak-fg); }
 .graph-radar-hl-val {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -682,7 +705,7 @@
 }
 .graph-radar-svg-wrap {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   margin: 0 auto;
 }
 .graph-radar-svg {
@@ -732,6 +755,7 @@
 .graph-radar-dot-group { cursor: pointer; }
 .graph-radar-axis-btn.is-dim,
 .graph-radar-dot-group.is-dim { opacity: 0.32; }
+.graph-radar-axis-btn.is-unavailable { opacity: 0.45; cursor: default; }
 .graph-radar-hit { fill: transparent; stroke: none; }
 .graph-radar-dot {
   stroke: var(--graph-surface);
@@ -743,7 +767,7 @@
   stroke-width: 2;
 }
 .graph-radar-dot-group.is-active .graph-radar-dot {
-  r: 6;
+  r: 6px;
   stroke: var(--graph-label);
   stroke-width: 2;
 }
@@ -854,7 +878,11 @@
   font: inherit;
   cursor: pointer;
 }
-.graph-bar-row:hover { border-color: var(--graph-label-muted); }
+.graph-bar-row:hover:not(:disabled) { border-color: var(--graph-label-muted); }
+.graph-bar-row.is-unavailable {
+  opacity: 0.55;
+  cursor: default;
+}
 .graph-bar-row.is-active {
   border-color: var(--graph-radar-acc-stroke);
   box-shadow: 0 0 0 1px var(--graph-radar-acc-stroke);
@@ -885,9 +913,10 @@
   background: var(--graph-chip-bg);
   color: var(--graph-label);
 }
-.graph-bar-badge.is-weak { background: var(--graph-weak); color: #ffffff; }
-.graph-bar-badge.is-due { background: var(--graph-trap-edge); color: #ffffff; }
+.graph-bar-badge.is-weak { background: var(--graph-badge-weak-bg); color: var(--graph-badge-weak-fg); }
+.graph-bar-badge.is-due { background: var(--graph-badge-due-bg); color: var(--graph-badge-due-fg); }
 .graph-bar-badge.is-sel { background: var(--graph-chip-on-bg); color: var(--graph-chip-on-text); }
+.graph-bar-badge.is-muted { background: var(--graph-chip-bg); color: var(--graph-label-muted); }
 .graph-bar-pct {
   flex: 0 0 auto;
   min-width: 3.1em;
@@ -941,34 +970,23 @@
 }
 
 /* 状態別の色（サマリー・レーダードット・横棒） */
-.graph-radar-panel .is-state-unseen { --state-color: var(--graph-unseen); }
-.graph-radar-panel .is-state-due { --state-color: var(--graph-due); }
-.graph-radar-panel .is-state-weak { --state-color: var(--graph-weak); }
-.graph-radar-panel .is-state-few { --state-color: var(--graph-few); }
-.graph-radar-panel .is-state-mid { --state-color: var(--graph-mid); }
-.graph-radar-panel .is-state-good { --state-color: var(--graph-good); }
-
 .graph-radar-dot.is-state-unseen { fill: var(--graph-unseen); }
-.graph-radar-dot.is-state-due { fill: var(--graph-due); }
 .graph-radar-dot.is-state-weak { fill: var(--graph-weak); }
 .graph-radar-dot.is-state-few { fill: var(--graph-few); }
 .graph-radar-dot.is-state-mid { fill: var(--graph-mid); }
 .graph-radar-dot.is-state-good { fill: var(--graph-good); }
 
 .graph-bar-fill.is-state-unseen { background: var(--graph-unseen); }
-.graph-bar-fill.is-state-due { background: var(--graph-due); }
 .graph-bar-fill.is-state-weak { background: var(--graph-weak); }
 .graph-bar-fill.is-state-few { background: var(--graph-few); }
 .graph-bar-fill.is-state-mid { background: var(--graph-mid); }
 .graph-bar-fill.is-state-good { background: var(--graph-good); }
 
 .graph-bar-pct.is-state-good { color: var(--graph-good); }
-.graph-bar-pct.is-state-weak,
-.graph-bar-pct.is-state-due { color: var(--graph-weak); }
+.graph-bar-pct.is-state-weak { color: var(--graph-weak); }
 
-.graph-radar-state.is-state-good { background: var(--graph-good); color: #ffffff; }
-.graph-radar-state.is-state-weak,
-.graph-radar-state.is-state-due { background: var(--graph-weak); color: #ffffff; }
+.graph-radar-state.is-state-good { background: var(--graph-badge-good-bg); color: var(--graph-badge-good-fg); }
+.graph-radar-state.is-state-weak { background: var(--graph-badge-weak-bg); color: var(--graph-badge-weak-fg); }
 
 .graph-radar-hl:focus-visible,
 .graph-radar-mini-toggle:focus-visible,
