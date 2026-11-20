@@ -350,3 +350,29 @@ test('実グラフ: 複数の本にまたがる概念は配下の各問を 1 回
   assert.strictEqual(m.total[qNode], 1);
   assert.strictEqual(m.answered[qNode], stats[g.qids[picked[0]]].a);
 });
+
+test('classifyMastery: computeMastery と同じ判定順（unseen → due → weak → few → good → mid）', () => {
+  const S = M.MASTERY_STATES;
+  const name = (a, c, w, d) => S[M.classifyMastery(a, c, w, d)];
+  assert.strictEqual(name(0, 0, 0, 0), 'unseen');
+  assert.strictEqual(name(0, 0, 1, 1), 'unseen', '解答 0 なら苦手登録があっても unseen');
+  assert.strictEqual(name(10, 9, 1, 1), 'due', '要復習は正答率より優先');
+  assert.strictEqual(name(10, 9, 2, 0), 'weak', '苦手があれば正答率 90% でも weak');
+  assert.strictEqual(name(3, 0, 0, 0), 'weak', '(0+1)/(3+2)=0.2 < 0.6');
+  assert.strictEqual(name(2, 2, 0, 0), 'few', '解答 3 未満');
+  assert.strictEqual(name(3, 3, 0, 0), 'good', '(3+1)/(3+2)=0.8');
+  assert.strictEqual(name(4, 3, 0, 0), 'mid', '(3+1)/(4+2)=0.667');
+});
+
+test('readQuestionArrays: 不正値を無視し、序数ごとの解答・正解・苦手・要復習を返す', () => {
+  const g = makeGraph([{ id: 'q1', members: [1] }, { id: 'q2', members: [2] }, { id: 'q3', members: [3] }]);
+  const r = M.readQuestionArrays(g,
+    { 1: { a: 4, c: 9 }, 2: { a: 'x', c: 1 }, __proto__: { a: 5, c: 5 } },
+    { 2: { due: 1 }, 3: { due: 2 } },
+    e => { if (e.due === 2) throw new Error('boom'); return e.due === 1; });
+  assert.strictEqual(r.nq, 3);
+  assert.deepStrictEqual([...r.qa], [4, 0, 0]);
+  assert.deepStrictEqual([...r.qc], [4, 0, 0], 'c は a までに丸める');
+  assert.deepStrictEqual([...r.qw], [0, 1, 1]);
+  assert.deepStrictEqual([...r.qd], [0, 1, 0], 'isDue の例外は要復習にしない');
+});
