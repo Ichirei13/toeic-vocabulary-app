@@ -1,10 +1,11 @@
 // 文法グラフのノード詳細（詳細シートの中身）の組み立て。DOM にも保存にも触れない純関数。
 // HTML は作らない（画面側が escapeHtml を通して組む）。
 (function (root, factory) {
-  const api = factory();
-  if (typeof module === 'object' && module.exports) module.exports = api;
-  else Object.assign(root.StudyCore = root.StudyCore || {}, api);
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./mastery.js'));
+  else Object.assign(root.StudyCore = root.StudyCore || {}, factory(root.StudyCore || {}));
+})(typeof self !== 'undefined' ? self : this, function (M) {
+  // 教材で絞ったときの集計と判定は src/mastery.js の readQuestionArrays・classifyMastery を使う
+  // （レーダーと同じ読み方・同じ判定にするため）。ブラウザでは home.js の GRAPH_SCRIPTS で mastery.js が先に読み込まれている。
   // graph.kinds の順（book, chapter, rule, concept, trap, question）に対応する表示名
   const KIND_LABELS = ['本', '章', 'ルール', '概念', 'ひっかけ(Trap)', '問題'];
   // MASTERY_STATES の順（unseen, due, weak, few, mid, good）に対応する表示名
@@ -72,10 +73,29 @@
     ctx = ctx && typeof ctx === 'object' ? ctx : {};
     const stats = ctx.stats && typeof ctx.stats === 'object' ? ctx.stats : {};
     const weak = ctx.weak && typeof ctx.weak === 'object' ? ctx.weak : {};
+    const bookFilter = typeof ctx.book === 'string' && ctx.book && ctx.book !== 'all' ? ctx.book : null;
+    const dueFn = typeof ctx.isDue === 'function' ? ctx.isDue : null;
 
     const kindIdx = graph.kind[nodeIndex];
     const kindName = graph.kinds ? graph.kinds[kindIdx] : KIND_NAMES[kindIdx];
     const label = graph.label && graph.label[nodeIndex] != null ? String(graph.label[nodeIndex]) : String(graph.id[nodeIndex]);
+
+    // 教材フィルタが指定されている場合（本ノード自身・問題ノード自身は対象外）
+    let bookOrds = null;
+    if (bookFilter && kindName !== 'book' && kindName !== 'question') {
+      bookOrds = new Set();
+      const targetBookId = 'book:' + bookFilter;
+      const kBook = graph.kinds ? graph.kinds.indexOf('book') : 0;
+      for (let i = 0; i < n; i++) {
+        if (graph.kind[i] === kBook && graph.id[i] === targetBookId) {
+          for (let k = graph.memberStart[i]; k < graph.memberStart[i + 1]; k++) {
+            const o = graph.members[k];
+            if (o >= 0 && o < graph.qids.length) bookOrds.add(o);
+          }
+          break;
+        }
+      }
+    }
 
     // 問題番号の一覧（ノード自身が問題なら自分だけ）
     let qidList;
@@ -87,6 +107,7 @@
       for (let k = graph.memberStart[nodeIndex]; k < graph.memberStart[nodeIndex + 1]; k++) {
         const o = graph.members[k];
         if (!(o >= 0 && o < graph.qids.length) || seen.has(o)) continue;
+        if (bookOrds && !bookOrds.has(o)) continue;
         seen.add(o);
         qidList.push(graph.qids[o]);
       }
@@ -109,14 +130,39 @@
       return { qid: it.qid, text: t != null ? t : '#' + it.qid, status: it.status };
     });
 
-    const answered = mastery.answered[nodeIndex];
+    let answered, correct, weakCount, rate, stateLabel;
+    if (bookOrds) {
+      // 教材で絞ったときは、レーダー（graph-report.js）と同じ読み方・同じ判定で集計する
+      const q = M.readQuestionArrays(graph, stats, weak, dueFn);
+      let aSum = 0, cSum = 0, wSum = 0, dSum = 0;
+      const counted = new Set();
+      for (let k = graph.memberStart[nodeIndex]; k < graph.memberStart[nodeIndex + 1]; k++) {
+        const o = graph.members[k];
+        if (!(o >= 0 && o < q.nq) || counted.has(o) || !bookOrds.has(o)) continue;
+        counted.add(o);
+        aSum += q.qa[o]; cSum += q.qc[o]; wSum += q.qw[o]; dSum += q.qd[o];
+      }
+      answered = aSum;
+      correct = cSum;
+      weakCount = wSum;
+      rate = aSum > 0 ? (cSum + 1) / (aSum + 2) : null;
+      stateLabel = STATE_LABELS[M.classifyMastery(aSum, cSum, wSum, dSum)];
+    } else {
+      answered = mastery.answered[nodeIndex];
+      correct = mastery.correct ? mastery.correct[nodeIndex] : 0;
+      weakCount = mastery.weak[nodeIndex];
+      rate = answered > 0 ? mastery.rate[nodeIndex] : null;
+      stateLabel = STATE_LABELS[mastery.state[nodeIndex]] || STATE_LABELS[0];
+    }
     const detail = {
       title,
       kindLabel: KIND_LABELS[kindIdx] || String(kindName),
-      stateLabel: STATE_LABELS[mastery.state[nodeIndex]] || STATE_LABELS[0],
-      rate: answered > 0 ? mastery.rate[nodeIndex] : null,
+      stateLabel,
+      rate,
       answered,
-      weakCount: mastery.weak[nodeIndex],
+      correct,
+      weakCount,
+      allQids: items.map(it => it.qid),
     };
 
     if ((kindName === 'concept' || kindName === 'trap') && graph.text && hasOwn(graph.text, String(nodeIndex))) {

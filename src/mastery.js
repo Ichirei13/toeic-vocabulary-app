@@ -20,21 +20,15 @@
 
   const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
-  // グラフ・stats・weak・isDue から、ノードごとの集計と状態を返す。
-  //   stats: { [qid]: { a, c } }  weak: { [qid]: entry }  isDue(entry) -> boolean
-  // 不正な入力は無視し、例外も NaN も出さない。
-  function computeMastery(graph, stats, weak, isDue) {
-    const qids = graph.qids;
-    const memberStart = graph.memberStart;
-    const members = graph.members;
-    const n = graph.id.length;
+  // 問題ごとの解答数・正解数・苦手・要復習を、グラフの序数順の配列にして返す。
+  // グラフの qids から引くので、グラフにない id や 'abc'・'__proto__' のようなキーは自然に対象外になる。
+  // computeMastery・graph-report.js・graph-detail.js が同じ読み方をするための共通の入口。
+  function readQuestionArrays(graph, stats, weak, isDue) {
+    const qids = graph.qids || [];
     const nq = qids.length;
     stats = stats && typeof stats === 'object' ? stats : {};
     weak = weak && typeof weak === 'object' ? weak : {};
     const dueFn = typeof isDue === 'function' ? isDue : null;
-
-    // 問題ごとの値を序数順に 1 回だけ作る。グラフの qids から引くので、
-    // グラフにない id や 'abc'・'__proto__' のようなキーは自然に対象外になる。
     const qa = new Int32Array(nq);
     const qc = new Int32Array(nq);
     const qw = new Int32Array(nq);
@@ -63,6 +57,32 @@
         }
       }
     }
+    return { qa, qc, qw, qd, nq };
+  }
+
+  // 集計値から状態（MASTERY_STATES の添字）を決める。判定の規則はここだけに置く。
+  // 上から順に判定する（先に当たったものが勝つ）。苦手登録があっても解答数 0 なら unseen（設計書 §6 の判定順どおり）
+  function classifyMastery(answered, correct, weak, due) {
+    const a = answered > 0 ? answered : 0;
+    if (a === 0) return UNSEEN;
+    if (due > 0) return DUE;
+    const { minAnswers, weakBelow, goodFrom } = MASTERY_THRESHOLDS;
+    const r = (correct + 1) / (a + 2);
+    if (weak > 0 || (a >= minAnswers && r < weakBelow)) return WEAK;
+    if (a < minAnswers) return FEW;
+    if (r >= goodFrom && weak === 0) return GOOD;
+    return MID;
+  }
+
+  // グラフ・stats・weak・isDue から、ノードごとの集計と状態を返す。
+  //   stats: { [qid]: { a, c } }  weak: { [qid]: entry }  isDue(entry) -> boolean
+  // 不正な入力は無視し、例外も NaN も出さない。
+  function computeMastery(graph, stats, weak, isDue) {
+    const memberStart = graph.memberStart;
+    const members = graph.members;
+    const n = graph.id.length;
+    // 問題ごとの値を序数順に 1 回だけ作る
+    const { qa, qc, qw, qd, nq } = readQuestionArrays(graph, stats, weak, isDue);
 
     const total = new Int32Array(n);
     const answered = new Int32Array(n);
@@ -73,7 +93,6 @@
     const state = new Uint8Array(n);
     // 1 つのノード内で同じ序数を 2 回数えないための印（ノード番号 + 1 を書く）
     const stamp = new Int32Array(nq);
-    const { minAnswers, weakBelow, goodFrom } = MASTERY_THRESHOLDS;
 
     for (let i = 0; i < n; i++) {
       let t = 0, a = 0, c = 0, w = 0, d = 0;
@@ -85,22 +104,12 @@
         t++; a += qa[o]; c += qc[o]; w += qw[o]; d += qd[o];
       }
       total[i] = t; answered[i] = a; correct[i] = c; weakCnt[i] = w; due[i] = d;
-      const r = (c + 1) / (a + 2); // 倍精度のまま判定してから Float32 に入れる
-      rate[i] = r;
-      // 上から順に判定する（先に当たったものが勝つ）
-      let s;
-      // 苦手登録があっても解答数 0 なら unseen（weak/due の件数には数える。設計書 §6 の判定順どおり）
-      if (a === 0) s = UNSEEN;
-      else if (d > 0) s = DUE;
-      else if (w > 0 || (a >= minAnswers && r < weakBelow)) s = WEAK;
-      else if (a < minAnswers) s = FEW;
-      else if (r >= goodFrom && w === 0) s = GOOD;
-      else s = MID;
-      state[i] = s;
+      rate[i] = (c + 1) / (a + 2); // 倍精度のまま判定してから Float32 に入れる
+      state[i] = classifyMastery(a, c, w, d);
     }
 
     return { total, answered, correct, weak: weakCnt, due, rate, state };
   }
 
-  return { computeMastery, MASTERY_STATES, MASTERY_THRESHOLDS };
+  return { computeMastery, readQuestionArrays, classifyMastery, MASTERY_STATES, MASTERY_THRESHOLDS };
 });

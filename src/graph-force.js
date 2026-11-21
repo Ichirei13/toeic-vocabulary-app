@@ -409,7 +409,8 @@
     return { sim, nodes, ticks, init };
   }
 
-  // 文法軸モードの配置キャッシュ用の署名（純関数）。ノード数・エッジ数・設定値・苦手の問題集合から決定論的な文字列を返す。
+  // 文法軸モードの配置キャッシュ用の署名（純関数）。ノードの id・エッジの中身・設定値・苦手の問題集合から決定論的な文字列を返す。
+  // 件数だけでなく中身も混ぜるのは、グラフを作り直して概念タグを付け替えたとき（件数は同じ）に古い座標を出さないため。
   function grammarLayoutSignature(input, weakQ, config) {
     config = config || GRAPH_GRAMMAR;
     input = input || {};
@@ -425,8 +426,19 @@
       h = Math.imul(h, 16777619) >>> 0;
     };
     const mixVal = v => mixStr(v == null ? '' : String(v));
+    // 整数は 4 バイトに分けて混ぜる（エッジは約 1 万個あるので、文字列にしない）
+    const mixInt = v => {
+      v = v | 0;
+      for (let s = 0; s < 32; s += 8) {
+        h ^= (v >>> s) & 0xff;
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+    };
     mixVal(n);
     mixVal(edgeLen);
+    const nodeIds = input.id || input.ids;
+    if (nodeIds) for (let i = 0; i < nodeIds.length; i++) mixVal(nodeIds[i]);
+    if (input.edges) for (let k = 0; k < input.edges.length; k++) mixInt(input.edges[k]);
     for (let k = 0; k < GRAMMAR_CONCEPT_ORDER.length; k++) mixStr(GRAMMAR_CONCEPT_ORDER[k]);
     for (const k of [
       'seed', 'ringRadius', 'ticks', 'alpha', 'singleOutward', 'jitter', 'centerPull',
@@ -452,7 +464,7 @@
         }
       }
     }
-    return `g1:${n}:${edgeLen}:${weakCount}:${(h >>> 0).toString(36)}`;
+    return `g2:${n}:${edgeLen}:${weakCount}:${(h >>> 0).toString(36)}`;
   }
 
   return {

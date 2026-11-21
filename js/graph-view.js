@@ -15,7 +15,10 @@
   'use strict';
 
   const BOOKS = [['all', 'すべて'], ['kin', '金'], ['sekai', '世界一'], ['polaris2', 'ポラリス2'], ['toplevel', 'トップレベル']];
-  const MODES = [['book', '教材軸'], ['grammar', '文法軸']];
+  const MODES = [['book', '教材軸'], ['grammar', '文法軸'], ['radar', 'レーダーチャート']];
+  const BOOK_NAMES = { all: '全教材', kin: '金の文法', sekai: '世界一', polaris2: 'ポラリス2', toplevel: 'トップレベル' };
+  const REPORT_STATE_LABELS = { unseen: '未着手', due: '要復習', weak: '苦手', few: '練習不足', mid: 'もう少し', good: '定着' };
+  const normalizeMode = m => (m === 'grammar' || m === 'radar' ? m : 'book');
   const TAP_SLOP = 6;          // これ以下の移動（CSS px、経路の長さの合計）で、ピンチでなければタップ
   const HIT_MIN_PX = 14;       // 当たり判定の最小半径（CSS px）。見た目より大きめにとる
   const MAX_LABELS = 80;       // 1 フレームに描くラベルの上限
@@ -75,7 +78,7 @@
     frames: 0, listeners: 0, pending: false, lastFrameMs: 0, lastDrawnNodes: 0, lastDrawnEdges: 0, lastDrawnBundles: 0, lastLabels: 0, lastFarQuestionLabels: 0, focusEdges: 0, lastFocusEdgeWidth: 0,
     drawnKinds: [0, 0, 0, 0, 0, 0], lod: 0, mode: 'book', book: 'all', weakOnly: false, lastTap: -1,
     settled: true, settleTicks: 0, settleMs: 0, settleMaxFrameMs: 0,
-    focusNode: -1, focusCount: 0, animating: false,
+    focusNode: -1, focusCount: 0, animating: false, radarCompact: false,
   };
   let inst = null;
 
@@ -162,9 +165,16 @@
     let rafId = 0, dirty = false;
     let width = 0, height = 0, dpr = 1;
     let cam = null, fitScale = 1, interacted = false;
-    let mode = deps.initialMode === 'grammar' ? 'grammar' : 'book';
+    let mode = normalizeMode(deps.initialMode);
     debug.mode = mode;
     const modeCoords = { book: null, grammar: null };
+    let radarCategory = 'concept';
+    let radarSort = 'default';
+    let radarShowCoverage = true;
+    let radarCompact = false;   // レーダーを詰めた配置（狭い画面用）で描いたか
+    // SVG を入れる枠の幅がこれ未満なら詰めた配置にする。通常の配置（文字 12・viewBox 幅 420）で実効 11px を保てる最小の幅（12 × 385 ÷ 420 = 11.0）
+    const RADAR_COMPACT_BELOW_PX = 385;
+    let pendingJumpNode = -1;
     const kindNames = new Array(n);
     for (let i = 0; i < n; i++) kindNames[i] = kindName(i);
     let book = 'all', weakOnly = false;
@@ -216,6 +226,7 @@
           '<button type="button" data-zoom="fit" aria-label="全体を表示">全体</button>' +
           '<button type="button" data-zoom="relayout" aria-label="配置し直す">再配置</button>' +
         '</div>' +
+        '<div class="graph-radar-panel" aria-label="レーダーチャートと項目別スコア" hidden></div>' +
       '</div>' +
       '<section class="graph-sheet" role="dialog" aria-modal="false" aria-labelledby="graph-sheet-title" tabindex="-1" hidden>' +
         '<header class="graph-sheet-head">' +
@@ -232,7 +243,9 @@
     const filterEl = rootEl.querySelector('.graph-filter');
     const stage = rootEl.querySelector('.graph-stage');
     const canvas = rootEl.querySelector('canvas');
+    const legendEl = rootEl.querySelector('.graph-legend');
     const zoomEl = rootEl.querySelector('.graph-zoom');
+    const radarPanel = rootEl.querySelector('.graph-radar-panel');
     const sheet = rootEl.querySelector('.graph-sheet');
     const sheetKind = sheet.querySelector('.graph-sheet-kind');
     const sheetTitle = sheet.querySelector('.graph-sheet-title');
@@ -253,6 +266,7 @@
 
     // ---- 描画の要求（dirty + rAF 1 つだけ） ----
     function requestDraw() {
+      if (mode === 'radar') return;
       dirty = true;
       if (!alive || rafId || document.hidden) return;
       rafId = requestAnimationFrame(onFrame);
@@ -261,7 +275,7 @@
     function onFrame() {
       rafId = 0;
       debug.pending = false;
-      if (!alive || document.hidden) return; // dirty は残し、見えるようになったら描く（力学の続きもそこから）
+      if (!alive || document.hidden || mode === 'radar') return; // dirty は残し、見えるようになったら描く（力学の続きもそこから）
       if (settle) {
         const quiet = settle.quiet;
         stepSettle();
@@ -390,6 +404,11 @@
       if (width > 0 && height > 0) buildGrid();
       debug.settled = true;
       if (!fromFrame) requestDraw();
+      if (pendingJumpNode >= 0) {
+        const targetNode = pendingJumpNode;
+        pendingJumpNode = -1;
+        jumpTo(targetNode);
+      }
     }
     function startSettle(skipCache) {
       stopSettle();
@@ -456,8 +475,232 @@
       stopSettle();
       finishSettle(true, doneSig);
     }
-    function setMode(next) {
-      const target = next === 'grammar' ? 'grammar' : 'book';
+    function syncStageVisibility() {
+      const isRadar = mode === 'radar';
+      canvas.hidden = isRadar;
+      legendEl.hidden = isRadar;
+      zoomEl.hidden = isRadar;
+      radarPanel.hidden = !isRadar;
+    }
+    function pctText(ratio) {
+      return ratio == null ? '—' : Math.round(ratio * 100) + '%';
+    }
+    // レーダーを詰めた配置にするか。枠（.graph-radar-svg-wrap）の実際の幅で決める。枠がまだ無い最初の描画では、パネルの幅で仮に決める
+    // （radarPanel は try ブロックの中で作るので、この関数もブロックの中に置く）
+    function wantRadarCompact() {
+      const wrap = radarPanel.querySelector('.graph-radar-svg-wrap');
+      const px = wrap ? wrap.clientWidth : radarPanel.clientWidth;
+      return px > 0 && px < RADAR_COMPACT_BELOW_PX;
+    }
+    function renderRadarReport(recheck = true) {
+      if (typeof S.computeGraphReport !== 'function' || typeof S.computeRadarGeometry !== 'function') {
+        radarPanel.innerHTML = '<div class="graph-radar-empty">レポートを読み込めませんでした。</div>';
+        return;
+      }
+      const rep = S.computeGraphReport(graph, stats, weak, deps.isDue, {
+        book,
+        conceptOrder: S.GRAMMAR_CONCEPT_ORDER,
+      });
+      const sum = rep.summary;
+      const scopeName = BOOK_NAMES[book] || '全教材';
+      const covPct = Math.round(sum.coverage * 100);
+      const stateText = REPORT_STATE_LABELS[sum.state] || REPORT_STATE_LABELS.unseen;
+      const fmtPts = pts => pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+      // 1. サマリーカード
+      let highlightsHtml = '';
+      if (sum.strongest || sum.weakest) {
+        highlightsHtml = '<div class="graph-radar-highlights">';
+        if (sum.strongest) {
+          highlightsHtml += `<button type="button" class="graph-radar-hl is-strong" data-node="${sum.strongest.nodeIndex}">` +
+            `<span class="graph-radar-hl-tag">得意</span>` +
+            `<span class="graph-radar-hl-name">${esc(sum.strongest.shortLabel)}</span>` +
+            `<span class="graph-radar-hl-val">${esc(pctText(sum.strongest.accuracy))}</span>` +
+          `</button>`;
+        }
+        if (sum.weakest) {
+          highlightsHtml += `<button type="button" class="graph-radar-hl is-weak" data-node="${sum.weakest.nodeIndex}">` +
+            `<span class="graph-radar-hl-tag">要強化</span>` +
+            `<span class="graph-radar-hl-name">${esc(sum.weakest.shortLabel)}</span>` +
+            `<span class="graph-radar-hl-val">${esc(pctText(sum.weakest.accuracy))}</span>` +
+          `</button>`;
+        }
+        highlightsHtml += '</div>';
+      }
+
+      const summaryHtml =
+        `<section class="graph-radar-card graph-radar-summary" aria-label="総合スコア">` +
+          `<div class="graph-radar-summary-head">` +
+            `<div>` +
+              `<span class="graph-radar-kicker">SCORE REPORT</span>` +
+              `<h3 class="graph-radar-scope">${esc(scopeName)}<span class="graph-radar-scope-sub">（${esc(sum.total)}問）</span></h3>` +
+            `</div>` +
+            `<div class="graph-radar-score-box">` +
+              `<span class="graph-radar-state is-state-${esc(sum.state)}">${esc(stateText)}</span>` +
+              `<div class="graph-radar-score-main">` +
+                `<span class="graph-radar-score-num">${esc(pctText(sum.accuracy))}</span>` +
+                `<span class="graph-radar-score-sub">${sum.answered > 0 ? `${esc(sum.correct)}/${esc(sum.answered)} 正解` : '未解答'}</span>` +
+              `</div>` +
+            `</div>` +
+          `</div>` +
+          `<dl class="graph-radar-metrics">` +
+            `<div><dt>着手済み</dt><dd>${esc(sum.attempted)}<small>/${esc(sum.total)} (${esc(covPct)}%)</small></dd></div>` +
+            `<div><dt>定着</dt><dd>${esc(sum.mastered)}<small>問</small></dd></div>` +
+            `<div><dt>苦手</dt><dd class="${sum.weak > 0 ? 'is-alert' : ''}">${esc(sum.weak)}<small>問</small></dd></div>` +
+            `<div><dt>要復習</dt><dd class="${sum.due > 0 ? 'is-alert' : ''}">${esc(sum.due)}<small>問</small></dd></div>` +
+          `</dl>` +
+          highlightsHtml +
+        `</section>`;
+
+      // 2. 13 概念レーダーチャート（SVG）。狭い枠では半径を小さくして文字を大きくする（viewBox は共通）
+      radarCompact = wantRadarCompact();
+      debug.radarCompact = radarCompact;
+      const geo = S.computeRadarGeometry(rep.concepts, radarCompact
+        ? { width: 420, height: 330, radius: 76, labelOffset: 16 }
+        : { width: 420, height: 330, radius: 96, labelOffset: 20 });
+      const ringsSvg = geo.rings.map(r =>
+        `<polygon class="graph-radar-ring${r.isTarget ? ' is-target' : ''}" points="${fmtPts(r.points)}"></polygon>`
+      ).join('');
+      const axesSvg = geo.axes.map(ax =>
+        `<line class="graph-radar-axis-line" x1="${geo.cx}" y1="${geo.cy}" x2="${ax.outer.x.toFixed(1)}" y2="${ax.outer.y.toFixed(1)}"></line>`
+      ).join('');
+      const targetRing = geo.rings.find(r => r.isTarget);
+      const targetNoteSvg = targetRing && targetRing.points[0] && targetRing.points[1]
+        ? `<text class="graph-radar-scale-label" x="${(((targetRing.points[0].x + targetRing.points[1].x) / 2) + 2).toFixed(1)}" y="${(((targetRing.points[0].y + targetRing.points[1].y) / 2) - 3).toFixed(1)}" text-anchor="middle">80%</text>`
+        : '';
+      const covPolySvg = radarShowCoverage && geo.covPolygon.length >= 3
+        ? `<polygon class="graph-radar-poly-cov" points="${fmtPts(geo.covPolygon)}"></polygon>`
+        : '';
+      const accPolySvg = geo.accPolygon.length >= 3
+        ? `<polygon class="graph-radar-poly-acc" points="${fmtPts(geo.accPolygon)}"></polygon>`
+        : '';
+      const dotsSvg = geo.axes.map(ax => {
+        const it = ax.item;
+        if (it.total === 0) return '';
+        const dimCls = weakOnly && it.weak === 0 ? ' is-dim' : '';
+        const actCls = sheetIndex === it.nodeIndex ? ' is-active' : '';
+        return (
+          `<g class="graph-radar-dot-group${dimCls}${actCls}" data-node="${it.nodeIndex}">` +
+            `<circle class="graph-radar-hit" cx="${ax.accPoint.x.toFixed(1)}" cy="${ax.accPoint.y.toFixed(1)}" r="12"></circle>` +
+            `<circle class="graph-radar-dot is-state-${esc(it.state)}${it.weak > 0 ? ' has-weak' : ''}" cx="${ax.accPoint.x.toFixed(1)}" cy="${ax.accPoint.y.toFixed(1)}" r="4.5"></circle>` +
+          `</g>`
+        );
+      }).join('');
+      const nodesSvg = geo.axes.map(ax => {
+        const it = ax.item;
+        const unavailable = it.total === 0;
+        const pct = unavailable ? '収録なし' : pctText(it.accuracy);
+        const dimCls = unavailable ? ' is-unavailable' : (weakOnly && it.weak === 0 ? ' is-dim' : '');
+        const actCls = !unavailable && sheetIndex === it.nodeIndex ? ' is-active' : '';
+        const sin = Math.sin(ax.angle);
+        const labelDy = sin < -0.65 ? -10 : sin > 0.65 ? 5 : -2;
+        const lx = ax.labelPos.x.toFixed(1);
+        const ly = (ax.labelPos.y + labelDy).toFixed(1);
+        const interactiveAttrs = unavailable
+          ? ` aria-disabled="true" aria-label="${esc(it.label)} この教材には収録なし"`
+          : ` data-node="${it.nodeIndex}" role="button" tabindex="0" aria-label="${esc(it.label)} 正答率 ${esc(pct)}"`;
+        return (
+          `<g class="graph-radar-axis-btn${dimCls}${actCls}"${interactiveAttrs}>` +
+            (unavailable ? '' : `<circle class="graph-radar-hit" cx="${lx}" cy="${ax.labelPos.y.toFixed(1)}" r="22"></circle>`) +
+            `<text class="graph-radar-axis-label" x="${lx}" y="${ly}" text-anchor="${ax.textAnchor}">` +
+              `<tspan x="${lx}">${esc(it.shortLabel)}</tspan>` +
+              `<tspan class="graph-radar-axis-pct" x="${lx}" dy="1.2em">${esc(pct)}</tspan>` +
+            `</text>` +
+          `</g>`
+        );
+      }).join('');
+
+      const radarSvg =
+        `<svg class="graph-radar-svg${radarCompact ? ' is-compact' : ''}" viewBox="0 0 420 330" role="img" aria-label="13文法概念のレーダーチャート">` +
+          ringsSvg +
+          axesSvg +
+          covPolySvg +
+          accPolySvg +
+          targetNoteSvg +
+          dotsSvg +
+          nodesSvg +
+        `</svg>`;
+
+      const radarCardHtml =
+        `<section class="graph-radar-card graph-radar-chart-card" aria-label="文法概念レーダーチャート">` +
+          `<div class="graph-radar-card-head">` +
+            `<h3>13 文法概念バランス</h3>` +
+            `<button type="button" class="graph-radar-mini-toggle" data-radar-cov="1" aria-pressed="${radarShowCoverage}">着手率を重ねる</button>` +
+          `</div>` +
+          `<div class="graph-radar-svg-wrap">${radarSvg}</div>` +
+          `<div class="graph-radar-legend">` +
+            `<span><i class="graph-radar-swatch is-acc"></i>正答率</span>` +
+            (radarShowCoverage ? `<span><i class="graph-radar-swatch is-cov"></i>着手率</span>` : '') +
+            `<span><i class="graph-radar-swatch is-target"></i>80% 定着目標</span>` +
+          `</div>` +
+        `</section>`;
+
+      // 3. アビメ風横棒グラフ
+      const rawItems = radarCategory === 'trap' ? rep.traps : radarCategory === 'book' ? rep.books : rep.concepts;
+      const filteredItems = weakOnly ? rawItems.filter(it => it.weak > 0) : rawItems;
+      const items = S.sortReportItems(filteredItems, radarSort);
+
+      const barsListHtml = items.length === 0
+        ? '<p class="graph-radar-empty">該当する項目がありません。</p>'
+        : items.map(it => {
+            const unavailable = it.total === 0;
+            const acc = unavailable ? '—' : pctText(it.accuracy);
+            const accWidth = unavailable || it.accuracy == null ? 0 : Math.round(it.accuracy * 100);
+            const covWidth = unavailable ? 0 : Math.round(it.coverage * 100);
+            const isSelBook = radarCategory === 'book' && book !== 'all' && it.selected;
+            const badges = unavailable
+              ? '<span class="graph-bar-badge is-muted">収録なし</span>'
+              : (isSelBook ? '<span class="graph-bar-badge is-sel">選択中</span>' : '') +
+                (it.weak > 0 ? `<span class="graph-bar-badge is-weak">苦手 ${esc(it.weak)}</span>` : '') +
+                (it.due > 0 ? `<span class="graph-bar-badge is-due">復習 ${esc(it.due)}</span>` : '');
+            const subText = unavailable
+              ? 'この教材には収録なし'
+              : `${esc(it.attempted)}/${esc(it.total)}問 着手（${esc(covWidth)}%）` +
+                (it.answered > 0 ? ` ・ ${esc(it.correct)}/${esc(it.answered)} 正解` : ' ・ 未解答');
+            return (
+              `<button type="button" class="graph-bar-row${unavailable ? ' is-unavailable' : ''}${!unavailable && sheetIndex === it.nodeIndex ? ' is-active' : ''}"${unavailable ? ' disabled' : ` data-node="${it.nodeIndex}" aria-pressed="${sheetIndex === it.nodeIndex}"`}>` +
+                `<div class="graph-bar-top">` +
+                  `<span class="graph-bar-name">${esc(it.label)}</span>` +
+                  `<span class="graph-bar-badges">${badges}</span>` +
+                  `<span class="graph-bar-pct is-state-${esc(it.state)}">${esc(acc)}</span>` +
+                `</div>` +
+                `<div class="graph-bar-track" aria-hidden="true">` +
+                  `<span class="graph-bar-cov" style="width:${covWidth}%"></span>` +
+                  `<span class="graph-bar-fill is-state-${esc(it.state)}" style="width:${accWidth}%"></span>` +
+                  `<span class="graph-bar-target"></span>` +
+                `</div>` +
+                `<div class="graph-bar-sub">${subText}</div>` +
+              `</button>`
+            );
+          }).join('');
+
+      const barsCardHtml =
+        `<section class="graph-radar-card graph-bars-card" aria-label="項目別スコア">` +
+          `<div class="graph-bars-controls">` +
+            `<div class="graph-bars-tabs" role="tablist" aria-label="集計の軸">` +
+              `<button type="button" role="tab" class="graph-bars-tab" data-radar-cat="concept" aria-selected="${radarCategory === 'concept'}">文法概念 (${esc(rep.concepts.length)})</button>` +
+              `<button type="button" role="tab" class="graph-bars-tab" data-radar-cat="trap" aria-selected="${radarCategory === 'trap'}">ひっかけ (${esc(rep.traps.length)})</button>` +
+              `<button type="button" role="tab" class="graph-bars-tab" data-radar-cat="book" aria-selected="${radarCategory === 'book'}">教材別 (${esc(rep.books.length)})</button>` +
+            `</div>` +
+            `<div class="graph-bars-sorts" role="group" aria-label="並び順">` +
+              `<button type="button" class="graph-bars-sort" data-radar-sort="default" aria-pressed="${radarSort === 'default'}">標準順</button>` +
+              `<button type="button" class="graph-bars-sort" data-radar-sort="weakness" aria-pressed="${radarSort === 'weakness'}">弱い順</button>` +
+            `</div>` +
+          `</div>` +
+          `<div class="graph-bars-list">${barsListHtml}</div>` +
+        `</section>`;
+
+      radarPanel.innerHTML =
+        `<div class="graph-radar-grid">` +
+          `<div class="graph-radar-col-main">${summaryHtml}${radarCardHtml}</div>` +
+          `<div class="graph-radar-col-bars">${barsCardHtml}</div>` +
+        `</div>`;
+      // 枠の幅は描いてみないと分からない（列の幅で決まる）。仮の判断が外れていたら 1 回だけ描き直す
+      if (recheck && wantRadarCompact() !== radarCompact) renderRadarReport(false);
+    }
+    function setMode(next, opts) {
+      const target = normalizeMode(next);
+      pendingJumpNode = opts && Number.isInteger(opts.jumpNode) ? opts.jumpNode : -1;
       if (target === mode) return;
       stopSettle();
       stopAnim();
@@ -467,6 +710,23 @@
       filterEl.querySelectorAll('.graph-mode-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
       if (typeof deps.onModeChange === 'function') {
         try { deps.onModeChange(mode); } catch (e) { /* 記憶側の失敗で操作を止めない */ }
+      }
+      syncStageVisibility();
+      if (mode === 'radar') {
+        // closeSheet() や力学・移動で予約された rAF が残っていれば確実に取り消す
+        if (rafId) { cancelAnimationFrame(rafId); rafId = 0; debug.pending = false; }
+        dirty = false;
+        debug.settled = true;
+        renderRadarReport();
+        return;
+      }
+      const r = stage.getBoundingClientRect();
+      const w = Math.round(r.width), h = Math.round(r.height);
+      if (w !== width || h !== height || !cam) {
+        width = w; height = h;
+        dpr = Math.min(DPR_MAX, root.devicePixelRatio || 1);
+        canvas.width = Math.max(1, Math.round(w * dpr));
+        canvas.height = Math.max(1, Math.round(h * dpr));
       }
       interacted = false;
       if (modeCoords[mode]) {
@@ -823,11 +1083,17 @@
 
     // ---- 詳細シート ----
     function renderSheet(i) {
-      const d = S.buildDetail(graph, mastery, i, { stats, weak, getQuestion: deps.getQuestion });
+      const sheetBook = mode === 'radar' && book !== 'all' ? book : null;
+      const d = S.buildDetail(graph, mastery, i, {
+        stats, weak, getQuestion: deps.getQuestion, book: sheetBook, isDue: deps.isDue,
+      });
       if (!d) return false;
-      sheetKind.textContent = d.kindLabel;
+      const isBookFiltered = !!(sheetBook && graph.kind[i] !== kBook && graph.kind[i] !== kQuestion);
+      const total = d.questions.length + (d.moreCount || 0);
+      if (isBookFiltered && total === 0) return false;
+      sheetKind.textContent = isBookFiltered ? `${d.kindLabel}・${BOOK_NAMES[sheetBook] || sheetBook}` : d.kindLabel;
       sheetTitle.textContent = d.title;
-      const correct = mastery.correct[i];
+      const correct = typeof d.correct === 'number' ? d.correct : mastery.correct[i];
       const pct = d.answered > 0 ? Math.round((100 * correct) / d.answered) + '%' : '—';
       let html =
         '<dl class="graph-stats">' +
@@ -839,14 +1105,19 @@
       if (d.desc) html += `<p class="graph-desc">${richText(d.desc)}</p>`;
       if (d.advice) html += `<p class="graph-advice"><span class="graph-advice-label">対策</span>${richText(d.advice)}</p>`;
       sheetPick = null;
-      if (typeof deps.onStartDrill === 'function' && typeof S.pickNear === 'function') {
-        const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
-        if (pick.ids.length > 0) {
-          sheetPick = { ids: pick.ids, label: d.title };
-          html += `<button type="button" class="graph-drill-btn">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
+      if (typeof deps.onStartDrill === 'function') {
+        if (isBookFiltered && Array.isArray(d.allQids) && d.allQids.length > 0) {
+          const ids = d.allQids.slice(0, FOCUS_NEAR);
+          sheetPick = { ids, label: `${d.title}（${BOOK_NAMES[sheetBook] || sheetBook}）` };
+          html += `<button type="button" class="graph-drill-btn">この分野を ${esc(ids.length)} 問解く</button>`;
+        } else if (typeof S.pickNear === 'function') {
+          const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
+          if (pick.ids.length > 0) {
+            sheetPick = { ids: pick.ids, label: d.title };
+            html += `<button type="button" class="graph-drill-btn">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
+          }
         }
       }
-      const total = d.questions.length + (d.moreCount || 0);
       html += `<h3 class="graph-qs-head">問題（${esc(total)}）</h3><ul class="graph-qs">`;
       for (const q of d.questions) {
         const node = qidNode.has(q.qid) ? qidNode.get(q.qid) : -1;
@@ -864,13 +1135,22 @@
       sheetExpand.setAttribute('aria-pressed', String(sheetWide));
       sheetExpand.textContent = sheetWide ? '縮める' : '広げる';
     }
+    function syncRadarSelection() {
+      if (mode !== 'radar') return;
+      radarPanel.querySelectorAll('[data-node]').forEach(el => {
+        const active = Number(el.dataset.node) === sheetIndex;
+        el.classList.toggle('is-active', active);
+        if (el.classList.contains('graph-bar-row')) el.setAttribute('aria-pressed', String(active));
+      });
+    }
     function openSheet(i) {
       if (!renderSheet(i)) return;
       sheetIndex = i;
       debug.lastTap = i;
       sheetBody.scrollTop = 0;
       sheet.hidden = false;
-      setFocus(i);
+      if (mode === 'radar') syncRadarSelection();
+      else setFocus(i);
       try { sheet.focus({ preventScroll: true }); } catch (e) { /* 古いブラウザ */ }
     }
     function closeSheet() {
@@ -880,6 +1160,7 @@
       sheet.hidden = true;
       setSheetWide(false);
       clearFocus();
+      syncRadarSelection();
     }
 
     // ---- 入力 ----
@@ -951,6 +1232,27 @@
       const [x, y] = localXY(e);
       if (cam) zoomBy(x, y, Math.exp(-dy * k));
     }
+    function jumpFromRadar(target) {
+      if (!(target >= 0 && target < n)) return;
+      if (book !== 'all') {
+        const mBook = S.visibleMask(graph, mastery, { book, weakOnly: false, lod: 2, showWeakQuestions: true });
+        if (!mBook[target]) {
+          book = 'all';
+          debug.book = 'all';
+          filterEl.querySelectorAll('.graph-chip').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.book === 'all')));
+        }
+      }
+      if (weakOnly) {
+        const mWeak = S.visibleMask(graph, mastery, { book, weakOnly: true, lod: 2, showWeakQuestions: true });
+        if (!mWeak[target]) {
+          weakOnly = false;
+          debug.weakOnly = false;
+          const tog = filterEl.querySelector('.graph-weak-toggle');
+          if (tog) tog.setAttribute('aria-pressed', 'false');
+        }
+      }
+      setMode('book', { jumpNode: target });
+    }
     function onFilterClick(e) {
       const mb = e.target.closest('.graph-mode-btn');
       if (mb && mb.dataset.mode) {
@@ -962,7 +1264,12 @@
         book = chip.dataset.book;
         debug.book = book;
         filterEl.querySelectorAll('.graph-chip').forEach(b => b.setAttribute('aria-pressed', String(b === chip)));
-        requestDraw();
+        if (mode === 'radar') {
+          if (sheetIndex >= 0 && !renderSheet(sheetIndex)) closeSheet();
+          renderRadarReport();
+        } else {
+          requestDraw();
+        }
         return;
       }
       const tog = e.target.closest('.graph-weak-toggle');
@@ -970,8 +1277,44 @@
         weakOnly = !weakOnly;
         debug.weakOnly = weakOnly;
         tog.setAttribute('aria-pressed', String(weakOnly));
-        requestDraw();
+        if (mode === 'radar') renderRadarReport();
+        else requestDraw();
       }
+    }
+    function focusRadarControl(selector) {
+      const el = radarPanel.querySelector(selector);
+      if (el && typeof el.focus === 'function') {
+        try { el.focus({ preventScroll: true }); } catch (e) { /* 古いブラウザ */ }
+      }
+    }
+    function onRadarClick(e) {
+      const cat = e.target.closest('[data-radar-cat]');
+      if (cat && cat.dataset.radarCat) {
+        radarCategory = cat.dataset.radarCat;
+        renderRadarReport();
+        focusRadarControl(`[data-radar-cat="${radarCategory}"]`);
+        return;
+      }
+      const sortBtn = e.target.closest('[data-radar-sort]');
+      if (sortBtn && sortBtn.dataset.radarSort) {
+        radarSort = sortBtn.dataset.radarSort;
+        renderRadarReport();
+        focusRadarControl(`[data-radar-sort="${radarSort}"]`);
+        return;
+      }
+      if (e.target.closest('[data-radar-cov]')) {
+        radarShowCoverage = !radarShowCoverage;
+        renderRadarReport();
+        focusRadarControl('[data-radar-cov]');
+        return;
+      }
+      const nodeEl = e.target.closest('[data-node]');
+      if (nodeEl) {
+        const idx = Number(nodeEl.dataset.node);
+        if (Number.isInteger(idx) && idx >= 0 && idx < n) openSheet(idx);
+        return;
+      }
+      if (!sheet.hidden && !e.target.closest('button')) closeSheet();
     }
     function onZoomClick(e) {
       const b = e.target.closest('button[data-zoom]');
@@ -990,23 +1333,46 @@
         return;
       }
       const li = e.target.closest('.graph-q[data-node]');
-      if (li) jumpTo(Number(li.dataset.node));
+      if (li) {
+        const target = Number(li.dataset.node);
+        if (mode === 'radar') { jumpFromRadar(target); return; }
+        jumpTo(target);
+      }
     }
     function onKeyDown(e) {
       if (e.key === 'Escape' && !sheet.hidden) { e.preventDefault(); closeSheet(); return; }
-      if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.closest && sheet.contains(e.target)) {
-        const li = e.target.closest('.graph-q[data-node]');
-        if (li) { e.preventDefault(); jumpTo(Number(li.dataset.node)); }
+      if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.closest) {
+        if (sheet.contains(e.target)) {
+          const li = e.target.closest('.graph-q[data-node]');
+          if (li) {
+            e.preventDefault();
+            const target = Number(li.dataset.node);
+            if (mode === 'radar') { jumpFromRadar(target); return; }
+            jumpTo(target);
+          }
+          return;
+        }
+        if (mode === 'radar' && radarPanel.contains(e.target)) {
+          const axisBtn = e.target.closest('.graph-radar-axis-btn[data-node]');
+          if (axisBtn) {
+            e.preventDefault();
+            const idx = Number(axisBtn.dataset.node);
+            if (Number.isInteger(idx) && idx >= 0 && idx < n) openSheet(idx);
+          }
+        }
       }
     }
     function onVisibility() {
       if (document.hidden) {
         if (rafId) { cancelAnimationFrame(rafId); rafId = 0; debug.pending = false; dirty = true; }
-      } else if (dirty) {
+      } else if (dirty && mode !== 'radar') {
         requestDraw();
       }
     }
-    function onTheme() { readColors(); requestDraw(); }
+    function onTheme() {
+      readColors();
+      if (mode !== 'radar') requestDraw();
+    }
 
     on(canvas, 'pointerdown', onPointerDown);
     on(canvas, 'pointermove', onPointerMove);
@@ -1014,6 +1380,7 @@
     on(canvas, 'pointercancel', e => endPointer(e, true));
     on(canvas, 'wheel', onWheel, { passive: false });
     on(filterEl, 'click', onFilterClick);
+    on(radarPanel, 'click', onRadarClick);
     on(zoomEl, 'click', onZoomClick);
     on(sheet, 'click', onSheetClick);
     on(document, 'keydown', onKeyDown);
@@ -1029,6 +1396,11 @@
     }
     if (typeof ResizeObserver === 'function') {
       const ro = new ResizeObserver(entries => {
+        // レーダー表示中は、幅の区分が変わったときだけ描き直す（DOM の組み立てだけで rAF は使わない）
+        if (mode === 'radar') {
+          if (wantRadarCompact() !== radarCompact) renderRadarReport();
+          return;
+        }
         const r = entries[entries.length - 1].contentRect;
         const w = Math.round(r.width), h = Math.round(r.height);
         if (w !== width || h !== height) resize(w, h); // 初回の通知（大きさが同じ）では描き直さない
@@ -1040,21 +1412,29 @@
     // ---- 起動 ----
     readColors();
     recompute();
-    if (mode === 'grammar') { applyBasePositions('grammar'); updateBounds(); }
-    const r0 = stage.getBoundingClientRect();
-    resize(Math.round(r0.width), Math.round(r0.height)); // ここで最初の 1 フレームを要求する
-    startSettle(); // 教材軸は苦手があれば続きを回し、文法軸は概念リングから力学を回す
+    syncStageVisibility();
+    if (mode === 'radar') {
+      debug.settled = true;
+      renderRadarReport();
+    } else {
+      if (mode === 'grammar') { applyBasePositions('grammar'); updateBounds(); }
+      const r0 = stage.getBoundingClientRect();
+      resize(Math.round(r0.width), Math.round(r0.height)); // ここで最初の 1 フレームを要求する
+      startSettle(); // 教材軸は苦手があれば続きを回し、文法軸は概念リングから力学を回す
+    }
 
     return {
       refresh() {
         if (!alive) return;
         recompute();
         if (sheetIndex >= 0 && !renderSheet(sheetIndex)) closeSheet(); // ノードが無効になったら閉じる
-        requestDraw();
+        if (mode === 'radar') renderRadarReport();
+        else requestDraw();
       },
       destroy() {
         if (!alive) return;
         alive = false;
+        pendingJumpNode = -1;
         stopSettle();
         stopAnim();
         if (rafId) cancelAnimationFrame(rafId);
@@ -1108,7 +1488,7 @@
     if (inst) destroy();
     debug.frames = 0; debug.lastTap = -1; debug.lod = 0; debug.mode = 'book'; debug.book = 'all'; debug.weakOnly = false;
     debug.settled = true; debug.settleTicks = 0; debug.settleMs = 0; debug.settleMaxFrameMs = 0;
-    debug.focusNode = -1; debug.focusCount = 0; debug.animating = false;
+    debug.focusNode = -1; debug.focusCount = 0; debug.animating = false; debug.radarCompact = false;
     inst = createInstance(container, deps);
   }
   function refresh() { if (inst) inst.refresh(); }

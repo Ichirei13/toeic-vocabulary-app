@@ -1383,6 +1383,7 @@ const GRAPH_SCRIPTS = [
   'src/graph-geometry.js',
   'src/graph-detail.js',
   'src/graph-near.js',
+  'src/graph-report.js',
   'js/graph-view.js',
 ];
 // 力学用（d3-force と力の定義）。読めなくてもグラフは固定配置で開くので、失敗しても止めない
@@ -1507,6 +1508,13 @@ function writeGraphGrammarCache(sig, coords) {
   try { localStorage.setItem(GRAPH_GRAMMAR_CACHE_KEY, JSON.stringify(entry)); } catch (e) { /* 無視 */ }
 }
 
+// 配置軸はこの端末の表示の好みで、学習記録ではない。saveJSON で保存すると、失敗したときにキーが failedSaveKeys に残り、
+// 次にモードを切り替えて保存できるまで、このタブは別タブの保存を読み込み直さなくなる（js/boot.js の reloadRecordsSavedElsewhere）。
+// そのため座標キャッシュと同じく直接書き、失敗は無視する（次回は教材軸で開くだけ）。保存の形（JSON 文字列）は loadJSON で読める形のまま
+function writeGraphMode(mode) {
+  try { localStorage.setItem(GRAPH_MODE_KEY, JSON.stringify(mode)); } catch (e) { /* 無視 */ }
+}
+
 // 読み込み中 → 読み込み → マウント。失敗したら理由と「再試行」
 async function showGraphPage() {
   const pageEl = ensureGraphPage();
@@ -1531,7 +1539,8 @@ async function showGraphPage() {
   if (token !== graphOpenToken || currentAppPage !== 'graph') return; // 待っている間に別のページへ移った
   loading.hidden = true;
   try {
-    const savedMode = loadJSON(GRAPH_MODE_KEY, 'book') === 'grammar' ? 'grammar' : 'book';
+    const rawMode = loadJSON(GRAPH_MODE_KEY, 'book');
+    const savedMode = rawMode === 'grammar' || rawMode === 'radar' ? rawMode : 'book';
     GraphView.mount(host, {
       graph: GRAMMAR_GRAPH,
       getStats: () => state.grammarStats,
@@ -1539,7 +1548,7 @@ async function showGraphPage() {
       getQuestion: id => GRAMMAR_BY_ID.get(id),
       isDue,
       initialMode: savedMode,
-      onModeChange: mode => { saveJSON(GRAPH_MODE_KEY, mode === 'grammar' ? 'grammar' : 'book'); },
+      onModeChange: mode => { writeGraphMode(mode === 'grammar' || mode === 'radar' ? mode : 'book'); },
       getLayoutCache: (mode, sig) => (mode === 'grammar' ? readGraphGrammarCache(sig) : null),
       setLayoutCache: (mode, sig, coords) => { if (mode === 'grammar') writeGraphGrammarCache(sig, coords); },
       onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },

@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v21';
+const CACHE = 'toeic-drill-v22';
 // 試用版（next/sw.js）がオフライン用に使うキャッシュの名前の頭。古い版を消すときも、これは残す（消すと試用版がオフラインで開けない）
 const TRIAL_CACHE_PREFIX = 'toeic-next-';
 const ASSETS = [
@@ -154,6 +154,7 @@ const ASSETS = [
   'src/graph-geometry.js',
   'src/graph-detail.js',
   'src/graph-near.js',
+  'src/graph-report.js',
   'js/graph-view.js',
   'css/graph.css',
   'vendor/d3-dispatch.min.js',
