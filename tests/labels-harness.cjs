@@ -31,9 +31,9 @@ function test(name, fn) {
   tests.push([name, fn]);
 }
 
-// storage: 最初に開く前に localStorage に入れておく値。fn(page, context)
-async function withPage(storage, fn) {
-  const context = await browser.newContext({ viewport: { width: 420, height: 800 } });
+// storage: 最初に開く前に localStorage に入れておく値。fn(page, context)。opts.viewport で画面の大きさを変える（既定はスマホ幅 420px）
+async function withPage(storage, fn, opts = {}) {
+  const context = await browser.newContext({ viewport: opts.viewport || { width: 420, height: 800 } });
   await context.addInitScript(items => {
     try {
       if (sessionStorage.getItem('__test_init')) return;

@@ -23,6 +23,8 @@ test('practice_footer_has_no_label_link', () => withPage({}, async page => {
 }));
 
 const homeLabels = '#home-page .label-summary';
+// ホームのラベル欄は PC の 2 カラム（1024px 以上）だけに出す。スマホ幅では復習タブに任せる
+const PC = { viewport: { width: 1280, height: 800 } };
 const openHome = (page, kind) => page.evaluate(k => { switchAppPage('home'); homeCategory = k; renderHomePage(); }, kind);
 
 test('home_shows_labels_with_counts_and_opens_contents', () => withPage({}, async page => {
@@ -35,7 +37,7 @@ test('home_shows_labels_with_counts_and_opens_contents', () => withPage({}, asyn
   assert.strictEqual(await page.textContent('#sheet-title'), 'ラベル: あとで見る');
   assert.strictEqual(await page.evaluate(() => document.querySelector('[data-label-tab="vocab"]').classList.contains('active')), true);
   assert((await sheetText(page)).includes(w));
-}));
+}, PC));
 
 test('home_grammar_category_counts_grammar', () => withPage({}, async page => {
   await label(page, ['g:1001', 'g:1002']);
@@ -43,12 +45,12 @@ test('home_grammar_category_counts_grammar', () => withPage({}, async page => {
   assert((await page.textContent(homeLabels)).includes('文法 2問'));
   await page.click(`${homeLabels} [data-label-view="default"]`);
   assert.strictEqual(await page.evaluate(() => document.querySelector('[data-label-tab="grammar"]').classList.contains('active')), true);
-}));
+}, PC));
 
 test('label_section_shows_hint_when_nothing_labeled', () => withPage({}, async page => {
   await openHome(page, 'vocab');
   assert((await page.textContent(homeLabels)).includes('解答後の 🏷 で付けられます'));
-}));
+}, PC));
 
 test('review_page_shows_labels_per_kind', () => withPage({}, async page => {
   const w = await firstWord(page);
@@ -68,7 +70,29 @@ test('home_counts_update_after_removing_from_sheet', () => withPage({}, async pa
   await page.click('[data-label-remove="g:1001"]');
   await page.evaluate(() => closeSheet());
   assert((await page.textContent(homeLabels)).includes('文法 0問'));
+}, PC));
+
+test('phone_home_hides_labels_and_weak_bar_and_review_keeps_them', () => withPage({}, async page => {
+  const shown = sel => page.evaluate(q => { const el = document.querySelector(q); return !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0; }, sel);
+  for (const kind of ['vocab', 'grammar']) {
+    await openHome(page, kind);
+    assert.strictEqual(await shown('#home-page .home-label-bar'), false, `${kind}: スマホのホームにラベル欄が出ている`);
+    assert.strictEqual(await shown('#home-page .home-weak-bar:not(.home-graph-bar)'), false, `${kind}: スマホのホームに苦手問題の欄が出ている`);
+    assert.strictEqual(await shown('#home-page .home-main-book-card'), true, `${kind}: 参考書のカードまで消えた`);
+  }
+  assert.strictEqual(await shown('#home-page .home-graph-bar'), true, '文法グラフのカードは残す');
+  await page.evaluate(() => switchAppPage('review'));
+  assert.strictEqual(await shown('#review-page .label-summary'), true, '復習タブのラベル欄');
+  assert.strictEqual(await shown('#review-page [data-home-action="solve-weak"]'), true, '復習タブの「苦手を解く」');
+  assert.strictEqual(await shown('#review-page [data-home-action="view-weak-list"]'), true, '復習タブの「一覧を見る」');
 }));
+
+test('pc_home_keeps_labels_and_weak_bar', () => withPage({}, async page => {
+  const shown = sel => page.evaluate(q => { const el = document.querySelector(q); return !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().height > 0; }, sel);
+  await openHome(page, 'grammar');
+  assert.strictEqual(await shown('#home-page .home-label-bar'), true);
+  assert.strictEqual(await shown('#home-page .home-weak-bar:not(.home-graph-bar)'), true);
+}, PC));
 
 test('list_shows_counts_per_label', () => withPage({}, async page => {
   const w = await firstWord(page);
