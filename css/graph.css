@@ -503,6 +503,13 @@
   font-size: 14px;
   font-weight: 600;
 }
+/* レーダーから開いたシートの出題ボタン（全問／正解済みを除く）。2 つ目は控えめな色にする */
+.graph-drill-btns { margin: 10px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.graph-drill-btns .graph-drill-btn { margin: 0; }
+.graph-drill-btn.is-sub {
+  background: var(--graph-chip-bg);
+  color: var(--graph-label);
+}
 
 @media (max-width: 420px) {
   .graph-mode-btn {

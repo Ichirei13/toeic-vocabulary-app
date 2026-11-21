@@ -163,6 +163,8 @@
       correct,
       weakCount,
       allQids: items.map(it => it.qid),
+      // 正解済み（解いた回がすべて正解で、苦手でもない）を除いた問題。苦手 → 間違い → 未着手 の順（レーダーの「正解済みを除いて解く」用）
+      restQids: items.filter(it => it.status !== 'correct').map(it => it.qid),
     };
 
     if ((kindName === 'concept' || kindName === 'trap') && graph.text && hasOwn(graph.text, String(nodeIndex))) {

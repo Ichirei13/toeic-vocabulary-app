@@ -44,6 +44,7 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
     続きはこの端末だけのキー `toeic_near_drill_v1` に置く（バックアップ・同期・別のタブへの反映の対象外。`RECORD_KEYS` / `EXTRA_KEYS` / `CROSS_TAB_KEYS` に足さない）。
     通常の出題に戻る経路（`applyGrammarFilters`・`restoreSession`・`restoreBookSessionSnapshot`）は `clearNearDrill()` を呼ぶ。
     記録の読み込み直し（`js/backup-io.js` の `refreshPoolAfterRecordSync`）でも出題を作り直さない（出題中は先頭で戻る）。`tests/graph-drill.test.js` で確かめる。
+    レーダーからの「テーマの問題を解く」も同じ仕組みで、`state.nearDrill.kind`（と保存した続きの `kind`）が `'theme'` のときは表示だけ「〈テーマ〉の N 問」になる。
 12. **グラフは、力学が収まった後と移動のアニメーションが終わった後は描かない。** `requestAnimationFrame` を呼び続けるのは、
     開いたときの力学（`GRAPH_RUNTIME.ticks` 回。文法軸は `GRAPH_GRAMMAR.ticks` 回）と移動（約 0.3 秒）の間だけ。`tests/graph-view.test.js` が、その後の呼び出しが 0 回であることを確かめる。
 13. **グラフの「文法軸」のモード選択と計算キャッシュは端末限定で扱う。** 選択中の配置軸は `toeic_graph_mode_v1`、計算済み座標キャッシュは

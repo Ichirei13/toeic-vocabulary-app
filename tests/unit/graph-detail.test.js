@@ -305,6 +305,24 @@ test('book フィルタ: 指定教材に属する問題・成績・苦手だけ�
   assert.strictEqual(dSekaiBook.questions.length, 2);
 });
 
+test('allQids / restQids: 全問は 苦手 → 間違い → 未着手 → 正解済み の順、restQids は正解済みを除いたもの（教材の絞り込みにも従う）', () => {
+  const g2 = makeGraph([
+    { id: 'book:kin', kind: 'book', label: '金の文法', members: [1, 2] },
+    { id: 'book:sekai', kind: 'book', label: '世界一', members: [3, 4, 5] },
+    { id: 'con:SVOC', kind: 'concept', label: 'SVOC', members: [1, 2, 3, 4, 5] },
+  ]);
+  // 1: 全問正解 / 2: 苦手 / 3: 間違いあり / 4: 未着手 / 5: 全問正解
+  const stats = { 1: { a: 4, c: 4 }, 2: { a: 4, c: 1 }, 3: { a: 3, c: 2 }, 5: { a: 1, c: 1 } };
+  const weak = { 2: { due: 9999999999 } };
+  const m = M.computeMastery(g2, stats, weak, () => false);
+  const dAll = D.buildDetail(g2, m, 2, { stats, weak });
+  assert.deepStrictEqual(dAll.allQids, [2, 3, 4, 1, 5]);
+  assert.deepStrictEqual(dAll.restQids, [2, 3, 4]);
+  const dSekai = D.buildDetail(g2, m, 2, { stats, weak, book: 'sekai' });
+  assert.deepStrictEqual(dSekai.allQids, [3, 4, 5]);
+  assert.deepStrictEqual(dSekai.restQids, [3, 4]);
+});
+
 test('book フィルタ: 詳細シートの状態は、同じ教材で絞ったレーダーの状態と一致する（実グラフ）', () => {
   const R = require('../../src/graph-report.js');
   const g = loadRealGraph();

@@ -1,6 +1,7 @@
 // 文法グラフの画面（Canvas 2D）。window.GraphView を 1 つだけ公開し、アプリの state などのグローバルには触れない。
 // 必要なものは mount(container, deps) の deps で受け取る:
-//   deps = { graph, getStats: ()=>object, getWeak: ()=>object, getQuestion: (qid)=>object|undefined, isDue: (entry)=>boolean, onStartDrill?: (ids, label) => void }
+//   deps = { graph, getStats: ()=>object, getWeak: ()=>object, getQuestion: (qid)=>object|undefined, isDue: (entry)=>boolean, onStartDrill?: (ids, label, opts) => void }
+//   onStartDrill の opts.kind は 'near'（近い問題）か 'theme'（レーダーから、テーマの問題をまとめて解く）
 // 計算は src/ の純関数（StudyCore.computeMastery / visibleMask / lodForScale / createCamera / zoomAt / panBy /
 // visibleIndices / buildGrid / hitTest / buildDetail）に任せ、ここは DOM・入力・描画だけを持つ。
 //
@@ -188,7 +189,7 @@
     let focus = null, focusNode = -1; // 選択中: 浮かび上がらせるノード（Uint8Array）と、選択したノード
     let anim = null;                  // 移動のアニメーション中だけ { from, to, t0 }
     let sheetWide = false;            // シートを広げているか（既定は半分の高さ）
-    let sheetPick = null;             // 開いているシートの「近い問題」の選び（押したときにそのまま渡す）
+    let sheetPicks = null;            // 開いているシートの出題の選び { near | all | rest: { ids, label, kind } }（押したときにそのまま渡す）
     const pointers = new Map(); // pointerId -> { x, y }
     let gesture = null;         // { moved, pinched, lastDist, lastMid }
     const subs = [];
@@ -1104,17 +1105,27 @@
         '</dl>';
       if (d.desc) html += `<p class="graph-desc">${richText(d.desc)}</p>`;
       if (d.advice) html += `<p class="graph-advice"><span class="graph-advice-label">対策</span>${richText(d.advice)}</p>`;
-      sheetPick = null;
+      sheetPicks = null;
       if (typeof deps.onStartDrill === 'function') {
-        if (isBookFiltered && Array.isArray(d.allQids) && d.allQids.length > 0) {
-          const ids = d.allQids.slice(0, FOCUS_NEAR);
-          sheetPick = { ids, label: `${d.title}（${BOOK_NAMES[sheetBook] || sheetBook}）` };
-          html += `<button type="button" class="graph-drill-btn">この分野を ${esc(ids.length)} 問解く</button>`;
+        if (mode === 'radar' && Array.isArray(d.allQids) && d.allQids.length > 0) {
+          // レーダーから: そのテーマの問題だけを、打ち切らずにまとめて解く（苦手を潰すため）。
+          // 全問（苦手 → 間違い → 未着手 → 正解済み）か、正解済みを除いた分かを選べる。教材で絞っていればその教材の分だけ
+          const label = isBookFiltered ? `${d.title}（${BOOK_NAMES[sheetBook] || sheetBook}）` : d.title;
+          const rest = Array.isArray(d.restQids) ? d.restQids : [];
+          sheetPicks = { all: { ids: d.allQids.slice(), label, kind: 'theme' } };
+          html += '<div class="graph-drill-btns">' +
+            `<button type="button" class="graph-drill-btn" data-drill="all">このテーマの全 ${esc(d.allQids.length)} 問を解く</button>`;
+          // 全問が正解済みなら出さない。正解済みが 1 問もなければ「全問」と同じなので出さない
+          if (rest.length > 0 && rest.length < d.allQids.length) {
+            sheetPicks.rest = { ids: rest.slice(), label, kind: 'theme' };
+            html += `<button type="button" class="graph-drill-btn is-sub" data-drill="rest">正解済みを除いた ${esc(rest.length)} 問を解く</button>`;
+          }
+          html += '</div>';
         } else if (typeof S.pickNear === 'function') {
           const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
           if (pick.ids.length > 0) {
-            sheetPick = { ids: pick.ids, label: d.title };
-            html += `<button type="button" class="graph-drill-btn">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
+            sheetPicks = { near: { ids: pick.ids, label: d.title, kind: 'near' } };
+            html += `<button type="button" class="graph-drill-btn" data-drill="near">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
           }
         }
       }
@@ -1156,7 +1167,7 @@
     function closeSheet() {
       if (sheetIndex < 0 && sheet.hidden) return;
       sheetIndex = -1;
-      sheetPick = null;
+      sheetPicks = null;
       sheet.hidden = true;
       setSheetWide(false);
       clearFocus();
@@ -1327,9 +1338,10 @@
     function onSheetClick(e) {
       if (e.target.closest('.graph-sheet-close')) { closeSheet(); return; }
       if (e.target.closest('.graph-sheet-expand')) { setSheetWide(!sheetWide); return; }
-      if (e.target.closest('.graph-drill-btn')) {
-        const p = sheetPick;
-        if (p) deps.onStartDrill(p.ids.slice(), p.label); // 呼び出し側が画面を切り替える（この後 destroy されうる）
+      const drillBtn = e.target.closest('.graph-drill-btn');
+      if (drillBtn) {
+        const p = sheetPicks && sheetPicks[drillBtn.dataset.drill];
+        if (p) deps.onStartDrill(p.ids.slice(), p.label, { kind: p.kind }); // 呼び出し側が画面を切り替える（この後 destroy されうる）
         return;
       }
       const li = e.target.closest('.graph-q[data-node]');

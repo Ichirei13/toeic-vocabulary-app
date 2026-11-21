@@ -115,6 +115,32 @@ test('回答すると、苦手の記録が通常と同じ形で保存され、�
   assert.equal(await page.locator('#near-drill-banner').isVisible(), true);
 });
 
+test('レーダーからテーマの全問を解く: 表示は「〈テーマ〉の N 問」、続きに種類が残り、再読み込みしても同じ表示で続きから解ける', async t => {
+  const { page } = await open(t);
+  await openGraphWithNormalSession(page);
+  const session0 = await stored(page, SESSION_KEY);
+  await page.click('#graph-page .graph-mode-btn[data-mode="radar"]');
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'));
+  const node = await page.evaluate(() => GRAMMAR_GRAPH.id.indexOf('con:関係代名詞・関係副詞'));
+  await page.locator(`#graph-page .graph-bar-row[data-node="${node}"]`).click();
+  const btn = page.locator('#graph-page .graph-drill-btn[data-drill="all"]');
+  const n = Number((await btn.innerText()).match(/全 (\d+) 問/)[1]);
+  await btn.click();
+  await waitFor(page, () => currentAppPage === 'practice');
+  assert.equal((await poolIds(page)).length, n);
+  assert.ok(n > 30, '30 問で打ち切られていない前提（関係詞は 30 問より多い）');
+  const banner = await page.locator('#near-drill-banner').innerText();
+  assert.match(banner, new RegExp(`」の ${n} 問`));
+  assert.doesNotMatch(banner, /に近い/);
+  assert.equal(JSON.parse(await stored(page, NEAR_KEY)).kind, 'theme');
+  assert.equal(await stored(page, SESSION_KEY), session0, '通常の続きが書き換わった');
+  await page.reload();
+  await waitFor(page, () => typeof state !== 'undefined' && state.grammarPool.length > 0);
+  await page.evaluate(() => switchAppPage('practice'));
+  assert.equal((await poolIds(page)).length, n);
+  assert.match(await page.locator('#near-drill-banner').innerText(), new RegExp(`」の ${n} 問`));
+});
+
 test('解除すると、表示が消え、続きのキーも消え、通常の出題の続きに戻る', async t => {
   const { page } = await open(t);
   await openGraphWithNormalSession(page);

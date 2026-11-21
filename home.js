@@ -1551,7 +1551,7 @@ async function showGraphPage() {
       onModeChange: mode => { writeGraphMode(mode === 'grammar' || mode === 'radar' ? mode : 'book'); },
       getLayoutCache: (mode, sig) => (mode === 'grammar' ? readGraphGrammarCache(sig) : null),
       setLayoutCache: (mode, sig, coords) => { if (mode === 'grammar') writeGraphGrammarCache(sig, coords); },
-      onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },
+      onStartDrill: (ids, label, opts) => { if (startGrammarCustomDrill(ids, label, opts && opts.kind)) switchAppPage('practice'); },
     });
   } catch (e) {
     showError('グラフを表示できませんでした。');

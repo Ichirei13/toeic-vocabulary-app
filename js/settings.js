@@ -129,6 +129,7 @@ function saveNearDrill() {
     score: state.grammarScore,
     answered: state.grammarAnsweredCount,
     label: state.nearDrill.label,
+    kind: state.nearDrill.kind === 'theme' ? 'theme' : 'near', // 前の版で保存した続き（kind なし）は 'near' として読む
   });
 }
 
@@ -157,7 +158,7 @@ function restoreNearDrill() {
     currentGrammarIndex: index,
     grammarScore: Number.isInteger(saved.score) ? saved.score : 0,
     grammarAnsweredCount: Number.isInteger(saved.answered) ? saved.answered : 0,
-    nearDrill: { label: typeof saved.label === 'string' ? saved.label.slice(0, 60) : '' },
+    nearDrill: { label: typeof saved.label === 'string' ? saved.label.slice(0, 60) : '', kind: saved.kind === 'theme' ? 'theme' : 'near' },
   });
   return true;
 }
