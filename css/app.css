@@ -1324,15 +1324,28 @@ body {
   z-index: 100;
   box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
 }
-.bottom-sheet::before {
-  content: '';
+/* 上のつまみ。上下にドラッグして高さを変える（js/settings.js の bindSheetDrag）。中身をスクロールしても上に残る */
+.sheet-grab {
+  position: sticky;
+  top: -16px;
+  z-index: 9;
+  margin: -16px -20px 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--sheet-bg);
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grab span {
   display: block;
   width: 40px;
   height: 4px;
   border-radius: 2px;
   background: rgba(0, 0, 0, 0.18);
-  margin: 0 auto 14px;
 }
+.bottom-sheet.is-dragging .sheet-grab { cursor: grabbing; }
 .bottom-sheet.open { transform: translateY(0); }
 .bottom-sheet .chip { border-color: rgba(0,0,0,0.18); color: var(--text-card-muted); }
 .bottom-sheet .chip.active { background: var(--sheet-text); color: var(--sheet-bg); border-color: var(--sheet-text); }
@@ -1864,7 +1877,7 @@ body {
   --sheet-text: var(--fd-text) !important;
   --text-card-muted: var(--fd-muted) !important;
 }
-.bottom-sheet.sheet-fixed-dark::before {
+.bottom-sheet.sheet-fixed-dark .sheet-grab span {
   background: rgba(255, 255, 255, 0.22) !important;
 }
 .bottom-sheet.sheet-fixed-dark .sheet-close {

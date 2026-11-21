@@ -156,7 +156,7 @@
   transition-duration: 0.45s;
 }
 [data-theme="ios"] .bottom-sheet { border-radius: 28px 28px 0 0; }
-[data-theme="ios"] .bottom-sheet::before {
+[data-theme="ios"] .bottom-sheet .sheet-grab span {
   width: 36px;
   height: 5px;
   border-radius: 3px;
@@ -240,7 +240,7 @@
 [data-theme="ios"] .home-main-book-card { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); }
 
 /* --- 設定画面: 色がベタ書きの部品を iOS の配色に --- */
-[data-theme="ios"] .bottom-sheet.sheet-fixed-dark::before { background: var(--ios-separator) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .sheet-grab span { background: var(--ios-separator) !important; }
 [data-theme="ios"] .bottom-sheet.sheet-fixed-dark .sheet-close { background: var(--sheet-close-bg) !important; }
 [data-theme="ios"] .settings-section { border: none; }
 [data-theme="ios"] .settings-theme-card,

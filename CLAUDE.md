@@ -54,6 +54,11 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
     キャッシュの署名（`grammarLayoutSignature`）はノードの id とエッジの中身まで含める。グラフを作り直して件数が同じでも、古い座標を出さないため。
     `tests/graph-entry.test.js` と `tests/graph-view.test.js`、`tests/unit/graph-force.test.js` で確かめる。
 
+14. **下から出るシートの高さは端末限定で扱う。** つまみ（アプリ共通のシートは `.sheet-grab`、グラフの詳細シートは `.graph-sheet-grab` と見出し）で変えた高さを、
+    シートの種類ごとに容器に対する割合で `toeic_sheet_heights_v1` に覚える（`js/settings.js` の `readSheetHeight` / `writeSheetHeight`。計算は `src/sheet-size.js`）。
+    学習記録ではないので `saveJSON` に乗せず、`RECORD_KEYS` / `EXTRA_KEYS` / `CROSS_TAB_KEYS` に足さない。グラフの画面は `deps.getSheetHeight` / `setSheetHeight` 経由で、`localStorage` に直接触れない。
+    `tests/sheet-resize.test.js`・`tests/graph-view.test.js`・`tests/unit/sheet-size.test.js` で確かめる。
+
 7〜10 と保存まわりの消失・巻き戻りは `tests/data-safety.test.js` で確かめる（経緯: 2026-11-10 の調査。番号 1〜5 のシナリオ）。
 
 ## 方針（利用者と合意済み）

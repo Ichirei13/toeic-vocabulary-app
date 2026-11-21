@@ -191,6 +191,76 @@ function isSheetOpen() {
 // バックアップ画面の「戻る」の行き先。'settings'（設定ページから開いた）か 'weak'（苦手リストから開いた）
 let backupSource = 'settings';
 
+// ==================== 下から出るシートの高さ（つまみを上下させて変える） ====================
+// 高さはシートの種類（見出し）ごとに、容器に対する割合でこの端末だけに覚える。学習記録ではないので saveJSON（failedSaveKeys）に乗せず、
+// 失敗しても無視する（既定の高さで開くだけ）。バックアップ・同期・別タブ再読込の対象外（RECORD_KEYS / EXTRA_KEYS / CROSS_TAB_KEYS に足さない）
+const SHEET_HEIGHTS_KEY = 'toeic_sheet_heights_v1';
+let activeSheetKey = '';
+
+function readSheetHeights() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SHEET_HEIGHTS_KEY));
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  } catch (e) { return {}; }
+}
+function readSheetHeight(key) {
+  return StudyCore.sheetHeightRatio(readSheetHeights(), key);
+}
+function writeSheetHeight(key, ratio) {
+  if (!key) return;
+  try { localStorage.setItem(SHEET_HEIGHTS_KEY, JSON.stringify(StudyCore.withSheetHeight(readSheetHeights(), key, ratio))); } catch (e) { /* 無視 */ }
+}
+
+// 覚えた高さがあればその割合で、なければ中身の高さ（最大は CSS の max-height）で開く
+function applySheetHeight(sheet, key) {
+  const r = readSheetHeight(key);
+  sheet.style.height = r == null ? '' : `${(r * 100).toFixed(2)}%`;
+  sheet.style.maxHeight = r == null ? '' : 'none';
+}
+
+// つまみ（.sheet-grab）を指やマウスで上下させる。離したところで止まり、その割合を覚える。
+// 下限よりさらに引き下ろすか、素早く下へはじくと閉じる（計算は src/sheet-size.js）
+function bindSheetDrag() {
+  const sheet = document.getElementById('bottom-sheet');
+  const grab = sheet && sheet.querySelector('.sheet-grab');
+  if (!grab || typeof StudyCore === 'undefined' || typeof StudyCore.resolveSheetDrag !== 'function') return;
+  let drag = null;
+  const resolve = (e, velocity) => StudyCore.resolveSheetDrag({ startPx: drag.start, dyPx: e.clientY - drag.y0, containerPx: drag.box, velocity });
+  grab.addEventListener('pointerdown', e => {
+    if (e.button > 0 || !sheet.classList.contains('open')) return;
+    const parent = sheet.parentElement;
+    drag = { id: e.pointerId, y0: e.clientY, start: sheet.getBoundingClientRect().height, box: parent ? parent.getBoundingClientRect().height : 0, lastY: e.clientY, lastT: e.timeStamp, v: 0 };
+    try { grab.setPointerCapture(e.pointerId); } catch (err) { /* 取れなくても動かせる */ }
+    sheet.classList.add('is-dragging');
+    e.preventDefault();
+  });
+  grab.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dt = e.timeStamp - drag.lastT;
+    if (dt > 0) drag.v = (e.clientY - drag.lastY) / dt;
+    drag.lastY = e.clientY;
+    drag.lastT = e.timeStamp;
+    sheet.style.maxHeight = 'none';
+    sheet.style.height = `${resolve(e, 0).px}px`;
+  });
+  const finish = (e, cancelled) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    // 離す直前に止めていたら、はじいたことにしない
+    const velocity = e.timeStamp - drag.lastT > 100 ? 0 : drag.v;
+    const moved = Math.abs(e.clientY - drag.y0);
+    const r = resolve(e, velocity);
+    drag = null;
+    sheet.classList.remove('is-dragging');
+    if (cancelled || moved < 4) { applySheetHeight(sheet, activeSheetKey); return; } // 動かしていなければ元のまま
+    if (r.close) { applySheetHeight(sheet, activeSheetKey); closeSheet(); return; }
+    sheet.style.height = `${(r.ratio * 100).toFixed(2)}%`;
+    writeSheetHeight(activeSheetKey, r.ratio);
+  };
+  grab.addEventListener('pointerup', e => finish(e, false));
+  grab.addEventListener('pointercancel', e => finish(e, true));
+}
+bindSheetDrag();
+
 function closeSheet() {
   const sheet = document.getElementById('bottom-sheet');
   sheet.classList.remove('open');
@@ -252,6 +322,8 @@ function openSheet(title, render, isFixedTheme = false) {
   } else {
     sheet.classList.remove('sheet-fixed-dark');
   }
+  activeSheetKey = String(title).split(/[:：]/)[0].trim(); // 「ラベル: あとで見る」などは「ラベル」としてまとめて覚える
+  applySheetHeight(sheet, activeSheetKey);
   render();
   sheet.scrollTop = 0;
   sheet.classList.add('open');

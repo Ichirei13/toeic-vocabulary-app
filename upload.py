@@ -37,6 +37,7 @@ FILES = [
     "src/wordbook.js",
     "src/pomodoro.js",
     "src/labels.js",
+    "src/sheet-size.js",
     "js/util.js",
     "js/theme-audio.js",
     "js/review-interval.js",

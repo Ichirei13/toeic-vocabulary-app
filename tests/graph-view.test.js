@@ -25,6 +25,7 @@ ${extraHead}
 <script src="/src/graph-detail.js"></script>
 <script src="/src/graph-near.js"></script>
 <script src="/src/graph-report.js"></script>
+<script src="/src/sheet-size.js"></script>
 <script src="/vendor/d3-dispatch.min.js"></script>
 <script src="/vendor/d3-quadtree.min.js"></script>
 <script src="/vendor/d3-timer.min.js"></script>
@@ -1129,6 +1130,77 @@ test('シート: 半分の高さで開き、「広げる」で広がる。問題
   await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
   await new Promise(r => setTimeout(r, 900));
   assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 }, '動き終わった後も描き続けている');
+});
+
+test('シート: つまみ・見出しを上下させると高さが変わり、その割合を覚え、次に開くときはその高さで開く', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    window.__sheetSaved = [];
+    window.__sheetRatio = null;
+    const deps = window.__deps();
+    deps.getSheetHeight = () => window.__sheetRatio;
+    deps.setSheetHeight = r => { window.__sheetSaved.push(r); window.__sheetRatio = r; };
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+  await tapNode(page, await firstOf(page, 'con:'));
+  const box = () => page.evaluate(() => {
+    const s = document.querySelector('#host .graph-sheet');
+    const r = s.getBoundingClientRect(), g = s.querySelector('.graph-sheet-grab').getBoundingClientRect(), h = s.querySelector('.graph-sheet-title').getBoundingClientRect();
+    return { h: r.height, hidden: s.hidden, gx: g.left + g.width / 2, gy: g.top + g.height / 2, tx: h.left + 10, ty: h.top + h.height / 2, box: s.parentElement.getBoundingClientRect().height };
+  });
+  const drag = async (x, y, dy, pause = true) => {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) { await page.mouse.move(x, y + (dy * i) / 8); await page.waitForTimeout(16); }
+    if (pause) await page.waitForTimeout(150);
+    await page.mouse.up();
+  };
+  const b0 = await box();
+  await drag(b0.gx, b0.gy, -200);
+  const b1 = await box();
+  assert.ok(Math.abs(b1.h - (b0.h + 200)) <= 3, `つまみで高くならない: ${b0.h} → ${b1.h}`);
+  let saved = await page.evaluate(() => window.__sheetSaved.slice());
+  assert.equal(saved.length, 1);
+  assert.ok(Math.abs(saved[0] - b1.h / b1.box) < 0.01, `覚えた割合 ${saved[0]}`);
+  assert.equal(await page.locator('#host .graph-sheet-expand').innerText(), b1.h / b1.box >= 0.6 ? '縮める' : '広げる');
+  // 見出し（タイトルの上）でも動かせる
+  await drag(b1.tx, b1.ty, 80);
+  const b2 = await box();
+  assert.ok(Math.abs(b2.h - (b1.h - 80)) <= 3, `見出しで低くならない: ${b1.h} → ${b2.h}`);
+  // 閉じて開き直すと、覚えた高さで開く
+  await page.locator('#host .graph-sheet-close').click();
+  await tapNode(page, await firstOf(page, 'trap:'));
+  const b3 = await box();
+  assert.ok(Math.abs(b3.h - b2.h) <= 3, `開き直した高さ ${b3.h}（覚えた高さ ${b2.h}）`);
+  // 下までずっと引き下ろすと閉じ、その高さは覚えない
+  const n0 = (await page.evaluate(() => window.__sheetSaved.length));
+  await drag(b3.gx, b3.gy, b3.h);
+  assert.equal((await box()).hidden, true, '引き下ろしても閉じない');
+  assert.equal(await page.evaluate(() => window.__sheetSaved.length), n0, '閉じたときの高さを覚えた');
+  assert.equal(await page.evaluate(() => window.__cnt.raf > 0 && GraphView._debug.pending), false, '描画を予約したまま');
+});
+
+test('シート: 「広げる」「縮める」でも高さを変えられ、その高さを覚える。高さを覚えていなければ半分の高さで開く', async t => {
+  const page = await open(t);
+  await page.evaluate(() => {
+    window.__sheetSaved = [];
+    const deps = window.__deps();
+    deps.getSheetHeight = () => null;
+    deps.setSheetHeight = r => { window.__sheetSaved.push(r); };
+    GraphView.mount(document.getElementById('host'), deps);
+  });
+  await waitFor(page, () => GraphView._debug.frames >= 1);
+  await tapNode(page, await firstOf(page, 'con:'));
+  const h = () => page.evaluate(() => document.querySelector('#host .graph-sheet').getBoundingClientRect().height);
+  const h0 = await h();
+  assert.ok(h0 <= 812 * 0.45, `半分より高い: ${h0}`);
+  await page.locator('#host .graph-sheet-expand').click();
+  assert.ok(await h() > h0);
+  assert.equal(await page.locator('#host .graph-sheet-expand').innerText(), '縮める');
+  await page.locator('#host .graph-sheet-expand').click();
+  assert.equal(await page.locator('#host .graph-sheet-expand').innerText(), '広げる');
+  assert.deepEqual(await page.evaluate(() => window.__sheetSaved), [0.72, 0.42]);
 });
 
 test('シート: 「視差効果を減らす」では、アニメーションなしで切り替わる', async t => {

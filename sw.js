@@ -44,6 +44,7 @@ const ASSETS = [
   'src/wordbook.js',
   'src/pomodoro.js',
   'src/labels.js',
+  'src/sheet-size.js',
   'assets/pomeranian/encourage.svg',
   'assets/pomeranian/reflect.svg',
   'assets/pomeranian/neutral.svg',

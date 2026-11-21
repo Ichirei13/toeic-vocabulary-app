@@ -1579,6 +1579,8 @@ async function showGraphPage() {
       onModeChange: mode => { writeGraphMode(mode === 'grammar' || mode === 'radar' ? mode : 'book'); },
       getLayoutCache: (mode, sig) => (mode === 'grammar' ? readGraphGrammarCache(sig) : null),
       setLayoutCache: (mode, sig, coords) => { if (mode === 'grammar') writeGraphGrammarCache(sig, coords); },
+      getSheetHeight: () => readSheetHeight('グラフの詳細'),
+      setSheetHeight: ratio => writeSheetHeight('グラフの詳細', ratio),
       onStartDrill: (ids, label, opts) => { if (startGrammarCustomDrill(ids, label, opts && opts.kind)) switchAppPage('practice'); },
     });
   } catch (e) {
