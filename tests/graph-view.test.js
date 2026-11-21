@@ -1963,7 +1963,7 @@ test('レーダーチャートモード: 1280px・375px で全軸 100% でもラ
   }
 });
 
-test('レーダーチャートモード: 軸ラベルの実効文字サイズが 375px・768px・900px・1280px で 11px 以上で、viewBox からはみ出さない', async t => {
+test('レーダーチャートモード: 軸ラベルの実効文字サイズが 375px・768px・900px・1280px で 11px 以上で、viewBox からはみ出さず、ラベルどうしが重ならない', async t => {
   // 900px は 2 列になる最小の幅（レーダーが左の列に入る）。768px は 1 列でパネルは広い
   for (const vp of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 900, height: 800 }, { width: 1280, height: 800 }]) {
     const page = await open(t, { viewport: vp });
@@ -1978,17 +1978,29 @@ test('レーダーチャートモード: 軸ラベルの実効文字サイズが
     const res = await page.evaluate(() => {
       const svg = document.querySelector('#host .graph-radar-svg');
       const scale = svg.getBoundingClientRect().width / 420;
-      const out = { minPx: Infinity, outside: [] };
+      const out = { minPx: Infinity, outside: [], overlaps: [] };
+      const boxes = [];
       for (const el of svg.querySelectorAll('.graph-radar-axis-label')) {
         out.minPx = Math.min(out.minPx, parseFloat(getComputedStyle(el).fontSize) * scale);
         const b = el.getBBox();
         if (b.x < 0 || b.x + b.width > 420 || b.y < 0 || b.y + b.height > 330) out.outside.push(el.textContent);
+        boxes.push({ name: el.querySelector('tspan').textContent, b });
+      }
+      // ラベル（分野名＋%）どうしの重なり。行間ぶんの 2 単位以下の接触は許す
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i].b, c = boxes[j].b;
+          const ox = Math.min(a.x + a.width, c.x + c.width) - Math.max(a.x, c.x);
+          const oy = Math.min(a.y + a.height, c.y + c.height) - Math.max(a.y, c.y);
+          if (ox > 2 && oy > 2) out.overlaps.push(`${boxes[i].name}×${boxes[j].name}`);
+        }
       }
       out.minPx = Math.round(out.minPx * 10) / 10;
       return out;
     });
     assert.ok(res.minPx >= 11, `vp=${vp.width} で軸ラベルの実効文字サイズが ${res.minPx}px（11px 未満）`);
     assert.deepEqual(res.outside, [], `vp=${vp.width} で viewBox からはみ出したラベル: ${JSON.stringify(res.outside)}`);
+    assert.deepEqual(res.overlaps, [], `vp=${vp.width} で重なったラベル: ${JSON.stringify(res.overlaps)}`);
   }
 });
 

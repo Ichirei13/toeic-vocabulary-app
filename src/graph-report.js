@@ -10,6 +10,8 @@
   // 得意・要強化を正答率で選ぶのに必要な、着手した問題の最小数（判定の「解答数が少なすぎる」と同じ値）
   const MIN_ATTEMPTED_FOR_HIGHLIGHT = MASTERY_THRESHOLDS.minAnswers;
   const KIND_NAMES = ['book', 'chapter', 'rule', 'concept', 'trap', 'question'];
+  // レーダーの中央揃えのラベルを左右へずらす量（viewBox の単位）
+  const MIDDLE_LABEL_NUDGE = 8;
 
   const CONCEPT_SHORT_LABELS = {
     'SVOC（文の骨格）': 'SVOC',
@@ -249,14 +251,20 @@
       const sin = Math.sin(angle);
       const acc = item.accuracy == null ? 0 : Math.max(0, Math.min(1, item.accuracy));
       const cov = item.coverage == null ? 0 : Math.max(0, Math.min(1, item.coverage));
-      const textAnchor = Math.abs(cos) < 0.22 ? 'middle' : cos > 0 ? 'start' : 'end';
+      // 真上・真下に近い軸は中央揃え。13 軸では真下の左右 2 軸が |cos| ≈ 0.24 なので、0.3 未満を中央にする
+      // （右揃え・左揃えにすると横へ伸びて、隣の軸のラベルに重なる。詰めた配置で「代名詞」と「形容詞・副詞」が重なっていた）
+      const textAnchor = Math.abs(cos) < 0.3 ? 'middle' : cos > 0 ? 'start' : 'end';
       const dy = sin > 0.65 ? 10 : sin < -0.65 ? -4 : 4;
+      // 中央揃えのうち真上・真下ちょうどでない軸（13 軸の真下の 2 軸など）は、左右へ少し外側にずらす。
+      // 中央揃えのままだと隣どうし（「代名詞」と「名詞」）の中心が近く、「100%」の行どうしが重なるため
+      const labelPos = pointAt(angle, radius + labelOffset);
+      if (textAnchor === 'middle' && Math.abs(cos) > 0.05) labelPos.x += Math.sign(cos) * MIDDLE_LABEL_NUDGE;
       return {
         index: i,
         item,
         angle,
         outer: pointAt(angle, radius),
-        labelPos: pointAt(angle, radius + labelOffset),
+        labelPos,
         textAnchor,
         dy,
         accPoint: pointAt(angle, radius * acc),

@@ -193,6 +193,22 @@ test('computeRadarGeometry: 12 時から時計回りに配置し、値 0..1 が�
   assert.equal(geo.rings[3].isTarget, true); // 80% ライン
 });
 
+test('computeRadarGeometry: 13 軸のとき、真下に近い 2 軸（代名詞・名詞の位置）は中央揃えにして隣のラベルにかぶせない', () => {
+  const items = Array.from({ length: 13 }, (_, i) => ({ id: 'c' + i, label: 'L' + i, shortLabel: 'L' + i, accuracy: 0.5, coverage: 0.5 }));
+  const geo = R.computeRadarGeometry(items, { width: 420, height: 330, radius: 76, labelOffset: 16 });
+  // 6 番目・7 番目は 6 時方向から左右に約 14 度（|cos| ≈ 0.24）。右揃え・左揃えにすると横へ伸びて隣の軸のラベルに重なる
+  assert.equal(geo.axes[6].textAnchor, 'middle');
+  assert.equal(geo.axes[7].textAnchor, 'middle');
+  // 中央揃えの 2 軸は左右へ外側にずらし、中心どうしを 56 以上離す（「100%」の行どうしが重ならないように）
+  assert.ok(geo.axes[6].labelPos.x - geo.axes[7].labelPos.x >= 56, `真下の 2 軸のラベルの間隔: ${geo.axes[6].labelPos.x - geo.axes[7].labelPos.x}`);
+  // 真上ちょうどの軸はずらさない
+  assert.ok(Math.abs(geo.axes[0].labelPos.x - 210) < 1e-6);
+  // 真上（0 番）は中央、その隣（1 番・12 番、|cos| ≈ 0.46）は外向きのまま
+  assert.equal(geo.axes[0].textAnchor, 'middle');
+  assert.equal(geo.axes[1].textAnchor, 'start');
+  assert.equal(geo.axes[12].textAnchor, 'end');
+});
+
 test('実グラフ (GRAMMAR_GRAPH): 13 概念・12 Trap・4 教材の集計と合計 983 問が一致する', () => {
   const code = fs.readFileSync(path.join(__dirname, '../../data/grammar_graph.js'), 'utf8');
   const ctx = {};
