@@ -475,6 +475,9 @@
 .home-weak-sub strong {
   color: var(--wrong);
 }
+.home-weak-sub strong.home-graph-acc {
+  color: var(--text-page);
+}
 .home-weak-actions {
   display: flex;
   align-items: center;

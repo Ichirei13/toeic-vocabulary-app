@@ -286,7 +286,7 @@ let state = {
   lastLabelId: null, // 🏷 のワンタップで付けるラベル（最後に使ったラベル。端末ごと）
   guideChapter: 'all',
   grammarPool: [],
-  nearDrill: null, // グラフの「近い問題を解く」の出題中だけ { label }。通常の出題の続きとは別に持つ
+  nearDrill: null, // グラフの「近い問題を解く」「テーマの問題を解く」の出題中だけ { label, kind: 'near' | 'theme' }。通常の出題の続きとは別に持つ
   currentGrammarIndex: 0,
   grammarScore: 0,
   grammarAnsweredCount: 0,

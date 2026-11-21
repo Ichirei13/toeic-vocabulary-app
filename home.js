@@ -947,6 +947,8 @@ function renderHomePage() {
       </div>
     </section>
 
+    ${kind === 'grammar' ? homeGraphCardHtml(allProg) : ''}
+
     <!-- 5. ラベル（js/labels-ui.js）。行を押すとそのラベルの中身 -->
     ${typeof labelSummaryHtml === 'function' ? `<section class="home-label-bar" aria-label="ラベル">${labelSummaryHtml(kind)}</section>` : ''}
 
@@ -1441,8 +1443,34 @@ function loadGraphAssets() {
   return p;
 }
 
-function openGraphPage() {
+// mode を渡すと、そのモードを「最後に選んだモード」として書いてから開く（ホームのカードはレーダーで開く）
+function openGraphPage(mode) {
+  if (mode === 'radar') writeGraphMode('radar');
   switchAppPage('graph');
+}
+
+// ホーム（文法）の「文法グラフ」のカード。押すとレーダーで開く。
+// 起動時の読み込みを増やさないため、グラフのデータ（data/grammar_graph.js）は読まず、手元の記録だけで数える
+function homeGraphCardHtml(allProg) {
+  let a = 0, c = 0;
+  for (const rec of Object.values(state.grammarStats || {})) {
+    const ra = Math.floor(Number(rec && rec.a));
+    if (!(Number.isFinite(ra) && ra >= 1)) continue;
+    const rc = Math.floor(Number(rec.c));
+    a += ra;
+    c += Number.isFinite(rc) && rc > 0 ? Math.min(rc, ra) : 0;
+  }
+  const acc = a > 0 ? `${Math.round((100 * c) / a)}%` : '—';
+  return `
+    <section class="home-weak-bar home-graph-bar" aria-label="文法グラフ">
+      <div class="home-weak-info">
+        <div class="home-weak-title"><span>🕸 文法グラフ</span></div>
+        <div class="home-weak-sub">正答率 <strong class="home-graph-acc">${acc}</strong> ・ 苦手 <strong>${allProg.weak}</strong> ${allProg.unit} ・ 分野ごとの成績</div>
+      </div>
+      <div class="home-weak-actions">
+        <button type="button" class="home-weak-btn" data-home-action="open-graph-radar">レーダーで見る</button>
+      </div>
+    </section>`;
 }
 
 // #graph-page を（なければ）作る。起動時には作らない
@@ -1551,7 +1579,7 @@ async function showGraphPage() {
       onModeChange: mode => { writeGraphMode(mode === 'grammar' || mode === 'radar' ? mode : 'book'); },
       getLayoutCache: (mode, sig) => (mode === 'grammar' ? readGraphGrammarCache(sig) : null),
       setLayoutCache: (mode, sig, coords) => { if (mode === 'grammar') writeGraphGrammarCache(sig, coords); },
-      onStartDrill: (ids, label) => { if (startGrammarCustomDrill(ids, label)) switchAppPage('practice'); },
+      onStartDrill: (ids, label, opts) => { if (startGrammarCustomDrill(ids, label, opts && opts.kind)) switchAppPage('practice'); },
     });
   } catch (e) {
     showError('グラフを表示できませんでした。');
@@ -2030,6 +2058,10 @@ function initHomeAndPages() {
         }
         if (action === 'open-review') {
           switchAppPage('review');
+          return;
+        }
+        if (action === 'open-graph-radar') {
+          openGraphPage('radar');
           return;
         }
         const kind = actionBtn.dataset.kind || homeCategory;

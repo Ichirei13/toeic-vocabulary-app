@@ -213,7 +213,8 @@ function applyGrammarFilters() {
 
 // グラフの「近い問題を解く」から呼ぶ。ids の順に出題する。採点・苦手の記録は通常の出題と同じ。
 // 通常の出題の続き（SESSION_KEY・本ごとの続き）は書き換えない。出題できたら true
-function startGrammarCustomDrill(ids, label) {
+// kind: 'theme'（レーダーから、テーマの問題をまとめて解く）か、それ以外は 'near'（近い問題）。演習画面の上の表示の書き方だけが変わる
+function startGrammarCustomDrill(ids, label, kind) {
   const pool = (Array.isArray(ids) ? ids : []).map(id => GRAMMAR_BY_ID.get(id)).filter(Boolean);
   if (pool.length === 0) return false;
   saveSession();                                   // 今の続き（通常の、または前の近い問題の）を先に保存する
@@ -224,7 +225,7 @@ function startGrammarCustomDrill(ids, label) {
     currentGrammarIndex: 0,
     grammarScore: 0,
     grammarAnsweredCount: 0,
-    nearDrill: { label: String(label == null ? '' : label).slice(0, 60) },
+    nearDrill: { label: String(label == null ? '' : label).slice(0, 60), kind: kind === 'theme' ? 'theme' : 'near' },
   });
   updateGrammarWeakBadge();
   updateFilterSummary();
@@ -241,7 +242,7 @@ function exitNearDrill() {
   renderCurrentGrammar();
 }
 
-// 演習画面の上の「〈名前〉に近い N 問 ［解除］」。近い問題の出題中だけ出す。要素は初めて出すときに作る
+// 演習画面の上の「〈名前〉に近い N 問 ［解除］」（テーマの演習なら「〈名前〉の N 問」）。近い問題の出題中だけ出す。要素は初めて出すときに作る
 function updateNearDrillBanner() {
   let el = document.getElementById('near-drill-banner');
   if (!nearDrillActive()) { if (el) el.hidden = true; return; }
@@ -255,7 +256,8 @@ function updateNearDrillBanner() {
     el.querySelector('.near-drill-exit').addEventListener('click', exitNearDrill);
     quiz.parentNode.insertBefore(el, quiz);
   }
-  const label = state.nearDrill.label ? `「${state.nearDrill.label}」に近い` : 'グラフで選んだ';
+  const theme = state.nearDrill.kind === 'theme';
+  const label = state.nearDrill.label ? `「${state.nearDrill.label}」${theme ? 'の' : 'に近い'}` : 'グラフで選んだ';
   el.querySelector('.near-drill-label').textContent = `${label} ${state.grammarPool.length} 問`;
   el.hidden = false;
 }

@@ -45,8 +45,8 @@
     return null;
   }
 
-  // 並びの優先度: weak(0) → wrong(1) → unseen(2) → correct(3)
-  const STATUS_RANK = { weak: 0, wrong: 1, unseen: 2, correct: 3 };
+  // 並びの優先度: weak(0) → unseen(1) → overcome(2) → correct(3)（苦手と未着手を先に解く）
+  const STATUS_RANK = { weak: 0, unseen: 1, overcome: 2, correct: 3 };
 
   function statusOf(stats, weak, qid) {
     const key = String(qid);
@@ -57,7 +57,9 @@
         const a = Math.floor(Number(rec.a));
         if (Number.isFinite(a) && a >= 1) {
           const c = Math.floor(Number(rec.c));
-          return c === a ? 'correct' : 'wrong';
+          // 間違えた問題は必ず苦手リストに入り、復習で続けて正解すると外れる（js/review-interval.js の updateWeakEntry）。
+          // だから、間違えたことがあって苦手リストに入っていない問題は「克服」した問題（手で苦手リストから消したものも含む）
+          return c >= a ? 'correct' : 'overcome'; // c > a の壊れた記録は、集計（graph-report.js）と同じく a に丸めて正解扱い
         }
       }
     }
@@ -163,6 +165,8 @@
       correct,
       weakCount,
       allQids: items.map(it => it.qid),
+      // 苦手と未着手の問題だけ（克服・正解は除く）。苦手 → 未着手 の順（レーダーの「苦手と未着手を解く」用）
+      restQids: items.filter(it => it.status === 'weak' || it.status === 'unseen').map(it => it.qid),
     };
 
     if ((kindName === 'concept' || kindName === 'trap') && graph.text && hasOwn(graph.text, String(nodeIndex))) {

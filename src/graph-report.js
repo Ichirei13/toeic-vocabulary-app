@@ -44,11 +44,19 @@
     const { qa, qc, qw, qd } = arrays;
     const { minAnswers, goodFrom } = MASTERY_THRESHOLDS;
     let total = 0, attempted = 0, mastered = 0, answered = 0, correct = 0, weak = 0, due = 0;
+    // 問題の内訳（合計は total）: 苦手（苦手リストにある）／未着手／克服（間違えたことがあり苦手でない）／正解（一度も間違えていない）。
+    // 詳細シート（graph-detail.js の statusOf）と同じ区分。間違えた問題は必ず苦手リストに入り、復習で外れたら克服
+    let neverMissed = 0, overcome = 0, untouched = 0;
     for (let idx = 0; idx < ordList.length; idx++) {
       const o = ordList[idx];
       const a = qa[o], c = qc[o], w = qw[o], d = qd[o];
       total++;
       if (a > 0) attempted++;
+      if (w === 0) {
+        if (a === 0) untouched++;
+        else if (c >= a) neverMissed++;
+        else overcome++;
+      }
       if (a >= minAnswers && w === 0 && (c + 1) / (a + 2) >= goodFrom) mastered++;
       answered += a;
       correct += c;
@@ -58,7 +66,7 @@
     const accuracy = answered > 0 ? correct / answered : null; // 画面に出す正答率（詳細シートと同じ素の比率）
     const coverage = total > 0 ? attempted / total : 0;
     const state = MASTERY_STATES[classifyMastery(answered, correct, weak, due)];
-    return { total, attempted, mastered, answered, correct, weak, due, accuracy, coverage, state };
+    return { total, attempted, mastered, answered, correct, weak, due, accuracy, coverage, state, neverMissed, overcome, untouched };
   }
 
   function nodeOrdinals(graph, nodeIndex, nq, inBookMask) {
