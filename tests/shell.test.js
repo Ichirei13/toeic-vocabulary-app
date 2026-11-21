@@ -288,6 +288,8 @@ const hasClass = (page, sel, cls) => page.evaluate(([s, c]) => document.querySel
 const stored = (page, key) => page.evaluate(k => localStorage.getItem(k), key);
 
 forThemes('narrow_has_a_floating_bottom_tab_bar_with_icons', async page => {
+  // 演習画面ではバーを下の情報行の上に移すので、画面の下に浮いたバーはホーム画面で確かめる
+  await page.evaluate(() => switchAppPage('home'));
   const nav = await rect(page, '.top-page-nav');
   assert.strictEqual(await style(page, '.top-page-nav', 'position'), 'absolute', '下に浮いたバーになっていない');
   assert(Math.abs(nav.left - 16) <= 1 && Math.abs(nav.right - 374) <= 1, `左右 16px の余白でない: ${JSON.stringify(nav)}`);
@@ -318,6 +320,48 @@ forThemes('narrow_swipe_down_stows_the_tab_bar_and_the_grabber_brings_it_back', 
   await page.waitForTimeout(700);
   assert.strictEqual(await hasClass(page, '#app', 'nav-stowed'), false, 'つまみで戻らない');
   assert.strictEqual(await stored(page, 'toeic_nav_stowed'), '0', '表示を選んだことを覚える');
+}, NARROW);
+
+// 演習画面: タブバーを下の情報行（正答率・進み具合）のすぐ上に置き、情報行を画面の一番下に下ろす。
+// 情報行がホームバーぶんの余白を持つので、バーの下とバー・情報行の間に余白が残らない
+const practiceStack = page => page.evaluate(() => {
+  const r = el => { const b = el.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; };
+  const footer = document.querySelector('#practice-page .footer');
+  const content = [...document.querySelectorAll('#practice-page > *')]
+    .filter(el => el !== footer && !el.classList.contains('shell-grabber') && el.offsetParent !== null && el.getBoundingClientRect().height > 0);
+  return {
+    app: r(document.getElementById('app')), footer: r(footer), nav: r(document.querySelector('.top-page-nav')),
+    contentBottom: Math.max(...content.map(el => el.getBoundingClientRect().bottom)),
+  };
+});
+forThemes('narrow_practice_puts_the_tab_bar_just_above_the_info_row_at_the_bottom', async page => {
+  await page.waitForTimeout(700);
+  const s = await practiceStack(page);
+  assert(Math.abs(s.footer.bottom - s.app.bottom) <= 1, `情報行が画面の一番下にない: ${JSON.stringify(s)}`);
+  assert(s.nav.bottom <= s.footer.top + 0.5, `タブバーが情報行に重なっている: ${JSON.stringify(s)}`);
+  assert(s.footer.top - s.nav.bottom <= 10, `タブバーと情報行の間が空きすぎ: ${s.footer.top - s.nav.bottom}px`);
+  assert(s.contentBottom <= s.nav.top + 1, `問題・選択肢がタブバーの下に隠れる: ${JSON.stringify(s)}`);
+  // ほかの画面へ移ると、バーは画面の下に戻る
+  await page.evaluate(() => switchAppPage('home'));
+  await page.waitForTimeout(500);
+  const nav = await rect(page, '.top-page-nav');
+  assert(nav.bottom <= 800 - 7 && nav.bottom >= 800 - 40, `ホームでバーが画面の下に戻らない: bottom=${nav.bottom}`);
+  // 演習画面に戻ると、また情報行の上に来る
+  await page.evaluate(() => switchAppPage('practice'));
+  await page.waitForTimeout(500);
+  const s2 = await practiceStack(page);
+  assert(s2.nav.bottom <= s2.footer.top + 0.5 && s2.footer.top - s2.nav.bottom <= 10, `戻ったときにバーが情報行の上に来ない: ${JSON.stringify(s2)}`);
+}, NARROW);
+
+forThemes('narrow_practice_stowing_the_tab_bar_still_leaves_the_info_row_at_the_bottom', async page => {
+  const nav = await rect(page, '.top-page-nav');
+  await drag(page, center(nav), { x: center(nav).x, y: center(nav).y + 70 });
+  await page.waitForTimeout(700);
+  assert.strictEqual(await hasClass(page, '#app', 'nav-stowed'), true);
+  const s = await practiceStack(page);
+  assert(Math.abs(s.footer.bottom - s.app.bottom) <= 1, `格納したとき情報行が一番下にない: ${JSON.stringify(s)}`);
+  const grab = await rect(page, '.shell-grabber-footer');
+  assert(grab.height > 0 && grab.bottom <= s.footer.top + 0.5, `つまみが情報行の真上にない: ${JSON.stringify(grab)}`);
 }, NARROW);
 
 forThemes('narrow_swipe_up_stows_the_practice_header_row', async page => {

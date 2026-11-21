@@ -175,7 +175,9 @@
 }
 
 /* タブバー: 下へ引っ込める。余白も縮めて、本文の高さを広げる */
-:root #app { transition: padding-bottom 0.45s var(--shell-spring); }
+/* 余白の動きは、タブバーを引っ込める・出すときだけ（js/shell-chrome.js が .nav-animating を付ける）。
+   画面を切り替えたとき（演習画面では余白が 0）に、余白が動いて本文の高さが揺れないように */
+:root #app.nav-animating { transition: padding-bottom 0.45s var(--shell-spring); }
 :root .top-page-nav {
   transition: transform 0.45s var(--shell-spring), visibility 0s;
 }
@@ -211,6 +213,15 @@
 }
 :root #practice-page.active ~ .shell-grabber-bottom { display: none; }
 :root #app.nav-stowed:has(#practice-page.active) { padding-bottom: 0; }
+
+/* 演習画面でタブバーを出しているとき: バーを下の情報行（正答率・進み具合）のすぐ上に置き、情報行を画面の一番下に下ろす。
+   情報行がホームバーぶんの余白（セーフエリア）を持つので、バーの下と、バーと情報行の間に余白が残らない。
+   高さは js/shell-chrome.js が --practice-footer-h（情報行）と --shell-nav-h（バー）で渡す。横画面（サイドバー）は対象外 */
+@media (max-width: 999px) {
+  :root #app:not(.nav-stowed):has(#practice-page.active) { padding-bottom: 0; }
+  :root #app:not(.nav-stowed):has(#practice-page.active) .top-page-nav { bottom: calc(var(--practice-footer-h, 0px) + 6px); }
+  :root #app:not(.nav-stowed) #practice-page.active .footer { margin-top: calc(var(--shell-nav-h, 64px) + 12px); }
+}
 
 /* 演習画面の見出し行: 上へ引っ込める */
 :root #practice-page .header,

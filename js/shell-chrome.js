@@ -74,9 +74,14 @@
   function applyNav() {
     app.classList.toggle('nav-stowed', navChoice === null ? short.matches : navChoice);
   }
+  // 引っ込める・出す間だけ、下の余白を動かす（css/shell.css の .nav-animating）。画面の切り替えでは動かさない
+  let animTimer = 0;
   function setNavStowed(on) {
     navChoice = on;
     try { localStorage.setItem(NAV_KEY, on ? '1' : '0'); } catch (e) {}
+    app.classList.add('nav-animating');
+    clearTimeout(animTimer);
+    animTimer = setTimeout(() => app.classList.remove('nav-animating'), 500);
     applyNav();
   }
   function setTopStowed(on) {
@@ -105,6 +110,19 @@
   if (footer) practice.insertBefore(makeGrabber('shell-grabber-footer', 'タブバーを表示', () => setNavStowed(false), -1), footer);
   applyNav();
   short.addEventListener('change', applyNav);
+
+  // 演習画面では、タブバーを下の情報行のすぐ上に置く（css/shell.css）。そのために情報行とバーの高さを CSS 変数で渡す。
+  // 情報行は回答の前後で文字の大きさが変わるので、大きさが変わるたびに測り直す
+  function syncBarHeights() {
+    if (footer) app.style.setProperty('--practice-footer-h', `${footer.offsetHeight}px`);
+    app.style.setProperty('--shell-nav-h', `${nav.offsetHeight}px`);
+  }
+  syncBarHeights();
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(syncBarHeights);
+    if (footer) ro.observe(footer);
+    ro.observe(nav);
+  }
   setTopStowed(read(TOP_KEY));
 
   // 格納する側（バーと見出し行）にスワイプを付ける
