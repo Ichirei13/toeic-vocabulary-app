@@ -683,6 +683,15 @@
   display: contents;
 }
 
+/* ==================== ホーム：スマホ（1 カラム）では苦手問題とラベルの欄を出さない ==================== */
+/* 縦幅を参考書のカードと他の参考書に回す。苦手を解く・一覧・ラベルは復習タブにある。PC（1024px 以上の 2 カラム）は今のまま */
+@media (max-width: 1023px) {
+  #home-page .home-weak-bar:not(.home-graph-bar),
+  #home-page .home-label-bar {
+    display: none;
+  }
+}
+
 /* ==================== ホーム：PC の広い画面で 2 カラム ==================== */
 @media (min-width: 1024px) {
   #app.page-home {
