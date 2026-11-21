@@ -1320,7 +1320,7 @@ test('出題ボタン: onStartDrill を渡したときだけ出て、押すと�
   assert.ok(d.label.length > 0);
 });
 
-test('レーダーチャートモードの出題ボタン: テーマの全問と、正解済みを除いた問題を選べ、テーマの演習（kind: theme）として渡る', async t => {
+test('レーダーチャートモードの出題ボタン: テーマの全問と、苦手と未着手だけを選べ、テーマの演習（kind: theme）として渡る', async t => {
   const page = await open(t);
   const info = await page.evaluate(() => {
     const G = GRAMMAR_GRAPH;
@@ -1331,21 +1331,21 @@ test('レーダーチャートモードの出題ボタン: テーマの全問と
     window.__stats = {};
     window.__weak = {};
     uniq.slice(0, 10).forEach(q => { window.__stats[q] = { a: 2, c: 2 }; });   // 正解済み 10 問
-    uniq.slice(10, 15).forEach(q => { window.__stats[q] = { a: 2, c: 1 }; });  // 間違いあり 5 問
+    uniq.slice(10, 15).forEach(q => { window.__stats[q] = { a: 2, c: 1 }; });  // 間違えたが苦手でない（克服）5 問
     uniq.slice(15, 18).forEach(q => { window.__weak[q] = { due: Date.now() + 86400000 }; }); // 苦手 3 問
     window.__drill = null;
     const deps = window.__deps();
     deps.initialMode = 'radar';
     deps.onStartDrill = (ids, label, opts) => { window.__drill = { ids, label, opts }; };
     GraphView.mount(document.getElementById('host'), deps);
-    return { node: i, total: uniq.length, weakIds: uniq.slice(15, 18), correctIds: uniq.slice(0, 10) };
+    return { node: i, total: uniq.length, weakIds: uniq.slice(15, 18), correctIds: uniq.slice(0, 10), overcomeIds: uniq.slice(10, 15) };
   });
   await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
   await page.locator(`#host .graph-bar-row[data-node="${info.node}"]`).click();
   const allBtn = page.locator('#host .graph-drill-btn[data-drill="all"]');
   const restBtn = page.locator('#host .graph-drill-btn[data-drill="rest"]');
   assert.match(await allBtn.innerText(), new RegExp(`全 ${info.total} 問`));
-  assert.match(await restBtn.innerText(), new RegExp(`${info.total - 10} 問`));
+  assert.match(await restBtn.innerText(), new RegExp(`苦手と未着手の ${info.total - 15} 問`));
   assert.equal(await page.locator('#host .graph-drill-btn[data-drill="near"]').count(), 0, 'レーダーでは近い問題のボタンを出さない');
 
   await allBtn.click();
@@ -1360,12 +1360,14 @@ test('レーダーチャートモードの出題ボタン: テーマの全問と
   await page.evaluate(() => { window.__drill = null; });
   await restBtn.click();
   d = await page.evaluate(() => window.__drill);
-  assert.equal(d.ids.length, info.total - 10);
+  assert.equal(d.ids.length, info.total - 15);
   assert.ok(info.correctIds.every(q => !d.ids.includes(q)), '正解済みが混ざっている');
+  assert.ok(info.overcomeIds.every(q => !d.ids.includes(q)), '克服した問題が混ざっている');
+  assert.deepEqual(d.ids.slice(0, 3).sort(), info.weakIds.slice().sort(), '苦手が先頭に来ていない');
   assert.equal(d.opts && d.opts.kind, 'theme');
 });
 
-test('レーダーチャートモードの出題ボタン: 全問を正解済みなら「正解済みを除く」は出さない。教材で絞ると、その教材の分だけになる', async t => {
+test('レーダーチャートモードの出題ボタン: 全問を正解済みなら「苦手と未着手」は出さない。教材で絞ると、その教材の分だけになる', async t => {
   const page = await open(t);
   const info = await page.evaluate(() => {
     const G = GRAMMAR_GRAPH;
@@ -1400,6 +1402,70 @@ test('レーダーチャートモードの出題ボタン: 全問を正解済み
   const d = await page.evaluate(() => window.__drill);
   assert.equal(d.ids.length, kinTotal, '30 問で打ち切らず、金の文法の分を全部渡す');
   assert.match(d.label, /金の文法/);
+});
+
+test('レーダーチャートモードの横棒: 正解・克服・苦手・未着手の色分けの内訳で描き、下に内訳の数と、上に凡例を出す', async t => {
+  const page = await open(t);
+  const info = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH;
+    const i = G.id.indexOf('con:SVOC（文の骨格）');
+    const qs = [];
+    for (let k = G.memberStart[i]; k < G.memberStart[i + 1]; k++) qs.push(G.qids[G.members[k]]);
+    const uniq = [...new Set(qs)];
+    window.__stats = {};
+    window.__weak = {};
+    uniq.slice(0, 10).forEach(q => { window.__stats[q] = { a: 2, c: 2 }; });  // 正解 10
+    uniq.slice(10, 16).forEach(q => { window.__stats[q] = { a: 2, c: 1 }; }); // 克服 6
+    uniq.slice(16, 20).forEach(q => { window.__weak[q] = { due: Date.now() + 86400000 }; }); // 苦手 4
+    const deps = window.__deps();
+    deps.initialMode = 'radar';
+    GraphView.mount(document.getElementById('host'), deps);
+    return { node: i, total: uniq.length };
+  });
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+  const res = await page.evaluate(n => {
+    const row = document.querySelector(`#host .graph-bar-row[data-node="${n}"]`);
+    const track = row.querySelector('.graph-bar-track');
+    const tw = track.getBoundingClientRect().width;
+    const w = cls => { const el = track.querySelector('.graph-bar-seg.' + cls); return el ? el.getBoundingClientRect().width / tw : -1; };
+    return {
+      correct: w('is-correct'), overcome: w('is-overcome'), weak: w('is-weak'), unseen: w('is-unseen'),
+      target: row.querySelectorAll('.graph-bar-target').length,
+      sub: row.querySelector('.graph-bar-sub').textContent,
+      legend: document.querySelector('#host .graph-bars-legend')?.textContent || '',
+      colors: ['is-correct', 'is-overcome', 'is-weak', 'is-unseen'].map(c => getComputedStyle(track.querySelector('.graph-bar-seg.' + c)).backgroundColor),
+    };
+  }, info.node);
+  const near = (a, b) => Math.abs(a - b) < 0.02;
+  assert.ok(near(res.correct, 10 / info.total), `正解の幅 ${res.correct}`);
+  assert.ok(near(res.overcome, 6 / info.total), `克服の幅 ${res.overcome}`);
+  assert.ok(near(res.weak, 4 / info.total), `苦手の幅 ${res.weak}`);
+  assert.ok(near(res.unseen, (info.total - 20) / info.total), `未着手の幅 ${res.unseen}`);
+  assert.equal(res.target, 0, '内訳の棒には 80% の目標線を出さない');
+  assert.match(res.sub, new RegExp(`正解 10 ・ 克服 6 ・ 苦手 4 ・ 未着手 ${info.total - 20}`));
+  for (const word of ['正解', '克服', '苦手', '未着手']) assert.ok(res.legend.includes(word), `凡例に「${word}」がない: ${res.legend}`);
+  assert.equal(new Set(res.colors).size, 4, `4 色が区別できない: ${JSON.stringify(res.colors)}`);
+});
+
+test('詳細シートの問題一覧: 間違えたことがあり苦手でない問題は「克服」と出す', async t => {
+  const page = await open(t);
+  const info = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH;
+    const i = G.id.indexOf('con:SVOC（文の骨格）');
+    const q = G.qids[G.members[G.memberStart[i]]];
+    window.__stats = { [q]: { a: 3, c: 1 } };
+    window.__weak = {};
+    const deps = window.__deps();
+    deps.initialMode = 'radar';
+    GraphView.mount(document.getElementById('host'), deps);
+    return { node: i, q };
+  });
+  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
+  await page.locator(`#host .graph-bar-row[data-node="${info.node}"]`).click();
+  const li = page.locator('#host .graph-q.graph-q-overcome').first();
+  assert.equal(await li.locator('.graph-q-status').innerText(), '克服');
+  assert.match(await li.locator('.graph-q-no').innerText(), new RegExp(`#${info.q}`));
+  assert.equal(await page.locator('#host .graph-q.graph-q-wrong').count(), 0);
 });
 
 test('力学: tick が例外を投げたら固定配置に戻り、タップが受け付けられる（警告は出てよい）', async t => {

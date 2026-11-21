@@ -103,25 +103,25 @@ test('text に該当エントリが無い概念でも落ちない（desc/advice 
   assert.doesNotThrow(() => D.buildDetail(g2, M.computeMastery(g2, {}, {}, NEVER_DUE), 0, ctx()));
 });
 
-test('questions の status: weak が最優先、未解答は unseen、全問正解は correct、それ以外は wrong', () => {
+test('questions の status: weak が最優先、未解答は unseen、全問正解は correct、間違えたことがあり苦手でないものは overcome（克服）', () => {
   const stats = { 1: { a: 2, c: 2 }, 2: { a: 2, c: 1 }, 3: { a: 1, c: 1 } };
   const weak = { 3: {}, 4: {} }; // 3 は正解でも weak、4 は未解答でも weak
   const d = detail(0, stats, weak);
   const st = Object.fromEntries(d.questions.map(q => [q.qid, q.status]));
-  assert.deepStrictEqual(st, { 1: 'correct', 2: 'wrong', 3: 'weak', 4: 'weak', 5: 'unseen' });
+  assert.deepStrictEqual(st, { 1: 'correct', 2: 'overcome', 3: 'weak', 4: 'weak', 5: 'unseen' });
 });
 
-test('questions の並び: weak → wrong → unseen → correct、同順位は qid 昇順', () => {
+test('questions の並び: weak → unseen → overcome → correct、同順位は qid 昇順', () => {
   const stats = { 1: { a: 1, c: 1 }, 2: { a: 1, c: 0 }, 3: { a: 1, c: 1 }, 5: { a: 2, c: 0 } };
   const weak = { 4: {} };
   const d = detail(0, stats, weak);
   assert.deepStrictEqual(d.questions.map(q => [q.qid, q.status]), [
-    [4, 'weak'], [2, 'wrong'], [5, 'wrong'], [1, 'correct'], [3, 'correct'],
+    [4, 'weak'], [2, 'overcome'], [5, 'overcome'], [1, 'correct'], [3, 'correct'],
   ]);
-  // unseen は wrong の後・correct の前
+  // unseen は weak の後・overcome の前（苦手と未着手を先に解く）
   const d2 = detail(0, { 1: { a: 1, c: 1 }, 2: { a: 1, c: 0 } }, {});
-  assert.deepStrictEqual(d2.questions.map(q => q.status), ['wrong', 'unseen', 'unseen', 'unseen', 'correct']);
-  assert.deepStrictEqual(d2.questions.map(q => q.qid), [2, 3, 4, 5, 1]);
+  assert.deepStrictEqual(d2.questions.map(q => q.status), ['unseen', 'unseen', 'unseen', 'overcome', 'correct']);
+  assert.deepStrictEqual(d2.questions.map(q => q.qid), [3, 4, 5, 2, 1]);
 });
 
 test('questions の text は getQuestion(qid).q、無ければ #qid（落ちない）', () => {
@@ -147,7 +147,7 @@ test('question ノード: title は問題文（60 字 + …）、questions は�
   const d = detail(5, { 7: { a: 2, c: 1 } });
   assert.strictEqual(d.title, 'Seven');
   assert.strictEqual(d.kindLabel, '問題');
-  assert.deepStrictEqual(d.questions, [{ qid: 7, text: 'Seven', status: 'wrong' }]);
+  assert.deepStrictEqual(d.questions, [{ qid: 7, text: 'Seven', status: 'overcome' }]);
   const long = 'x'.repeat(70);
   const d2 = D.buildDetail(G, mastery(), 5, { stats: {}, weak: {}, getQuestion: () => ({ q: long }) });
   assert.strictEqual(d2.title, 'x'.repeat(60) + '…');
@@ -305,22 +305,22 @@ test('book フィルタ: 指定教材に属する問題・成績・苦手だけ�
   assert.strictEqual(dSekaiBook.questions.length, 2);
 });
 
-test('allQids / restQids: 全問は 苦手 → 間違い → 未着手 → 正解済み の順、restQids は正解済みを除いたもの（教材の絞り込みにも従う）', () => {
+test('allQids / restQids: 全問は 苦手 → 未着手 → 克服 → 正解 の順、restQids は苦手と未着手だけ（教材の絞り込みにも従う）', () => {
   const g2 = makeGraph([
     { id: 'book:kin', kind: 'book', label: '金の文法', members: [1, 2] },
     { id: 'book:sekai', kind: 'book', label: '世界一', members: [3, 4, 5] },
     { id: 'con:SVOC', kind: 'concept', label: 'SVOC', members: [1, 2, 3, 4, 5] },
   ]);
-  // 1: 全問正解 / 2: 苦手 / 3: 間違いあり / 4: 未着手 / 5: 全問正解
+  // 1: 全問正解 / 2: 苦手 / 3: 間違えたが苦手リストから外れた（克服） / 4: 未着手 / 5: 全問正解
   const stats = { 1: { a: 4, c: 4 }, 2: { a: 4, c: 1 }, 3: { a: 3, c: 2 }, 5: { a: 1, c: 1 } };
   const weak = { 2: { due: 9999999999 } };
   const m = M.computeMastery(g2, stats, weak, () => false);
   const dAll = D.buildDetail(g2, m, 2, { stats, weak });
-  assert.deepStrictEqual(dAll.allQids, [2, 3, 4, 1, 5]);
-  assert.deepStrictEqual(dAll.restQids, [2, 3, 4]);
+  assert.deepStrictEqual(dAll.allQids, [2, 4, 3, 1, 5]);
+  assert.deepStrictEqual(dAll.restQids, [2, 4]);
   const dSekai = D.buildDetail(g2, m, 2, { stats, weak, book: 'sekai' });
-  assert.deepStrictEqual(dSekai.allQids, [3, 4, 5]);
-  assert.deepStrictEqual(dSekai.restQids, [3, 4]);
+  assert.deepStrictEqual(dSekai.allQids, [4, 3, 5]);
+  assert.deepStrictEqual(dSekai.restQids, [4]);
 });
 
 test('book フィルタ: 詳細シートの状態は、同じ教材で絞ったレーダーの状態と一致する（実グラフ）', () => {

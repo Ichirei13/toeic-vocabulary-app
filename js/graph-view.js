@@ -72,7 +72,9 @@
   const REVEAL_GAP = 40;         // タップで開いたシートの上端からこの距離以内にノードがあれば、見える範囲の中央へ動かす（CSS px）
   const JUMP_MS = 300;           // シートの問題をタップしたときの移動の長さ
   const JUMP_MIN_REL = 2.4;      // 移動先の倍率の下限（全体表示に対する比。ルールまで見える倍率）
-  const STATUS_LABEL = { weak: '苦手', wrong: '誤答あり', unseen: '未解答', correct: '正解' };
+  const STATUS_LABEL = { weak: '苦手', overcome: '克服', unseen: '未解答', correct: '正解' };
+  // レーダーの横棒の内訳（左から）。key は computeGraphReport の項目のフィールド名
+  const BAR_SEGMENTS = [['neverMissed', 'is-correct', '正解'], ['overcome', 'is-overcome', '克服'], ['weak', 'is-weak', '苦手'], ['untouched', 'is-unseen', '未着手']];
 
   // テスト用の観測値。frames はマウントごとに 0 から数える。listeners は今登録中のリスナー・オブザーバーの数
   const debug = {
@@ -646,18 +648,20 @@
         : items.map(it => {
             const unavailable = it.total === 0;
             const acc = unavailable ? '—' : pctText(it.accuracy);
-            const accWidth = unavailable || it.accuracy == null ? 0 : Math.round(it.accuracy * 100);
-            const covWidth = unavailable ? 0 : Math.round(it.coverage * 100);
             const isSelBook = radarCategory === 'book' && book !== 'all' && it.selected;
             const badges = unavailable
               ? '<span class="graph-bar-badge is-muted">収録なし</span>'
               : (isSelBook ? '<span class="graph-bar-badge is-sel">選択中</span>' : '') +
                 (it.weak > 0 ? `<span class="graph-bar-badge is-weak">苦手 ${esc(it.weak)}</span>` : '') +
                 (it.due > 0 ? `<span class="graph-bar-badge is-due">復習 ${esc(it.due)}</span>` : '');
+            // 内訳の数（色だけに頼らず数でも分かるように）。棒は同じ内訳を問題数に対する割合で塗り分ける
             const subText = unavailable
               ? 'この教材には収録なし'
-              : `${esc(it.attempted)}/${esc(it.total)}問 着手（${esc(covWidth)}%）` +
-                (it.answered > 0 ? ` ・ ${esc(it.correct)}/${esc(it.answered)} 正解` : ' ・ 未解答');
+              : BAR_SEGMENTS.map(([key, , name]) => `${name} ${esc(it[key] || 0)}`).join(' ・ ');
+            const segsHtml = unavailable ? '' : BAR_SEGMENTS.map(([key, cls]) => {
+              const v = it[key] || 0;
+              return v > 0 ? `<span class="graph-bar-seg ${cls}" style="width:${(100 * v / it.total).toFixed(2)}%"></span>` : '';
+            }).join('');
             return (
               `<button type="button" class="graph-bar-row${unavailable ? ' is-unavailable' : ''}${!unavailable && sheetIndex === it.nodeIndex ? ' is-active' : ''}"${unavailable ? ' disabled' : ` data-node="${it.nodeIndex}" aria-pressed="${sheetIndex === it.nodeIndex}"`}>` +
                 `<div class="graph-bar-top">` +
@@ -665,11 +669,7 @@
                   `<span class="graph-bar-badges">${badges}</span>` +
                   `<span class="graph-bar-pct is-state-${esc(it.state)}">${esc(acc)}</span>` +
                 `</div>` +
-                `<div class="graph-bar-track" aria-hidden="true">` +
-                  `<span class="graph-bar-cov" style="width:${covWidth}%"></span>` +
-                  `<span class="graph-bar-fill is-state-${esc(it.state)}" style="width:${accWidth}%"></span>` +
-                  `<span class="graph-bar-target"></span>` +
-                `</div>` +
+                `<div class="graph-bar-track" aria-hidden="true">${segsHtml}</div>` +
                 `<div class="graph-bar-sub">${subText}</div>` +
               `</button>`
             );
@@ -687,6 +687,9 @@
               `<button type="button" class="graph-bars-sort" data-radar-sort="default" aria-pressed="${radarSort === 'default'}">標準順</button>` +
               `<button type="button" class="graph-bars-sort" data-radar-sort="weakness" aria-pressed="${radarSort === 'weakness'}">弱い順</button>` +
             `</div>` +
+          `</div>` +
+          `<div class="graph-bars-legend" aria-hidden="true">` +
+            BAR_SEGMENTS.map(([, cls, name]) => `<span><i class="graph-bar-seg-swatch ${cls}"></i>${name}</span>`).join('') +
           `</div>` +
           `<div class="graph-bars-list">${barsListHtml}</div>` +
         `</section>`;
@@ -1109,16 +1112,16 @@
       if (typeof deps.onStartDrill === 'function') {
         if (mode === 'radar' && Array.isArray(d.allQids) && d.allQids.length > 0) {
           // レーダーから: そのテーマの問題だけを、打ち切らずにまとめて解く（苦手を潰すため）。
-          // 全問（苦手 → 間違い → 未着手 → 正解済み）か、正解済みを除いた分かを選べる。教材で絞っていればその教材の分だけ
+          // 全問（苦手 → 未着手 → 克服 → 正解）か、苦手と未着手だけかを選べる。教材で絞っていればその教材の分だけ
           const label = isBookFiltered ? `${d.title}（${BOOK_NAMES[sheetBook] || sheetBook}）` : d.title;
           const rest = Array.isArray(d.restQids) ? d.restQids : [];
           sheetPicks = { all: { ids: d.allQids.slice(), label, kind: 'theme' } };
           html += '<div class="graph-drill-btns">' +
             `<button type="button" class="graph-drill-btn" data-drill="all">このテーマの全 ${esc(d.allQids.length)} 問を解く</button>`;
-          // 全問が正解済みなら出さない。正解済みが 1 問もなければ「全問」と同じなので出さない
+          // 苦手も未着手もなければ出さない。克服・正解が 1 問もなければ「全問」と同じなので出さない
           if (rest.length > 0 && rest.length < d.allQids.length) {
             sheetPicks.rest = { ids: rest.slice(), label, kind: 'theme' };
-            html += `<button type="button" class="graph-drill-btn is-sub" data-drill="rest">正解済みを除いた ${esc(rest.length)} 問を解く</button>`;
+            html += `<button type="button" class="graph-drill-btn is-sub" data-drill="rest">苦手と未着手の ${esc(rest.length)} 問を解く</button>`;
           }
           html += '</div>';
         } else if (typeof S.pickNear === 'function') {

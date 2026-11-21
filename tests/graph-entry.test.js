@@ -368,6 +368,34 @@ test('PC: グラフの画面で「グラフ」タブをもう一度押しても�
   assert.equal(await tab.getAttribute('aria-selected'), 'true');
 });
 
+test('ホーム（文法）の文法グラフのカード: 正答率と苦手の数を出し、押すと前回のモードによらずレーダーで開く', async t => {
+  const { page } = await open(t, {
+    init: {
+      fn: () => {
+        if (sessionStorage.getItem('__seeded')) return;
+        sessionStorage.setItem('__seeded', '1');
+        localStorage.setItem('toeic_grammar_stats', JSON.stringify({ 1: { a: 4, c: 3 }, 2: { a: 4, c: 2 } }));
+        localStorage.setItem('toeic_weak_grammar', JSON.stringify({ 2: { streak: 0, added: 1, due: 1, u: 1 } }));
+        localStorage.setItem('toeic_graph_mode_v1', JSON.stringify('book'));
+      },
+    },
+  });
+  await page.locator('#home-page [data-home-switch="grammar"]').click();
+  const card = page.locator('#home-page .home-graph-bar');
+  await card.waitFor();
+  const text = await card.innerText();
+  assert.match(text, /正答率 63%/); // 5/8 = 62.5% → 63%
+  assert.match(text, /苦手 1 問/);
+  assert.equal(await page.evaluate(() => typeof GraphView), 'undefined', 'カードを出すだけでグラフのファイルを読んだ');
+  await card.locator('[data-home-action="open-graph-radar"]').click();
+  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'), undefined, 15000);
+  assert.equal(await activePage(page), 'graph-page');
+  // 単語のときはカードを出さない（グラフは文法だけ）
+  await page.evaluate(() => switchAppPage('home'));
+  await page.locator('#home-page [data-home-switch="vocab"]').click();
+  assert.equal(await page.locator('#home-page .home-graph-bar').count(), 0);
+});
+
 test('力学用のファイルが読めなくても、グラフは固定配置で開く', async t => {
   const { page } = await open(t, {
     beforeGoto: async page => { await page.route('**/vendor/**', route => route.abort()); },

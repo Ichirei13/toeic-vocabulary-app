@@ -306,3 +306,41 @@ test('summary.strongest / weakest: 着手した問題が 3 問未満の分野は
   const withWeak = R.computeGraphReport(g, stats, { 9: { due: 2 } }, () => false);
   assert.equal(withWeak.summary.weakest?.id, 'con:分詞（現在分詞・過去分詞）', '苦手登録があれば着手数に関係なく要強化の候補');
 });
+
+test('computeGraphReport: 問題の内訳（正解・克服・苦手・未着手）は合計が問題数になり、詳細シートの状態の数と一致する（実グラフ）', () => {
+  const D = require('../../src/graph-detail.js');
+  const g = loadRealGraph();
+  const stats = {}, weak = {};
+  let seed = 3;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  g.qids.forEach(q => {
+    if (rnd() < 0.6) { const a = 1 + Math.floor(rnd() * 4); stats[q] = { a, c: rnd() < 0.5 ? a : Math.floor(a * rnd()) }; }
+    if (rnd() < 0.1) weak[q] = { due: 2 };
+  });
+  const m = M.computeMastery(g, stats, weak, () => false);
+  for (const book of ['all', 'kin']) {
+    const rep = R.computeGraphReport(g, stats, weak, () => false, { book });
+    for (const it of [...rep.concepts, ...rep.traps]) {
+      assert.equal(it.neverMissed + it.overcome + it.weak + it.untouched, it.total, `${book} / ${it.id} の内訳の合計`);
+      if (it.total === 0) continue;
+      const d = D.buildDetail(g, m, it.nodeIndex, { stats, weak, book: book === 'all' ? null : book });
+      const count = s => d.allQids.length && d.questions.length === d.allQids.length
+        ? d.questions.filter(q => q.status === s).length : null;
+      if (count('weak') === null) continue; // 一覧が 200 問で打ち切られる項目は数えない
+      assert.equal(it.neverMissed, count('correct'), `${book} / ${it.id} の正解`);
+      assert.equal(it.overcome, count('overcome'), `${book} / ${it.id} の克服`);
+      assert.equal(it.weak, count('weak'), `${book} / ${it.id} の苦手`);
+      assert.equal(it.untouched, count('unseen'), `${book} / ${it.id} の未着手`);
+    }
+  }
+});
+
+test('computeGraphReport: 内訳の例（苦手は解答の有無によらず苦手、苦手でない解答済みは全問正解なら正解・それ以外は克服）', () => {
+  const stats = { 1: { a: 2, c: 2 }, 2: { a: 3, c: 1 }, 4: { a: 1, c: 1 } };
+  const weak = { 2: { due: 2 }, 5: { due: 2 } };
+  const rep = R.computeGraphReport(SAMPLE_GRAPH, { ...stats, 3: { a: 2, c: 1 } }, weak, () => false);
+  // SVOC: 1 正解 / 2 苦手 / 4 正解
+  assert.deepEqual(['neverMissed', 'overcome', 'weak', 'untouched'].map(k => rep.concepts[0][k]), [2, 0, 1, 0]);
+  // 受動態: 3 克服（2 回中 1 回正解・苦手でない） / 5 苦手（未解答でも苦手）
+  assert.deepEqual(['neverMissed', 'overcome', 'weak', 'untouched'].map(k => rep.concepts[1][k]), [0, 1, 1, 0]);
+});
