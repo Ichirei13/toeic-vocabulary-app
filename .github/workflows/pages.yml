@@ -1,0 +1,36 @@
+# main に push されたら、公開するファイルだけを集めて GitHub Pages に配信する。
+# 集めるファイルは tools/collect_site.py が決める（sw.js の ASSETS と EXTRA_FILES）。
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 配信は 1 つずつ。途中の配信は取り消さない
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: 公開するファイルを集める
+        run: python3 tools/collect_site.py _site
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - name: Pages に配信
+        id: deployment
+        uses: actions/deploy-pages@v5

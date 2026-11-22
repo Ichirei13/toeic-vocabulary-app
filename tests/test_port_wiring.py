@@ -48,7 +48,6 @@ def test_labels_are_wired():
     for src in ("src/labels.js", "js/labels.js"):
         assert f'<script src="{src}"></script>' in HTML
         assert f"'{src}'" in SW
-        assert f'"{src}"' in (ROOT / "upload.py").read_text(encoding="utf-8")
     assert HTML.index('<script src="js/word-stats.js"></script>') < HTML.index('<script src="js/labels.js"></script>')
 
 

@@ -106,5 +106,5 @@ NODE_PATH=$(npm root -g) node tests/labels-settings.test.js
 `index.html` は HTML と読み込みだけで、CSS は `css/app.css`、JS は `js/*.js` に分けています。
 JS は通常の `<script>` で、全ファイルがグローバルを共有します。**読み込み順が意味を持つ**ので、`index.html` の並びを変えないでください
 （最上位で実行されるコードが使う関数は、先に読み込むファイル `js/util.js` に置きます）。
-ファイルを足したら `sw.js` の `ASSETS` と `upload.py` の `FILES` にも足します。
+ファイルを足したら `sw.js` の `ASSETS` にも足します（公開するファイルの一覧も兼ねます）。
 - `English_study/scripts/sync_status.py` による全983問の1対1対応

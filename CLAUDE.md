@@ -1,6 +1,6 @@
 # CLAUDE.md — toeic_practice
 
-TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理のない静的サイトで、GitHub Pages で公開している。
+TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理のない静的サイトで、GitHub Pages で公開している（公開の仕組みは下の「公開」）。
 機能の説明と収録データは `README.md`、設計の経緯は `docs/superpowers/`（specs が設計、plans が実装計画。日付つき）。
 
 ## 構成
@@ -12,16 +12,17 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
   （`tests/build_graph.test.js` がコミット済みの座標の再現を確かめる）。実行時の調整は教材軸が `GRAPH_RUNTIME`、文法軸（13 概念の円周配置）は `GRAPH_GRAMMAR` で行う。
 - `data/`: `words.js` / `grammar.js`（983問。教材ごとに ID 範囲が分かれる: 1〜、1001〜、2001〜、3001〜）/ `tips.js` / `grammar_graph.js`。
 - `data/grammar_graph.js` は**生成物**。手で直さない。`tools/build_grammar_graph.mjs` が Obsidian Vault（`/Users/reiji/projects/English_study`）から作る（`VAULT_DIR` か引数で Vault を指定）。
-- `next/`: 「Study Desk」の試用版。**公開対象ではない**（`upload.py` の `FILES` にも `sw.js` にも入っていない）。保存キーは別（`toeic_next_v1`）。
+- `next/`: 「Study Desk」の試用版。**公開対象ではない**（`sw.js` の `ASSETS` に入っていないので、`tools/collect_site.py` が集めない）。保存キーは別（`toeic_next_v1`）。
   現行版へ機能を移植する設計書（`docs/superpowers/specs/2026-10-29-port-study-desk-features-design.md`）では、`next/` は読み取り専用の参照元とされている。基本は触らない。
-- `archive/`・`*.bak`・`.upload_state.json`・`.claude/`・`.superpowers/` は Git の対象外（手元だけ）。
+- `archive/`・`*.bak`・`_site/`・`.claude/`・`.superpowers/` は Git の対象外（手元だけ）。
 
 ## 守ること（壊れやすい約束事）
 
 1. **JS の読み込み順に意味がある。** `js/*.js` は通常の `<script>` で、全ファイルがグローバルを共有する。並びは `index.html` が正。
    最上位で実行されるコードが使う関数は、先に読む `js/util.js` に置く。`js/boot.js` は `home.js` より前に読まれ、
    `home.js` が `closeSheet` / `closeFilterSheet` / `reloadRecordsFromStorage` を後から包んで上書きしている。この関数の名前や呼び方を変えるときは `home.js` の末尾付近も見る。
-2. **ファイルを足したら 3 か所の手書き一覧に足す:** `index.html` → `sw.js` の `ASSETS` → `upload.py` の `FILES`。食い違いは `tests/test_file_lists.py` が検出する。
+2. **ファイルを足したら 2 か所の手書き一覧に足す:** `index.html` → `sw.js` の `ASSETS`。`ASSETS` は公開するファイルの一覧も兼ねる（ほかに公開するのは `tools/collect_site.py` の `EXTRA_FILES` だけ）。
+   グラフ用のファイルのように `index.html` に書かないものも `ASSETS` には入れる。食い違いは `tests/test_file_lists.py` が検出する。
 3. **学習記録は `saveJSON` / `loadJSON`（`js/util.js`）経由で保存する。** 値が変わらなければ書かない作りで、書いたときだけ `onStorageSaved` の受け手（同期など）に通知が行く。
    保存に失敗しても学習は止めず、失敗は `onStorageSaveFailed` の受け手が知らせる。保存まわりを触る前後で内容が同一になることを
    `tests/storage-writes.test.js`（比較用: `tests/fixtures/storage-scenario.golden.json`）と `tests/storage-subscribe.test.js` で確かめる。
@@ -84,8 +85,13 @@ NODE_PATH=$(npm root -g) node tests/<名前>.test.js   # ブラウザを動か�
 
 ## 公開（outward-facing）
 
-`python3 upload.py -m "…"` は GitHub の `Ichirei13/toeic-vocabulary-app` の `main` に push し、Pages で**公開される**。
-実行前に必ず `python3 upload.py -n`（送らず内容だけ表示）で確認し、利用者の許可を取る。GitHub 側が手元の記録から変わっていると push は止まる（先に `python3 upload.py pull`）。`--force` は使わない。
+**`git push` で `main` を GitHub（`Ichirei13/toeic-vocabulary-app`。公開リポジトリ）に上げると、そのまま Pages で公開される。**
+GitHub Actions（`.github/workflows/pages.yml`）が `tools/collect_site.py` で公開するファイルだけを `_site/` に集めて配信する。リポジトリには開発用のファイル（テスト・設計書・この CLAUDE.md）も上がるが、Pages には出ない。
+
+- push する前に利用者の許可を取る。途中の作業は手元のコミットかブランチに置き、push しない。
+- 公開される中身は `python3 tools/collect_site.py --list` で確かめられる。
+- `--force` は使わない。
+- 2026-11-22 までは `upload.py` が GitHub の API で公開ファイルだけを直接コミットしていて、手元の履歴と GitHub の履歴が二重になっていた。いまの方式に一本化した（`upload.py` は削除済み。履歴には残っている）。
 
 ## 開発サーバー
 

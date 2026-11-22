@@ -1,6 +1,8 @@
-# upload.py が記録する同期状態と、pull 時に退避したファイル
-.upload_state.json
+# 手元のバックアップ
 *.bak
+
+# tools/collect_site.py が集める公開用ファイル（Actions が作って配信する）
+_site/
 
 # macOS と Python が自動で作るファイル
 .DS_Store

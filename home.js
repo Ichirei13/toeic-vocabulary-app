@@ -1375,7 +1375,7 @@ function setWeakStreakFromChip(streak) {
 
 // ==================== 文法グラフ（開いたときだけ読み込む） ====================
 // グラフ用のファイル（約 190KB）は起動時には読まない。初めて開いたときに、下の順番で 1 つずつ差し込む
-// （後のファイルが前のファイルの定義を使うため）。sw.js の ASSETS と upload.py の FILES には入れてあり、
+// （後のファイルが前のファイルの定義を使うため）。sw.js の ASSETS（公開の一覧も兼ねる）には入れてあり、
 // index.html には書かない。グラフは記録（state）を読むだけで、保存はしない。
 const GRAPH_STYLE = 'css/graph.css';
 const GRAPH_SCRIPTS = [
