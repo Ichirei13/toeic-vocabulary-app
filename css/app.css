@@ -2200,6 +2200,11 @@ body {
 }
 .near-drill-back { margin-top: 14px; }
 
+/* 完了画面のボタン（苦手を解く・復習ページへ）。見た目はホームの .home-weak-btn に合わせ、押しやすい大きさにする。
+   テーマ側の .home-weak-btn の指定（[data-theme] 付き）より強くするため、.completion-card から書く */
+.completion-actions { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 260px; margin: 14px auto 0; }
+.completion-card .completion-actions .home-weak-btn { font-size: 14px; padding: 11px 14px; border-radius: 12px; }
+
 /* ==================== ラベリング（🏷 ボタン・選ぶ画面） ==================== */
 /* 回答のあとだけアクションバーに出す。ラベルが付いていれば塗りつぶしにして、ラベル名（2つ以上なら件数）を添える */
 .label-btn {
