@@ -189,7 +189,13 @@ for (const width of [320, 375, 768, 1024, 1440]) {
     const { page } = await open(t, { width });
     for (const kind of ['vocab', 'grammar']) {
       await page.getByRole('tab', { name: kind === 'vocab' ? '単語' : '文法', exact: true }).click();
-      const geometry = await page.evaluate(() => [...document.querySelectorAll('#home-page img,.home-main-actions button,.home-other-title,.home-main-book-title,.top-page-tabs')].map(el => {
+      // スマホ幅（1023px 以下）のホームでは、苦手問題とラベルの欄を意図して隠している（復習タブに任せる。bf2b59c）。
+      // その欄の中で表示されていない要素だけを外す。ほかの要素が幅 0 になったら、今までどおり失敗させる。
+      // 隠す・出す自体は tests/labels-list.test.js が確かめる
+      const geometry = await page.evaluate(() => [...document.querySelectorAll('#home-page img,.home-main-actions button,.home-other-title,.home-main-book-title,.top-page-tabs')].filter(el => {
+        const bar = el.closest('#home-page .home-weak-bar:not(.home-graph-bar), #home-page .home-label-bar');
+        return !(bar && getComputedStyle(bar).display === 'none');
+      }).map(el => {
         const r = el.getBoundingClientRect();
         return { name: el.className || el.tagName, left: r.left, right: r.right, w: r.width };
       }));
