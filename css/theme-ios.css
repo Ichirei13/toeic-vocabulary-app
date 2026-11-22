@@ -261,6 +261,33 @@
 }
 [data-theme="ios"] .settings-theme-check { color: var(--ios-blue); }
 [data-theme="ios"] .settings-menu-item-arrow { color: var(--text-muted); }
+/* 操作ボタン（標準に戻す・Obsidian 連携）とデータの状況。暗い背景向けの薄い灰色がベタ書きなので、
+   白いカードでは読めない。iOS らしく青い文字のボタンにする */
+[data-theme="ios"] .settings-action-btn {
+  border-color: var(--fd-border);
+  color: var(--ios-blue);
+}
+[data-theme="ios"] .settings-action-btn:hover {
+  background: var(--ui-surface);
+  border-color: var(--fd-border);
+  color: var(--ios-blue);
+}
+[data-theme="ios"] .settings-data-status { border-color: var(--fd-border); }
+[data-theme="ios"] .settings-status-title { color: var(--fd-muted); }
+[data-theme="ios"] .settings-status-row { color: var(--fd-text); }
+[data-theme="ios"] .settings-status-badge { color: var(--ios-blue); background: var(--ios-tint-bg); }
+/* バックアップのシート（sheet-fixed-dark）も同じく、暗い背景向けのベタ書きを iOS の配色に */
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-back { color: var(--ios-blue) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-table th { color: var(--fd-muted) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-undo { color: var(--fd-text) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-btn { border-color: var(--fd-border) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-btn:hover { background: var(--ui-surface) !important; }
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-btn.primary,
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-btn.primary:hover {
+  background: var(--ios-blue) !important;
+  border-color: var(--ios-blue) !important;
+}
+[data-theme="ios"] .bottom-sheet.sheet-fixed-dark .backup-paste-area { border-color: var(--fd-border) !important; }
 
 /* === ホームのカード: 灰色背景の上に白いカード（枠線なし）を置く === */
 [data-theme="ios"] .home-message-bar,

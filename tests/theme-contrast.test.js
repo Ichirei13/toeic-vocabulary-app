@@ -26,9 +26,8 @@ const THEMES = ['ink', 'duolingo', 'navy', 'quizlet', 'forest', 'nordic', 'light
 const MIN_RATIO = 3;
 // 今回の範囲外で、もともと薄いもの。直したらここを消す
 // - quizlet: マスコット説明の文字が 2.91
-// - ios（端末がライト）: 設定画面の「標準に戻す」などの操作ボタンが 1.32（灰色の文字が明るい背景に乗る）、
-//   バックアップのシートの「設定に戻る」が 2.28
-const KNOWN_LOWER = { quizlet: 2.5, 'ios (light)': 1.3 };
+// キーはテーマ名か「テーマ名 (light|dark)」（端末の配色ごとに分けたいとき）
+const KNOWN_LOWER = { quizlet: 2.5 };
 
 // ページの中で、見えている文字ごとに「文字色」と「実際に塗られている背景色」の比を測り、低いものを返す
 function measure({ selector, limit }) {
