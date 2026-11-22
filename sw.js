@@ -45,6 +45,7 @@ const ASSETS = [
   'src/pomodoro.js',
   'src/labels.js',
   'src/sheet-size.js',
+  'src/speech.js',
   'assets/pomeranian/encourage.svg',
   'assets/pomeranian/reflect.svg',
   'assets/pomeranian/neutral.svg',

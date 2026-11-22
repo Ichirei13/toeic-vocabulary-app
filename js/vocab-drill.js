@@ -19,6 +19,44 @@ function posTagHtml(word, showPos) {
   return `<div class="pos-tag" id="pos-tag"${hasVisible ? '' : ' hidden'}>${no}<span id="pos-text"${showPos ? '' : ' hidden'}>${word.p}</span>${statHtml}</div>`;
 }
 
+// ==================== 発音ボタン（🔊） ====================
+// ブラウザの読み上げ（speechSynthesis）で英単語と例文を読む。記録は何も保存しない。
+// 読み上げ機能の無い端末ではボタン自体を出さない。読む文の整形は src/speech.js（StudyCore.speechText）。
+function speechAvailable() {
+  return !!window.speechSynthesis && typeof window.SpeechSynthesisUtterance === 'function';
+}
+
+function speakText(text) {
+  const line = StudyCore.speechText(text);
+  if (!speechAvailable() || !line) return;
+  const utterance = new SpeechSynthesisUtterance(line);
+  utterance.lang = StudyCore.SPEECH_LANG;
+  window.speechSynthesis.cancel(); // 読み上げ中なら止めてから読む
+  window.speechSynthesis.speak(utterance);
+}
+
+// kind: headword（問題の英単語の横）/ word / example（答えの後の欄）
+function speakBtnHtml(text, kind, label) {
+  if (!speechAvailable() || !StudyCore.speechText(text)) return '';
+  const name = kind === 'example' ? '例文を読み上げる' : '単語を読み上げる';
+  return `<button type="button" class="speak-btn${label ? ' labeled' : ''}" data-speak="${escapeHtml(text)}" data-speak-kind="${kind}" aria-label="${name}">🔊${label ? ` ${label}` : ''}</button>`;
+}
+
+// 答えを見た後に出す「🔊 単語」「🔊 例文」の行
+function speakRowHtml(word) {
+  const buttons = speakBtnHtml(word.w, 'word', '単語') + speakBtnHtml(word.e || '', 'example', '例文');
+  return buttons ? `<div class="speak-row">${buttons}</div>` : '';
+}
+
+// キャプチャ段階で受けて止める。カードモードでは、カードの onclick（めくる）より先に動かすため
+document.addEventListener('click', e => {
+  const btn = e.target.closest && e.target.closest('.speak-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  e.preventDefault();
+  speakText(btn.dataset.speak);
+}, true);
+
 // 豆知識（data/tips.js）。無い単語は空文字。回答前は答えのヒントになるので隠し、showAnswerDetails で出す
 function tipHtml(word, hidden) {
   const tip = typeof WORD_TIPS !== 'undefined' && WORD_TIPS[word.w];
@@ -83,8 +121,8 @@ function renderCurrent() {
     container.innerHTML = `
       <div class="card" id="main-card">
         ${posTagHtml(word, false)}
-        <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w : word.m}</div>
-        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${state.mode === 'e2j' ? word.m : word.w}</div>
+        <div class="${state.mode === 'e2j' ? 'word-display' : 'meaning-display'}">${state.mode === 'e2j' ? word.w + speakBtnHtml(word.w, 'headword') : word.m}</div>
+        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}<br><br>${state.mode === 'e2j' ? word.m : word.w}${speakRowHtml(word)}</div>
         ${tipHtml(word, true)}
       </div>
     `;
@@ -123,6 +161,7 @@ function renderCurrent() {
             <div class="pos-tag">${word.p}</div>
             <div class="meaning-display">${word.m}</div>
             <div style="font-size: 14px; line-height: 1.5; color: ${word.e ? '#555' : 'var(--muted)'}; font-style: ${word.e ? 'normal' : 'italic'};">${word.e || '（例文なし）'}</div>
+            ${speakRowHtml(word)}
             ${tipHtml(word, false)}
           </div>
         </div>
@@ -152,7 +191,7 @@ function renderCurrent() {
           <button class="type-check-btn" id="type-check-btn">答え合わせ</button>
         </div>
         <div class="type-result" id="type-result" style="display:none;"></div>
-        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}</div>
+        <div class="example-display" id="example-box">${word.e ? word.e : '<span style="opacity:0.45; font-style:italic;">（例文なし）</span>'}${speakRowHtml(word)}</div>
         ${tipHtml(word, true)}
       </div>
     `;
