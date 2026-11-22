@@ -1930,6 +1930,20 @@ body {
   border-radius: 16px;
   padding: 16px 16px 14px;
 }
+/* セピア（明るいテーマ）でも設定のカードは濃いチャコールのまま。中の文字はテーマの文字色（濃い茶）を使うものが多く、
+   そのままだと黒い背景に黒い文字になるので、カードの中だけ文字・枠・強調色を暗いテーマと同じ明るい側に差し替える。
+   強調色はセピアのテーマカードの色（home.js の themes）に合わせる */
+[data-theme="light"] .settings-section {
+  color: var(--fd-text);
+  --text-page: var(--fd-text);
+  --text-card: var(--fd-text);
+  --text-muted: var(--fd-muted);
+  --text-card-muted: var(--fd-muted);
+  --ui-surface: rgba(255, 255, 255, 0.06);
+  --ui-border: rgba(255, 255, 255, 0.14);
+  --accent: #d97706;
+  --accent-glow: rgba(217, 119, 6, 0.28);
+}
 .settings-section-header {
   display: flex;
   align-items: center;
