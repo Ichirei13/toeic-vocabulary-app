@@ -10,6 +10,9 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
 - `vendor/`: d3-force 3.0.0 とその依存（UMD、無改変）。グラフを開いたときだけ読む。配置の力の定義は `src/graph-force.js` で、
   ビルド（`tools/lib/layout.mjs`）とアプリ（`js/graph-view.js`）が共有する。`GRAPH_LAYOUT` を変えると生成物 `data/grammar_graph.js` の座標が変わる
   （`tests/build_graph.test.js` がコミット済みの座標の再現を確かめる）。実行時の調整は教材軸が `GRAPH_RUNTIME`、文法軸（13 概念の円周配置）は `GRAPH_GRAMMAR` で行う。
+- レーダー: ページ `radar`（`#radar-page`）の中身は `js/radar-view.js`（`RadarView`）。グラフ本体（`js/graph-view.js`）・`graph-filter` / `graph-geometry` / `graph-near`・d3・`src/graph-force.js` は読まない
+  （開いたときに `home.js` の `RADAR_SCRIPTS` を差し込む。概念の並び順は `src/graph-report.js` の `DEFAULT_CONCEPT_ORDER` で、`GRAMMAR_CONCEPT_ORDER` と同じことを `tests/unit/graph-report.test.js` が確かめる）。
+  下から出る詳細シートは `js/graph-sheet.js`（`GraphSheet`）をグラフと共用する。入口はホーム（文法）のカード・復習・グラフの見出し。2026-11-23 まではグラフの 3 つ目のモードだった。
 - `data/`: `words.js` / `grammar.js`（983問。教材ごとに ID 範囲が分かれる: 1〜、1001〜、2001〜、3001〜）/ `tips.js` / `grammar_graph.js`。
 - `data/grammar_graph.js` は**生成物**。手で直さない。`tools/build_grammar_graph.mjs` が Obsidian Vault（`/Users/reiji/projects/English_study`）から作る（`VAULT_DIR` か引数で Vault を指定）。
 - 試用版「Study Desk」（`next/`）は、機能を現行版へ移植し終えたので 2026-11-23 に削除した（git の履歴には残る）。
@@ -45,13 +48,16 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
     続きはこの端末だけのキー `toeic_near_drill_v1` に置く（バックアップ・同期・別のタブへの反映の対象外。`RECORD_KEYS` / `EXTRA_KEYS` / `CROSS_TAB_KEYS` に足さない）。
     通常の出題に戻る経路（`applyGrammarFilters`・`restoreSession`・`restoreBookSessionSnapshot`）は `clearNearDrill()` を呼ぶ。
     記録の読み込み直し（`js/backup-io.js` の `refreshPoolAfterRecordSync`）でも出題を作り直さない（出題中は先頭で戻る）。`tests/graph-drill.test.js` で確かめる。
-    レーダーからの「テーマの問題を解く」も同じ仕組みで、`state.nearDrill.kind`（と保存した続きの `kind`）が `'theme'` のときは表示だけ「〈テーマ〉の N 問」になる。
+    レーダーのページからの「テーマの問題を解く」も同じ仕組みで、`state.nearDrill.kind`（と保存した続きの `kind`）が `'theme'` のときは表示が「〈テーマ〉の N 問」になり、
+    解き終えたときのボタンが「レーダーに戻る」（レーダーのページへ）になる（近い問題は「グラフに戻る」）。
 12. **グラフは、力学が収まった後と移動のアニメーションが終わった後は描かない。** `requestAnimationFrame` を呼び続けるのは、
     開いたときの力学（`GRAPH_RUNTIME.ticks` 回。文法軸は `GRAPH_GRAMMAR.ticks` 回）と移動（約 0.3 秒）の間だけ。`tests/graph-view.test.js` が、その後の呼び出しが 0 回であることを確かめる。
+    レーダーのページ（`js/radar-view.js`）は `requestAnimationFrame` もタイマーも使わない（`tests/radar-view.test.js`）。
 13. **グラフの「文法軸」のモード選択と計算キャッシュは端末限定で扱う。** 選択中の配置軸は `toeic_graph_mode_v1`、計算済み座標キャッシュは
     `toeic_graph_grammar_cache_v1` に置き、どちらもバックアップ・同期・別タブ再読込の対象外（`RECORD_KEYS` / `EXTRA_KEYS` / `CROSS_TAB_KEYS` に足さない）。
     どちらも学習記録ではないので `saveJSON`（`failedSaveKeys`）に乗せず、`localStorage.setItem` を直接書いて失敗は無視する
     （`failedSaveKeys` に残ると、そのタブが別タブの保存を読み込み直さなくなるため。モードは次回教材軸で開き、キャッシュは再計算に戻るだけ）。
+    配置軸は `'book' | 'grammar'`。前の版で覚えた `'radar'` は教材軸で開く（値は次にモードを選ぶまで残る）。
     キャッシュの署名（`grammarLayoutSignature`）はノードの id とエッジの中身まで含める。グラフを作り直して件数が同じでも、古い座標を出さないため。
     `tests/graph-entry.test.js` と `tests/graph-view.test.js`、`tests/unit/graph-force.test.js` で確かめる。
 
