@@ -2,8 +2,6 @@
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
 const CACHE = 'toeic-drill-v22';
-// 試用版（next/sw.js）がオフライン用に使うキャッシュの名前の頭。古い版を消すときも、これは残す（消すと試用版がオフラインで開けない）
-const TRIAL_CACHE_PREFIX = 'toeic-next-';
 const ASSETS = [
   './',
   'index.html',
@@ -174,10 +172,11 @@ self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 
+// 自分の版以外のキャッシュは消す。引退した試用版（next/、2026-11-23 削除）の toeic-next-* も消える（中身はファイルの写しだけで、学習記録は localStorage にある）
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE && !k.startsWith(TRIAL_CACHE_PREFIX)).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

@@ -107,3 +107,28 @@ test('オフラインでも、書き直しを省いたキャッシュからア�
   assert.equal(await page.title(), 'TOEIC Drill');
   assert.ok(await page.evaluate(() => RAW_WORDS.length > 1000));
 });
+
+test('新しい版が入るとき、自分の版以外のキャッシュ（引退した試用版の toeic-next-* も）を消す', async t => {
+  const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
+  t.after(() => context.close());
+  const page = await context.newPage();
+  page.setDefaultTimeout(8000);
+  // SW を登録しないページで、古いキャッシュを先に作っておく
+  await page.goto(base + '/manifest.webmanifest');
+  await page.evaluate(async () => {
+    for (const name of ['toeic-next-v1', 'toeic-drill-v1']) {
+      await (await caches.open(name)).put('/dummy', new Response('old'));
+    }
+  });
+  await page.goto(base + '/index.html');
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+  const cacheName = /const CACHE = '([^']+)'/.exec(fs.readFileSync(path.join(root, 'sw.js'), 'utf8'))[1];
+  // 掃除は activate の中で非同期に進むので、しばらく待って確かめる
+  let keys = [];
+  for (let i = 0; i < 40; i++) {
+    keys = await page.evaluate(() => caches.keys());
+    if (keys.length === 1 && keys[0] === cacheName) break;
+    await page.waitForTimeout(200);
+  }
+  assert.deepEqual(keys, [cacheName]);
+});

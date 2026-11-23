@@ -2,7 +2,7 @@
 """公開する静的サイトを 1 つのフォルダ（既定は _site/）に集める。
 
 GitHub Actions（.github/workflows/pages.yml）が main への push のたびにこれを実行し、
-集めたフォルダだけを GitHub Pages に配信する。開発用のファイル（tests/・docs/・next/ など）は公開しない。
+集めたフォルダだけを GitHub Pages に配信する。開発用のファイル（tests/・docs/・tools/ など）は公開しない。
 
 公開するのは、sw.js の ASSETS（オフライン用にキャッシュするファイル）と EXTRA_FILES だけ。
 アプリにファイルを足したら index.html と sw.js の ASSETS に足せば、公開にも入る。

@@ -69,7 +69,7 @@ def test_site_files_exist():
 def test_development_files_are_not_published():
     files = collect_site.site_files()
     for f in files:
-        assert not f.startswith(("next/", "tests/", "docs/", "tools/", "scripts/", "archive/", ".")), f
+        assert not f.startswith(("tests/", "docs/", "tools/", "scripts/", "archive/", ".")), f
     for name in ("CLAUDE.md", "AGENTS.md", "README.md", "preview.html", "upload.py"):
         assert name not in files
 

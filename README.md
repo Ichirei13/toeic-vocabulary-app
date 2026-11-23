@@ -74,7 +74,7 @@ NODE_PATH=$(npm root -g) node tests/<名前>.test.js   # ブラウザを動か�
 ### 公開
 
 `main` を GitHub に push すると、GitHub Actions（`.github/workflows/pages.yml`）が `tools/collect_site.py` で公開するファイルだけを集め、GitHub Pages に配信します。
-公開するのは `sw.js` の `ASSETS` に載っているファイル（と `collect_site.py` の `EXTRA_FILES`）だけで、テスト・設計書・`next/`（試用版）は公開されません。
+公開するのは `sw.js` の `ASSETS` に載っているファイル（と `collect_site.py` の `EXTRA_FILES`）だけで、テストや設計書は公開されません。
 公開される中身は次のコマンドで確かめられます。
 
 ```bash

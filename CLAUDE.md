@@ -12,8 +12,8 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
   （`tests/build_graph.test.js` がコミット済みの座標の再現を確かめる）。実行時の調整は教材軸が `GRAPH_RUNTIME`、文法軸（13 概念の円周配置）は `GRAPH_GRAMMAR` で行う。
 - `data/`: `words.js` / `grammar.js`（983問。教材ごとに ID 範囲が分かれる: 1〜、1001〜、2001〜、3001〜）/ `tips.js` / `grammar_graph.js`。
 - `data/grammar_graph.js` は**生成物**。手で直さない。`tools/build_grammar_graph.mjs` が Obsidian Vault（`/Users/reiji/projects/English_study`）から作る（`VAULT_DIR` か引数で Vault を指定）。
-- `next/`: 「Study Desk」の試用版。**公開対象ではない**（`sw.js` の `ASSETS` に入っていないので、`tools/collect_site.py` が集めない）。保存キーは別（`toeic_next_v1`）。
-  現行版へ機能を移植する設計書（`docs/superpowers/specs/2026-10-29-port-study-desk-features-design.md`）では、`next/` は読み取り専用の参照元とされている。基本は触らない。
+- 試用版「Study Desk」（`next/`）は、機能を現行版へ移植し終えたので 2026-11-23 に削除した（git の履歴には残る）。
+  端末に残る試用版の保存キー `toeic_next_v1` は現行版が読まないので、消す処理も入れていない。試用版のキャッシュ（`toeic-next-*`）は `sw.js` の掃除で消える。
 - `archive/`・`*.bak`・`_site/`・`.claude/`・`.superpowers/` は Git の対象外（手元だけ）。
 
 ## 守ること（壊れやすい約束事）
@@ -75,12 +75,10 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
 ```bash
 pytest tests -q                  # Python（ファイル一覧の整合、grammar.js の検証など）
 node --test tests/unit/          # src/*.js の単体テスト
-node --test tests/next-*.test.mjs
 NODE_PATH=$(npm root -g) node tests/<名前>.test.js   # ブラウザを動かすテスト（Playwright はグローバルに導入済み）
 ```
 
 - ブラウザのテストは `tests/*.test.js` の単位で実行する。`shell.test.js` は約 90 秒かかる。
-- 既知の失敗: `tests/next-browser.cjs`（ホームの教材カードを 4 枚と期待するが 6 枚出る。`next/` 側のテストが古い可能性が高く、原因は未特定）。
 - Obsidian との同期の互換テストは `English_study` 側（`/Users/reiji/projects/English_study/tests`）にある。
 
 ## 公開（outward-facing）

@@ -1,5 +1,7 @@
 # 現行版へ Study Desk の機能を移植する 実装プラン
 
+> **状態:** 実装済み（チェックボックスは更新していない）。参照元の `next/` は 2026-11-23 に削除した（git の履歴に残る）。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use sp-subagent-driven-development (recommended) or sp-executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 > 実行方法はユーザー指定の **native**（サブエージェントを使わず、このセッションで直接実行）→ `sp-executing-plans`。
 
