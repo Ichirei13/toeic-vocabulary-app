@@ -280,10 +280,12 @@ function renderCurrentGrammar() {
   }
 
   if (!review && state.currentGrammarIndex >= state.grammarPool.length) {
-    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.grammarScore, state.grammarAnsweredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}${nearDrillActive() ? '<button type="button" class="home-weak-btn near-drill-back">グラフに戻る</button>' : (typeof completionActionsHtml === 'function' ? completionActionsHtml('grammar') : '')}</div>`;
+    // テーマの演習（レーダーのページから）はレーダーへ、近い問題（グラフから）はグラフへ戻る。exitNearDrill で state.nearDrill が消えるので先に決める
+    const backToRadar = nearDrillActive() && !!state.nearDrill && state.nearDrill.kind === 'theme';
+    container.innerHTML = `<div class="card completion-card">${pomeranianImage('celebrate', 'completion-mascot', 96)}<div class="meaning-display">文法ドリル完了！</div><div style="font-size:14px;color:var(--muted);margin-top:8px;">正答: ${state.grammarScore} / ${state.grammarAnsweredCount}</div>${typeof completionPraiseHtml === 'function' ? completionPraiseHtml(state.grammarScore, state.grammarAnsweredCount) : ''}${typeof sessionReviewHtml === 'function' ? sessionReviewHtml('grammar') : ''}${nearDrillActive() ? `<button type="button" class="home-weak-btn near-drill-back">${backToRadar ? 'レーダーに戻る' : 'グラフに戻る'}</button>` : (typeof completionActionsHtml === 'function' ? completionActionsHtml('grammar') : '')}</div>`;
     const backBtn = container.querySelector('.near-drill-back');
-    // 通常の続きに戻してからグラフを開く（解き終えた 30 問で、通常の続きを上書きしないため）
-    if (backBtn) backBtn.addEventListener('click', () => { exitNearDrill(); switchAppPage('graph'); });
+    // 通常の続きに戻してからグラフ（またはレーダー）を開く（解き終えた問題で、通常の続きを上書きしないため）
+    if (backBtn) backBtn.addEventListener('click', () => { exitNearDrill(); switchAppPage(backToRadar ? 'radar' : 'graph'); });
     choicesDiv.innerHTML = '';
     nextBtn.style.display = 'none';
     updateFooter();

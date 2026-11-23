@@ -1,7 +1,7 @@
 // オフラインでも開けるようにするサービスワーカー。
 // 毎回ネットワークから最新を取りに行き（取れて、版が変わっていればキャッシュも更新）、つながらないときだけキャッシュを返す。
 // ファイルを足したら ASSETS にも追加する。
-const CACHE = 'toeic-drill-v22';
+const CACHE = 'toeic-drill-v23';
 const ASSETS = [
   './',
   'index.html',
@@ -147,7 +147,7 @@ const ASSETS = [
   'data/words.js',
   'data/tips.js',
   'data/grammar.js',
-  // 文法グラフ（起動時には読まず、グラフを開いたときに home.js の loadGraphAssets が差し込む）
+  // 文法グラフとレーダー（起動時には読まず、開いたときに home.js の loadGraphAssets / loadRadarAssets が差し込む）
   'data/grammar_graph.js',
   'src/mastery.js',
   'src/graph-filter.js',
@@ -157,6 +157,7 @@ const ASSETS = [
   'src/graph-report.js',
   'js/graph-sheet.js',
   'js/graph-view.js',
+  'js/radar-view.js',
   'css/graph.css',
   'vendor/d3-dispatch.min.js',
   'vendor/d3-quadtree.min.js',

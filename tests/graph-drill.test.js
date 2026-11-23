@@ -1,4 +1,4 @@
-// グラフの「近い問題を解く」の検証（アプリ全体を起動する）。
+// グラフの「近い問題を解く」と、レーダーのページの「テーマの問題を解く」の検証（アプリ全体を起動する）。
 // 実行: NODE_PATH=$(npm root -g) node --test tests/graph-drill.test.js
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -60,6 +60,23 @@ async function openGraphWithNormalSession(page) {
   await page.evaluate(() => switchAppPage('graph'));
   await graphReady(page);
 }
+// 文法の通常の出題を 1 問進めてから、レーダーのページを開く
+async function openRadarWithNormalSession(page) {
+  await page.evaluate(() => { setApp('grammar'); applyGrammarFilters(); switchAppPage('practice'); });
+  await page.locator('#choices-container button').first().click();
+  await page.evaluate(() => switchAppPage('radar'));
+  await waitFor(page, () => typeof RadarView !== 'undefined' && !!document.querySelector('#radar-page .graph-radar-svg'));
+}
+// レーダーの横棒からテーマのシートを開き、「このテーマの全 N 問を解く」を押す。N を返す
+async function startThemeDrill(page, conceptId) {
+  const node = await page.evaluate(id => GRAMMAR_GRAPH.id.indexOf(id), conceptId);
+  await page.locator(`#radar-page .graph-bar-row[data-node="${node}"]`).click();
+  const btn = page.locator('#radar-page .graph-drill-btn[data-drill="all"]');
+  const n = Number((await btn.innerText()).match(/全 (\d+) 問/)[1]);
+  await btn.click();
+  await waitFor(page, () => currentAppPage === 'practice');
+  return n;
+}
 // ノードをタップしてシートを開き、「近い問題を解く」を押す。押す前のボタンの文字を返す
 async function startNearDrill(page, prefix) {
   const [x, y] = await page.evaluate(p => GraphView._debug.screenOf(GRAMMAR_GRAPH.id.findIndex(s => s.startsWith(p))), prefix);
@@ -115,18 +132,11 @@ test('回答すると、苦手の記録が通常と同じ形で保存され、�
   assert.equal(await page.locator('#near-drill-banner').isVisible(), true);
 });
 
-test('レーダーからテーマの全問を解く: 表示は「〈テーマ〉の N 問」、続きに種類が残り、再読み込みしても同じ表示で続きから解ける', async t => {
+test('レーダーのページからテーマの全問を解く: 表示は「〈テーマ〉の N 問」、続きに種類が残り、再読み込みしても同じ表示で続きから解ける', async t => {
   const { page } = await open(t);
-  await openGraphWithNormalSession(page);
+  await openRadarWithNormalSession(page);
   const session0 = await stored(page, SESSION_KEY);
-  await page.click('#graph-page .graph-mode-btn[data-mode="radar"]');
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'));
-  const node = await page.evaluate(() => GRAMMAR_GRAPH.id.indexOf('con:関係代名詞・関係副詞'));
-  await page.locator(`#graph-page .graph-bar-row[data-node="${node}"]`).click();
-  const btn = page.locator('#graph-page .graph-drill-btn[data-drill="all"]');
-  const n = Number((await btn.innerText()).match(/全 (\d+) 問/)[1]);
-  await btn.click();
-  await waitFor(page, () => currentAppPage === 'practice');
+  const n = await startThemeDrill(page, 'con:関係代名詞・関係副詞');
   assert.equal((await poolIds(page)).length, n);
   assert.ok(n > 30, '30 問で打ち切られていない前提（関係詞は 30 問より多い）');
   const banner = await page.locator('#near-drill-banner').innerText();
@@ -176,11 +186,28 @@ test('最後まで解くと「グラフに戻る」が出て、押すとグラ�
   await startNearDrill(page, 'con:');
   // 残りを飛ばして最後へ（描画は本物の関数に任せる）
   await page.evaluate(() => { state.currentGrammarIndex = state.grammarPool.length; renderCurrentGrammar(); });
+  assert.equal(await page.locator('.near-drill-back').innerText(), 'グラフに戻る');
   await page.locator('.near-drill-back').click();
   await waitFor(page, () => currentAppPage === 'graph');
   assert.equal(await stored(page, NEAR_KEY), null);
   assert.deepEqual(await poolIds(page), session0.grammar.pool);
   assert.deepEqual(JSON.parse(await stored(page, SESSION_KEY)).grammar.pool, session0.grammar.pool, '通常の続きが 30 問で上書きされた');
+});
+
+test('テーマの演習を最後まで解くと「レーダーに戻る」が出て、押すとレーダーのページが開き、通常の続きに戻っている', async t => {
+  const { page } = await open(t);
+  await openRadarWithNormalSession(page);
+  const session0 = JSON.parse(await stored(page, SESSION_KEY));
+  await startThemeDrill(page, 'con:比較級・最上級');
+  await page.evaluate(() => { state.currentGrammarIndex = state.grammarPool.length; renderCurrentGrammar(); });
+  const back = page.locator('.near-drill-back');
+  assert.equal(await back.innerText(), 'レーダーに戻る');
+  await back.click();
+  await waitFor(page, () => currentAppPage === 'radar' && !!document.querySelector('#radar-page .graph-radar-svg'));
+  assert.equal(await page.evaluate(() => typeof GraphView), 'undefined', 'レーダーに戻るのにグラフ本体を読んだ');
+  assert.equal(await stored(page, NEAR_KEY), null);
+  assert.deepEqual(await poolIds(page), session0.grammar.pool);
+  assert.deepEqual(JSON.parse(await stored(page, SESSION_KEY)).grammar.pool, session0.grammar.pool, '通常の続きが書き換わった');
 });
 
 for (const [name, raw] of [

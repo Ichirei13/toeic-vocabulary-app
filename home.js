@@ -508,7 +508,7 @@ const WEAK_FILTER_LABELS = {
   due: '要復習のみ',
 };
 
-const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings', 'graph'];
+const APP_PAGES = ['home', 'practice', 'review', 'timer', 'settings', 'graph', 'radar'];
 let currentAppPage = 'home'; // APP_PAGES のどれか
 let appPageShown = false;    // 最初の switchAppPage が済んだか（#graph で開いたとき、戻る先を復習にするため）
 let homeCategory = 'vocab';  // ホーム画面上の切り替えスイッチ ('vocab' | 'grammar')
@@ -1042,8 +1042,9 @@ function renderReviewPage() {
         <div class="review-block-head">
           <h3>🕸 文法グラフ</h3>
         </div>
-        <p class="review-graph-desc">概念・ひっかけ・ルール・問題のつながりと、苦手を色で見る</p>
+        <p class="review-graph-desc">分野ごとの成績（レーダー）と、概念・ひっかけ・問題のつながり（グラフ）を見る</p>
         <div class="review-block-actions">
+          <button type="button" class="home-weak-btn solve" data-home-action="open-radar">レーダーを開く</button>
           <button type="button" class="home-weak-btn" data-home-action="open-graph">グラフを開く</button>
         </div>
       </section>
@@ -1417,6 +1418,20 @@ function loadGraphForceAssets() {
   p.catch(() => { if (graphForcePromise === p) graphForcePromise = null; });
   return p;
 }
+// レーダーのページ（#radar-page）で読むファイル。グラフ本体（js/graph-view.js など）と力学は読まない。
+// 共通のファイル（データ・mastery・graph-detail・graph-sheet・css）は、グラフと合わせて一度だけ差し込む（insertGraphAsset が同じ要素を使い回す）
+const RADAR_SCRIPTS = [
+  'data/grammar_graph.js',
+  'src/mastery.js',
+  'src/graph-detail.js',
+  'src/graph-report.js',
+  'js/graph-sheet.js',
+  'js/radar-view.js',
+];
+let radarAssetsPromise = null; // 失敗したら捨てて、次に開いたときにやり直す
+let radarOpenToken = 0;        // 開くたびに増やす。読み込みを待つ間に画面を離れたら、古い番号のマウントは捨てる
+let radarReturnPage = 'home';  // レーダーの「← 戻る」の行き先（開いたページ。グラフから戻ってきたときは変えない）
+let pendingGraphJumpNode = -1; // レーダーのシートの問題から開くとき、グラフの initialJumpNode に渡すノード
 let graphAssetsPromise = null; // 読み込み中・読み込み済みの Promise（失敗したら捨てて、次に開いたときにやり直す）
 let graphOpenToken = 0;        // 開くたびに増やす。読み込みを待つ間に画面を離れたら、古い番号のマウントは捨てる
 let graphReturnPage = 'review';
@@ -1454,13 +1469,29 @@ function loadGraphAssets() {
   return p;
 }
 
-// mode を渡すと、そのモードを「最後に選んだモード」として書いてから開く（ホームのカードはレーダーで開く）
-function openGraphPage(mode) {
-  if (mode === 'radar') writeGraphMode('radar');
+function loadRadarAssets() {
+  if (radarAssetsPromise) return radarAssetsPromise;
+  const p = (async () => {
+    for (const url of [GRAPH_STYLE, ...RADAR_SCRIPTS]) await insertGraphAsset(url);
+  })();
+  radarAssetsPromise = p;
+  p.catch(() => { if (radarAssetsPromise === p) radarAssetsPromise = null; });
+  return p;
+}
+
+function openGraphPage() {
+  switchAppPage('graph');
+}
+function openRadarPage() {
+  switchAppPage('radar');
+}
+// レーダーのシートの問題から: グラフのページを開き、教材軸でその問題へ移動する
+function openGraphAtNode(node) {
+  pendingGraphJumpNode = Number.isInteger(node) ? node : -1;
   switchAppPage('graph');
 }
 
-// ホーム（文法）の「文法グラフ」のカード。押すとレーダーで開く。
+// ホーム（文法）の「文法グラフ」のカード。「レーダー」でレーダーのページ、「グラフ」でグラフのページを開く。
 // 起動時の読み込みを増やさないため、グラフのデータ（data/grammar_graph.js）は読まず、手元の記録だけで数える
 function homeGraphCardHtml(allProg) {
   let a = 0, c = 0;
@@ -1479,7 +1510,8 @@ function homeGraphCardHtml(allProg) {
         <div class="home-weak-sub">正答率 <strong class="home-graph-acc">${acc}</strong> ・ 苦手 <strong>${allProg.weak}</strong> ${allProg.unit} ・ 分野ごとの成績</div>
       </div>
       <div class="home-weak-actions">
-        <button type="button" class="home-weak-btn" data-home-action="open-graph-radar">レーダーで見る</button>
+        <button type="button" class="home-weak-btn solve" data-home-action="open-radar">レーダー</button>
+        <button type="button" class="home-weak-btn" data-home-action="open-graph">グラフ</button>
       </div>
     </section>`;
 }
@@ -1496,6 +1528,7 @@ function ensureGraphPage() {
     <div class="graph-page-head">
       <button type="button" class="graph-page-back">← 戻る</button>
       <h2 class="graph-page-title">文法グラフ</h2>
+      <button type="button" class="graph-page-link">レーダー</button>
     </div>
     <div class="graph-page-body">
       <div class="graph-host"></div>
@@ -1507,11 +1540,88 @@ function ensureGraphPage() {
     </div>`;
   el.querySelector('.graph-page-back').addEventListener('click', () => switchAppPage(graphReturnPage));
   el.querySelector('.graph-page-retry').addEventListener('click', () => { if (currentAppPage === 'graph') showGraphPage(); });
+  el.querySelector('.graph-page-link').addEventListener('click', () => openRadarPage());
   const views = document.querySelectorAll('#app > .app-page-view');
   const last = views[views.length - 1];
   if (last) last.after(el);
   else document.getElementById('app').appendChild(el);
   return el;
+}
+
+// #radar-page を（なければ）作る。起動時には作らない。枠の見た目は #graph-page と同じ（css/shell.css）
+function ensureRadarPage() {
+  let el = document.getElementById('radar-page');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'radar-page';
+  el.className = 'app-page-view';
+  el.setAttribute('aria-label', 'レーダー');
+  el.innerHTML = `
+    <div class="graph-page-head">
+      <button type="button" class="graph-page-back">← 戻る</button>
+      <h2 class="graph-page-title">レーダー</h2>
+      <button type="button" class="graph-page-link">グラフ</button>
+    </div>
+    <div class="graph-page-body">
+      <div class="graph-host radar-host"></div>
+      <p class="graph-page-loading" role="status" hidden>レーダーを読み込んでいます…</p>
+      <div class="graph-page-error" role="alert" hidden>
+        <p class="graph-page-error-text"></p>
+        <button type="button" class="home-weak-btn solve graph-page-retry">再試行</button>
+      </div>
+    </div>`;
+  el.querySelector('.graph-page-back').addEventListener('click', () => switchAppPage(radarReturnPage));
+  el.querySelector('.graph-page-retry').addEventListener('click', () => { if (currentAppPage === 'radar') showRadarPage(); });
+  el.querySelector('.graph-page-link').addEventListener('click', () => openGraphPage());
+  const views = document.querySelectorAll('#app > .app-page-view');
+  const last = views[views.length - 1];
+  if (last) last.after(el);
+  else document.getElementById('app').appendChild(el);
+  return el;
+}
+
+function leaveRadarPage() {
+  radarOpenToken++;
+  if (typeof RadarView !== 'undefined' && typeof RadarView.destroy === 'function') RadarView.destroy();
+}
+
+// 読み込み中 → 読み込み → マウント。失敗したら理由と「再試行」
+async function showRadarPage() {
+  const pageEl = ensureRadarPage();
+  const token = ++radarOpenToken;
+  const host = pageEl.querySelector('.radar-host');
+  const loading = pageEl.querySelector('.graph-page-loading');
+  const error = pageEl.querySelector('.graph-page-error');
+  const showError = message => {
+    loading.hidden = true;
+    error.querySelector('.graph-page-error-text').textContent = message;
+    error.hidden = false;
+  };
+  error.hidden = true;
+  if (typeof RadarView === 'undefined') loading.hidden = false;
+  try {
+    await loadRadarAssets();
+  } catch (e) {
+    if (token === radarOpenToken && currentAppPage === 'radar') showError('レーダーの読み込みに失敗しました（オフラインで未取得の可能性があります）');
+    return;
+  }
+  if (token !== radarOpenToken || currentAppPage !== 'radar') return; // 待っている間に別のページへ移った
+  loading.hidden = true;
+  try {
+    RadarView.mount(host, {
+      graph: GRAMMAR_GRAPH,
+      getStats: () => state.grammarStats,
+      getWeak: () => state.grammarWeakData,
+      getQuestion: id => GRAMMAR_BY_ID.get(id),
+      isDue,
+      getSheetHeight: () => readSheetHeight('グラフの詳細'),
+      setSheetHeight: ratio => writeSheetHeight('グラフの詳細', ratio),
+      onStartDrill: (ids, label, opts) => { if (startGrammarCustomDrill(ids, label, opts && opts.kind)) switchAppPage('practice'); },
+      onOpenQuestion: node => openGraphAtNode(node),
+    });
+  } catch (e) {
+    showError('レーダーを表示できませんでした。');
+  }
 }
 
 function leaveGraphPage() {
@@ -1558,6 +1668,9 @@ function writeGraphMode(mode) {
 async function showGraphPage() {
   const pageEl = ensureGraphPage();
   const token = ++graphOpenToken;
+  // レーダーのシートの問題から来たときだけ、その問題へ移動する（1 回限り。次に普通に開いたときは移動しない）
+  const jumpNode = pendingGraphJumpNode;
+  pendingGraphJumpNode = -1;
   const host = pageEl.querySelector('.graph-host');
   const loading = pageEl.querySelector('.graph-page-loading');
   const error = pageEl.querySelector('.graph-page-error');
@@ -1579,7 +1692,7 @@ async function showGraphPage() {
   loading.hidden = true;
   try {
     const rawMode = loadJSON(GRAPH_MODE_KEY, 'book');
-    const savedMode = rawMode === 'grammar' || rawMode === 'radar' ? rawMode : 'book';
+    const savedMode = rawMode === 'grammar' ? 'grammar' : 'book'; // 前の版の 'radar'（レーダーは専用ページに分けた）は教材軸
     GraphView.mount(host, {
       graph: GRAMMAR_GRAPH,
       getStats: () => state.grammarStats,
@@ -1587,7 +1700,8 @@ async function showGraphPage() {
       getQuestion: id => GRAMMAR_BY_ID.get(id),
       isDue,
       initialMode: savedMode,
-      onModeChange: mode => { writeGraphMode(mode === 'grammar' || mode === 'radar' ? mode : 'book'); },
+      initialJumpNode: jumpNode >= 0 ? jumpNode : undefined,
+      onModeChange: mode => { writeGraphMode(mode === 'grammar' ? 'grammar' : 'book'); },
       getLayoutCache: (mode, sig) => (mode === 'grammar' ? readGraphGrammarCache(sig) : null),
       setLayoutCache: (mode, sig, coords) => { if (mode === 'grammar') writeGraphGrammarCache(sig, coords); },
       getSheetHeight: () => readSheetHeight('グラフの詳細'),
@@ -1608,6 +1722,14 @@ function switchAppPage(page, options = {}) {
   if (page !== 'graph') leaveGraphPage();
   else if (currentAppPage !== 'graph') graphReturnPage = appPageShown ? currentAppPage : 'review';
   if (page === 'graph') ensureGraphPage();
+  // レーダーも同じ。戻る先は開いたページ（グラフから戻ってきたときは前の値のまま。#radar で開いたときはホーム）
+  const radarAlreadyShown = page === 'radar' && currentAppPage === 'radar' && !!document.querySelector('#radar-page .graph-radar-svg');
+  if (page !== 'radar') leaveRadarPage();
+  else if (currentAppPage !== 'radar') {
+    if (!appPageShown) radarReturnPage = 'home';
+    else if (currentAppPage !== 'graph') radarReturnPage = currentAppPage;
+  }
+  if (page === 'radar') ensureRadarPage();
   appPageShown = true;
   if (page !== currentAppPage && typeof resetLabelSettingsEdit === 'function') resetLabelSettingsEdit(); // js/labels-ui.js
   currentAppPage = page;
@@ -1617,6 +1739,7 @@ function switchAppPage(page, options = {}) {
     appEl.classList.toggle('page-review', page === 'review');
     appEl.classList.toggle('page-timer', page === 'timer');
     appEl.classList.toggle('page-graph', page === 'graph');
+    appEl.classList.toggle('page-radar', page === 'radar');
   }
 
   // シートが開いていれば閉じる（オプションで維持指定がない場合）
@@ -1653,6 +1776,8 @@ function switchAppPage(page, options = {}) {
     checkFilterNudge();
   } else if (page === 'graph') {
     if (!graphAlreadyShown) showGraphPage();
+  } else if (page === 'radar') {
+    if (!radarAlreadyShown) showRadarPage();
   }
 
   if (typeof syncPomoMiniPill === 'function') syncPomoMiniPill();
@@ -1985,13 +2110,14 @@ function initHomeAndPages() {
     };
   }
 
-  // クラウド同期・復元で記録を読み込み直したとき、グラフの画面が開いていれば色だけ更新する
+  // クラウド同期・復元で記録を読み込み直したとき、グラフ・レーダーの画面が開いていれば表示だけ更新する
   // （同期の処理そのものは変えず、読み込み直しの関数にかぶせる）
   const origReloadRecords = window.reloadRecordsFromStorage;
   if (typeof origReloadRecords === 'function') {
     window.reloadRecordsFromStorage = function () {
       const res = origReloadRecords.apply(this, arguments);
       if (currentAppPage === 'graph' && typeof GraphView !== 'undefined' && typeof GraphView.refresh === 'function') GraphView.refresh();
+      if (currentAppPage === 'radar' && typeof RadarView !== 'undefined' && typeof RadarView.refresh === 'function') RadarView.refresh();
       return res;
     };
   }
@@ -2073,8 +2199,12 @@ function initHomeAndPages() {
           switchAppPage('review');
           return;
         }
-        if (action === 'open-graph-radar') {
-          openGraphPage('radar');
+        if (action === 'open-radar') {
+          openRadarPage();
+          return;
+        }
+        if (action === 'open-graph') {
+          openGraphPage();
           return;
         }
         const kind = actionBtn.dataset.kind || homeCategory;
@@ -2123,6 +2253,7 @@ function initHomeAndPages() {
       if (btn.dataset.homeAction === 'solve-weak') startWeakDrillFromHome(kind);
       else if (btn.dataset.homeAction === 'view-weak-list') openWeakListFromHome(kind);
       else if (btn.dataset.homeAction === 'open-graph') openGraphPage();
+      else if (btn.dataset.homeAction === 'open-radar') openRadarPage();
     });
   }
 

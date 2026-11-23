@@ -37,6 +37,18 @@ const GRAPH_FILES = [
   'vendor/d3-force.min.js',
   'src/graph-force.js',
 ];
+// レーダーのページ（#radar）で差し込むファイル。グラフ本体と力学（GRAPH_ONLY）は読まない
+const RADAR_FILES = [
+  'css/graph.css',
+  'data/grammar_graph.js',
+  'src/mastery.js',
+  'src/graph-detail.js',
+  'src/graph-report.js',
+  'js/graph-sheet.js',
+  'js/radar-view.js',
+];
+const GRAPH_ONLY = GRAPH_FILES.filter(f => !RADAR_FILES.includes(f));
+const ALL_FILES = [...new Set([...GRAPH_FILES, ...RADAR_FILES])];
 const PHONE = { width: 375, height: 812 };
 const PC = { width: 1280, height: 800 };
 
@@ -83,9 +95,11 @@ async function waitFor(page, fn, arg, timeout = 6000) {
 const drawn = page => waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.frames >= 1
   && document.querySelectorAll('#graph-page canvas').length === 1);
 const activePage = page => page.evaluate(() => document.querySelector('.app-page-view.active')?.id);
-const tagCounts = page => page.evaluate(files => files.map(f => f.endsWith('.css')
+const tagCounts = (page, list = GRAPH_FILES) => page.evaluate(files => files.map(f => f.endsWith('.css')
   ? document.querySelectorAll(`link[href="${f}"]`).length
-  : document.querySelectorAll(`script[src="${f}"]`).length), GRAPH_FILES);
+  : document.querySelectorAll(`script[src="${f}"]`).length), list);
+const radarShown = page => waitFor(page, () => typeof RadarView !== 'undefined' && RadarView._debug.mounted
+  && !!document.querySelector('#radar-page .graph-radar-svg'), undefined, 15000);
 
 async function openReviewCard(page) {
   await page.getByRole('tab', { name: '復習', exact: true }).click();
@@ -101,7 +115,7 @@ for (const vp of [PHONE, PC]) {
     page.on('request', r => { if (r.url().startsWith(base)) urls.push(r.url().slice(base.length + 1)); });
     await page.goto(base + '/index.html#home', { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
-    const graph = urls.filter(u => GRAPH_FILES.includes(u.split('?')[0]));
+    const graph = urls.filter(u => ALL_FILES.includes(u.split('?')[0]));
     assert.deepEqual(graph, [], 'グラフ用のファイルを起動時に取った');
     assert.equal(urls.length, STARTUP_REQUESTS_BASELINE, `起動のリクエスト数が変わった: ${urls.join(', ')}`);
   });
@@ -192,13 +206,16 @@ test('オフライン: オンラインで一度も開いていなくても、Ser
     const keys = await caches.keys();
     const c = await caches.open(keys.find(k => k.startsWith('toeic-drill-')));
     return Promise.all(files.map(async f => !!(await c.match(f))));
-  }, GRAPH_FILES);
-  assert.deepEqual(cached, GRAPH_FILES.map(() => true), 'install でグラフ用のファイルがキャッシュに入っていない');
+  }, ALL_FILES);
+  assert.deepEqual(cached, ALL_FILES.map(() => true), 'install でグラフ・レーダー用のファイルがキャッシュに入っていない');
   await context.setOffline(true);
   await page.reload();
   await page.waitForFunction(() => typeof switchAppPage === 'function');
   await openReviewCard(page);
   await drawn(page);
+  // レーダーのページもオフラインで開く
+  await page.evaluate(() => switchAppPage('radar'));
+  await radarShown(page);
   await context.setOffline(false);
 });
 
@@ -370,7 +387,7 @@ test('PC: グラフの画面で「グラフ」タブをもう一度押しても�
   assert.equal(await tab.getAttribute('aria-selected'), 'true');
 });
 
-test('ホーム（文法）の文法グラフのカード: 正答率と苦手の数を出し、押すと前回のモードによらずレーダーで開く', async t => {
+test('ホーム（文法）の文法グラフのカード: 正答率と苦手の数を出す。「レーダー」でレーダーのページが開き、グラフ本体と力学は読まない。戻るとホーム。「グラフ」でグラフのページ', async t => {
   const { page } = await open(t, {
     init: {
       fn: () => {
@@ -378,24 +395,125 @@ test('ホーム（文法）の文法グラフのカード: 正答率と苦手の
         sessionStorage.setItem('__seeded', '1');
         localStorage.setItem('toeic_grammar_stats', JSON.stringify({ 1: { a: 4, c: 3 }, 2: { a: 4, c: 2 } }));
         localStorage.setItem('toeic_weak_grammar', JSON.stringify({ 2: { streak: 0, added: 1, due: 1, u: 1 } }));
-        localStorage.setItem('toeic_graph_mode_v1', JSON.stringify('book'));
       },
     },
   });
+  const requested = [];
+  page.on('request', r => { const u = r.url().slice(base.length + 1); if (ALL_FILES.includes(u)) requested.push(u); });
   await page.locator('#home-page [data-home-switch="grammar"]').click();
   const card = page.locator('#home-page .home-graph-bar');
   await card.waitFor();
   const text = await card.innerText();
   assert.match(text, /正答率 63%/); // 5/8 = 62.5% → 63%
   assert.match(text, /苦手 1 問/);
-  assert.equal(await page.evaluate(() => typeof GraphView), 'undefined', 'カードを出すだけでグラフのファイルを読んだ');
-  await card.locator('[data-home-action="open-graph-radar"]').click();
-  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'), undefined, 15000);
+  assert.equal(await page.evaluate(() => typeof GraphView + typeof RadarView), 'undefinedundefined', 'カードを出すだけでファイルを読んだ');
+  await card.locator('[data-home-action="open-radar"]').click();
+  assert.equal(await activePage(page), 'radar-page');
+  await radarShown(page);
+  assert.equal(await page.evaluate(() => location.hash), '#radar');
+  assert.equal(await page.evaluate(() => typeof GraphView), 'undefined', 'レーダーなのにグラフ本体を読んだ');
+  assert.deepEqual(requested.slice().sort(), RADAR_FILES.slice().sort(), 'レーダーで読むファイルが設計と違う');
+  await page.locator('#radar-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'home-page');
+  assert.deepEqual(await page.evaluate(() => ({ listeners: RadarView._debug.listeners, views: document.querySelectorAll('#radar-page .graph-view').length })), { listeners: 0, views: 0 });
+  // 「グラフ」はグラフのページ
+  await page.locator('#home-page .home-graph-bar [data-home-action="open-graph"]').click();
   assert.equal(await activePage(page), 'graph-page');
+  await drawn(page);
   // 単語のときはカードを出さない（グラフは文法だけ）
   await page.evaluate(() => switchAppPage('home'));
   await page.locator('#home-page [data-home-switch="vocab"]').click();
   assert.equal(await page.locator('#home-page .home-graph-bar').count(), 0);
+});
+
+test('復習の「レーダーを開く」でレーダーのページが開き、戻ると復習に戻って何も残らない。3 回開いてもタグは 1 組', async t => {
+  const { page } = await open(t);
+  await page.getByRole('tab', { name: '復習', exact: true }).click();
+  const btn = page.locator('#review-page [data-home-action="open-radar"]');
+  assert.ok(await btn.isVisible(), '復習ページにレーダーのボタンがない');
+  for (let i = 0; i < 3; i++) {
+    await btn.click();
+    assert.equal(await activePage(page), 'radar-page');
+    await radarShown(page);
+    await page.locator('#radar-page .graph-page-back').click();
+    assert.equal(await activePage(page), 'review-page', `${i + 1} 回目: 戻るで復習ページに戻らない`);
+    const r = await page.evaluate(() => ({ listeners: RadarView._debug.listeners, mounted: RadarView._debug.mounted, views: document.querySelectorAll('.graph-view').length }));
+    assert.deepEqual(r, { listeners: 0, mounted: false, views: 0 }, `${i + 1} 回目: 戻ったあとに残った`);
+  }
+  assert.deepEqual(await tagCounts(page, RADAR_FILES), RADAR_FILES.map(() => 1), 'タグが重複した');
+});
+
+test('レーダーのシートの問題を押すと、グラフのページがその問題で開く。グラフの「← 戻る」でレーダーに戻り、共通のファイルは二度差し込まない', async t => {
+  const { page } = await open(t);
+  await page.evaluate(() => switchAppPage('review'));
+  await page.locator('#review-page [data-home-action="open-radar"]').click();
+  await radarShown(page);
+  await page.locator('#radar-page .graph-bar-row').first().click();
+  const q = page.locator('#radar-page .graph-q[data-node]').first();
+  const node = Number(await q.getAttribute('data-node'));
+  await q.click();
+  assert.equal(await activePage(page), 'graph-page');
+  await drawn(page);
+  await waitFor(page, n => GraphView._debug.settled && !GraphView._debug.animating && GraphView._debug.focusNode === n, node, 15000);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  assert.equal(await page.evaluate(() => !document.querySelector('#graph-page .graph-sheet').hidden), true, 'シートが開いていない');
+  assert.equal(await page.evaluate(() => RadarView._debug.mounted), false, 'レーダーが片付いていない');
+  await page.locator('#graph-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'radar-page');
+  await radarShown(page);
+  // レーダーの「← 戻る」は最初に開いたページ（グラフとレーダーの行き来で終わらなくならない）
+  await page.locator('#radar-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'review-page');
+  assert.deepEqual(await tagCounts(page, ALL_FILES), ALL_FILES.map(() => 1), 'タグが重複した');
+  // 次にグラフを普通に開くときは、問題へは移動しない
+  await page.evaluate(() => switchAppPage('graph'));
+  await drawn(page);
+  await waitFor(page, () => GraphView._debug.settled === true, undefined, 15000);
+  assert.equal(await page.evaluate(() => !document.querySelector('#graph-page .graph-sheet').hidden), false);
+});
+
+test('グラフの見出しの「レーダー」でレーダーのページ、レーダーの見出しの「グラフ」でグラフのページが開く', async t => {
+  const { page } = await open(t);
+  await openReviewCard(page);
+  await drawn(page);
+  await page.locator('#graph-page .graph-page-link').click();
+  assert.equal(await activePage(page), 'radar-page');
+  await radarShown(page);
+  await page.locator('#radar-page .graph-page-link').click();
+  assert.equal(await activePage(page), 'graph-page');
+  await drawn(page);
+});
+
+test('#radar のハッシュで開くとレーダーのページが開き、戻る先はホーム。読み込みに失敗すると「再試行」で開き直せる', async t => {
+  const { page } = await open(t, {
+    hash: '#radar',
+    beforeGoto: page => page.route('**/js/radar-view.js', route => route.fulfill({ status: 500, body: 'x' })),
+  });
+  assert.equal(await activePage(page), 'radar-page');
+  const err = page.locator('#radar-page .graph-page-error');
+  await err.waitFor({ state: 'visible' });
+  assert.match(await err.innerText(), /レーダーの読み込みに失敗しました/);
+  await page.unroute('**/js/radar-view.js');
+  await page.locator('#radar-page .graph-page-retry').click();
+  await radarShown(page);
+  assert.equal(await err.isVisible(), false);
+  await page.locator('#radar-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'home-page');
+});
+
+test('記録が読み込み直されると（reloadRecordsFromStorage）、開いているレーダーのスコアが更新される', async t => {
+  const { page } = await open(t);
+  await page.evaluate(() => switchAppPage('radar'));
+  await radarShown(page);
+  const before = await page.locator('#radar-page .graph-radar-score-num').innerText();
+  await page.evaluate(() => {
+    const stats = {};
+    for (const q of GRAMMAR_GRAPH.qids.slice(0, 20)) stats[q] = { a: 1, c: 1 };
+    localStorage.setItem('toeic_grammar_stats', JSON.stringify(stats));
+    reloadRecordsFromStorage(false);
+  });
+  await waitFor(page, b => document.querySelector('#radar-page .graph-radar-score-num').textContent !== b, before);
+  assert.equal(await page.locator('#radar-page .graph-radar-score-num').innerText(), '100%');
 });
 
 test('力学用のファイルが読めなくても、グラフは固定配置で開く', async t => {
@@ -408,7 +526,7 @@ test('力学用のファイルが読めなくても、グラフは固定配置�
   assert.equal(await page.evaluate(() => typeof d3), 'undefined');
 });
 
-test('文法軸モードの選択がこの端末に記憶され、再訪・リロード後も引き継がれる（壊れた値は教材軸に戻る）', async t => {
+test('文法軸モードの選択がこの端末に記憶され、再訪・リロード後も引き継がれる（壊れた値と古い radar は教材軸に戻る）', async t => {
   const { page } = await open(t);
   await openReviewCard(page);
   await drawn(page);
@@ -431,14 +549,13 @@ test('文法軸モードの選択がこの端末に記憶され、再訪・リ�
   await page.locator('#review-page [data-home-action="open-graph"]').click();
   await drawn(page);
   assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
-  // レーダーチャートモードも記憶され、リロード後も開く
-  await page.click('#graph-page .graph-mode-btn[data-mode="radar"]');
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'));
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('toeic_graph_mode_v1'))), 'radar');
-  await page.reload();
-  await page.getByRole('tab', { name: '復習', exact: true }).click();
+  // レーダーは専用ページに分けた。前の版で 'radar' を覚えた端末は、教材軸で開く（モードボタンは 2 つだけ）
+  await page.evaluate(() => { localStorage.setItem('toeic_graph_mode_v1', JSON.stringify('radar')); });
+  await page.locator('#graph-page .graph-page-back').click();
   await page.locator('#review-page [data-home-action="open-graph"]').click();
-  await waitFor(page, () => typeof GraphView !== 'undefined' && GraphView._debug.mode === 'radar' && !!document.querySelector('#graph-page .graph-radar-svg'));
+  await drawn(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#graph-page .graph-mode-btn')].map(b => b.dataset.mode)), ['book', 'grammar']);
 });
 
 test('文法軸の座標キャッシュ（toeic_graph_grammar_cache_v1）が再訪・リロードで効き、苦手変化で再計算、破損や容量超過でもエラーを出さない', async t => {

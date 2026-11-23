@@ -82,13 +82,15 @@
   --sync-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.8 8.6 4.8 4.8 0 0 1 17.5 18z'/%3E%3C/svg%3E");
 }
 
-/* === 文法グラフの画面（#graph-page は home.js が初めて開くときに作る）===
-   グラフ本体の見た目は css/graph.css（開くときに読む）。ここは読み込み前から要る枠だけ:
-   見出し行（戻る・題名）、グラフを置く場所（残りの高さいっぱい）、読み込み中と失敗の表示 */
+/* === 文法グラフとレーダーの画面（#graph-page・#radar-page は home.js が初めて開くときに作る）===
+   中身の見た目は css/graph.css（開くときに読む）。ここは読み込み前から要る枠だけ:
+   見出し行（戻る・題名・もう一方のページへのボタン）、中身を置く場所（残りの高さいっぱい）、読み込み中と失敗の表示 */
 :root .review-graph-desc { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); } /* 復習ページのカードの説明 */
-:root #graph-page { padding: 6px 12px 8px; gap: 8px; }
+:root #graph-page,
+:root #radar-page { padding: 6px 12px 8px; gap: 8px; }
 :root .graph-page-head { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-height: 40px; }
-:root .graph-page-back {
+:root .graph-page-back,
+:root .graph-page-link {
   border: 1px solid var(--ui-border);
   border-radius: 999px;
   background: var(--ui-surface);
@@ -100,6 +102,7 @@
   cursor: pointer;
 }
 :root .graph-page-title { margin: 0; font-size: 17px; font-weight: 800; color: var(--text-page); }
+:root .graph-page-link { margin-left: auto; } /* もう一方のページ（グラフ⇔レーダー）へのボタンは右端 */
 :root .graph-page-body {
   position: relative;
   flex: 1;
@@ -350,7 +353,8 @@
   :root #settings-page { max-width: 640px; }
   :root #home-page { max-width: 1080px; }
   /* グラフは広いほど見やすいので、列の幅いっぱい（上下左右に少し余白） */
-  :root #graph-page { max-width: none; justify-self: stretch; padding: 12px 16px; }
+  :root #graph-page,
+  :root #radar-page { max-width: none; justify-self: stretch; padding: 12px 16px; }
 
   /* --- 右の絞り込みパネル（既存の #filter-drawer = .top-sheet）---
      上から降りる動きをやめ、本文の右の列に置く。出すかどうかは、#app.filter-panel-open（js/wide-layout.js）か、
