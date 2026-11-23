@@ -344,3 +344,7 @@ test('computeGraphReport: 内訳の例（苦手は解答の有無によらず苦
   // 受動態: 3 克服（2 回中 1 回正解・苦手でない） / 5 苦手（未解答でも苦手）
   assert.deepEqual(['neverMissed', 'overcome', 'weak', 'untouched'].map(k => rep.concepts[1][k]), [0, 1, 1, 0]);
 });
+
+test('レーダーのページは graph-force.js を読まないので、既定の並び順が文法軸の並び順と同じであること', () => {
+  assert.deepStrictEqual(R.DEFAULT_CONCEPT_ORDER, F.GRAMMAR_CONCEPT_ORDER);
+});
