@@ -61,8 +61,12 @@ function discover() {
     const cmd = hasCommand('pytest', ['--version']) ? ['pytest'] : ['python3', '-m', 'pytest'];
     jobs.push({ name: 'pytest tests', kind: 'fast', cmd: [...cmd, 'tests', '-q', '-p', 'no:cacheprovider'] });
   }
-  if (fs.existsSync(path.join(TESTS, 'unit'))) {
-    jobs.push({ name: 'tests/unit/', kind: 'fast', cmd: ['node', '--test', 'tests/unit/'] });
+  const unit = fs.existsSync(path.join(TESTS, 'unit'))
+    ? fs.readdirSync(path.join(TESTS, 'unit')).filter(f => /\.test\.(js|mjs|cjs)$/.test(f)).sort().map(f => `tests/unit/${f}`)
+    : [];
+  if (unit.length) {
+    // ディレクトリを渡すと Node 24（CI）では「モジュールが無い」で落ちるので、ファイルを並べて渡す
+    jobs.push({ name: 'tests/unit/', kind: 'fast', cmd: ['node', '--test', ...unit] });
   }
   for (const f of fs.readdirSync(TESTS).sort()) {
     if (!/\.test\.(js|mjs|cjs)$/.test(f)) continue;
