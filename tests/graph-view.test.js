@@ -1357,11 +1357,6 @@ test('スクリーンショット（GRAPH_SHOTS があるときだけ）', async
       await page.click('#host .graph-mode-btn[data-mode="grammar"]');
       await settled(page);
       await shot('grammar-fit');
-      await page.click('#host .graph-mode-btn[data-mode="radar"]');
-      await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-      await shot('radar');
-      await page.click('#host .graph-mode-btn[data-mode="grammar"]');
-      await settled(page);
       const gci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
       const [gx, gy] = await page.evaluate(i => GraphView._debug.screenOf(i), gci);
       await page.mouse.click(gx, gy);
@@ -1393,133 +1388,6 @@ test('出題ボタン: onStartDrill を渡したときだけ出て、押すと�
   assert.ok(d.label.length > 0);
 });
 
-test('レーダーチャートモードの出題ボタン: テーマの全問と、苦手と未着手だけを選べ、テーマの演習（kind: theme）として渡る', async t => {
-  const page = await open(t);
-  const info = await page.evaluate(() => {
-    const G = GRAMMAR_GRAPH;
-    const i = G.id.indexOf('con:SVOC（文の骨格）');
-    const qs = [];
-    for (let k = G.memberStart[i]; k < G.memberStart[i + 1]; k++) qs.push(G.qids[G.members[k]]);
-    const uniq = [...new Set(qs)];
-    window.__stats = {};
-    window.__weak = {};
-    uniq.slice(0, 10).forEach(q => { window.__stats[q] = { a: 2, c: 2 }; });   // 正解済み 10 問
-    uniq.slice(10, 15).forEach(q => { window.__stats[q] = { a: 2, c: 1 }; });  // 間違えたが苦手でない（克服）5 問
-    uniq.slice(15, 18).forEach(q => { window.__weak[q] = { due: Date.now() + 86400000 }; }); // 苦手 3 問
-    window.__drill = null;
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    deps.onStartDrill = (ids, label, opts) => { window.__drill = { ids, label, opts }; };
-    GraphView.mount(document.getElementById('host'), deps);
-    return { node: i, total: uniq.length, weakIds: uniq.slice(15, 18), correctIds: uniq.slice(0, 10), overcomeIds: uniq.slice(10, 15) };
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-  await page.locator(`#host .graph-bar-row[data-node="${info.node}"]`).click();
-  const allBtn = page.locator('#host .graph-drill-btn[data-drill="all"]');
-  const restBtn = page.locator('#host .graph-drill-btn[data-drill="rest"]');
-  assert.match(await allBtn.innerText(), new RegExp(`全 ${info.total} 問`));
-  assert.match(await restBtn.innerText(), new RegExp(`苦手と未着手の ${info.total - 15} 問`));
-  assert.equal(await page.locator('#host .graph-drill-btn[data-drill="near"]').count(), 0, 'レーダーでは近い問題のボタンを出さない');
-
-  await allBtn.click();
-  let d = await page.evaluate(() => window.__drill);
-  assert.equal(d.ids.length, info.total, '全問が渡っていない');
-  assert.equal(new Set(d.ids).size, d.ids.length);
-  assert.deepEqual(d.ids.slice(0, 3).sort(), info.weakIds.slice().sort(), '苦手が先頭に来ていない');
-  assert.deepEqual(d.ids.slice(-10).sort(), info.correctIds.slice().sort(), '正解済みが最後に来ていない');
-  assert.equal(d.opts && d.opts.kind, 'theme');
-  assert.match(d.label, /SVOC/);
-
-  await page.evaluate(() => { window.__drill = null; });
-  await restBtn.click();
-  d = await page.evaluate(() => window.__drill);
-  assert.equal(d.ids.length, info.total - 15);
-  assert.ok(info.correctIds.every(q => !d.ids.includes(q)), '正解済みが混ざっている');
-  assert.ok(info.overcomeIds.every(q => !d.ids.includes(q)), '克服した問題が混ざっている');
-  assert.deepEqual(d.ids.slice(0, 3).sort(), info.weakIds.slice().sort(), '苦手が先頭に来ていない');
-  assert.equal(d.opts && d.opts.kind, 'theme');
-});
-
-test('レーダーチャートモードの出題ボタン: 全問を正解済みなら「苦手と未着手」は出さない。教材で絞ると、その教材の分だけになる', async t => {
-  const page = await open(t);
-  const info = await page.evaluate(() => {
-    const G = GRAMMAR_GRAPH;
-    const i = G.id.indexOf('con:比較級・最上級');
-    window.__stats = {};
-    for (let k = G.memberStart[i]; k < G.memberStart[i + 1]; k++) window.__stats[G.qids[G.members[k]]] = { a: 1, c: 1 };
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    deps.onStartDrill = (ids, label, opts) => { window.__drill = { ids, label, opts }; };
-    GraphView.mount(document.getElementById('host'), deps);
-    return { node: i };
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-  await page.locator(`#host .graph-bar-row[data-node="${info.node}"]`).click();
-  assert.equal(await page.locator('#host .graph-drill-btn[data-drill="all"]').count(), 1);
-  assert.equal(await page.locator('#host .graph-drill-btn[data-drill="rest"]').count(), 0);
-  await page.locator('#host .graph-sheet-close').click();
-
-  await page.click('#host .graph-chip[data-book="kin"]');
-  await page.locator(`#host .graph-bar-row[data-node="${info.node}"]`).click();
-  const kinTotal = await page.evaluate(n => {
-    const G = GRAMMAR_GRAPH;
-    const kinBook = G.id.indexOf('book:kin');
-    const kin = new Set();
-    for (let k = G.memberStart[kinBook]; k < G.memberStart[kinBook + 1]; k++) kin.add(G.members[k]);
-    const s = new Set();
-    for (let k = G.memberStart[n]; k < G.memberStart[n + 1]; k++) if (kin.has(G.members[k])) s.add(G.members[k]);
-    return s.size;
-  }, info.node);
-  assert.match(await page.locator('#host .graph-drill-btn[data-drill="all"]').innerText(), new RegExp(`全 ${kinTotal} 問`));
-  await page.locator('#host .graph-drill-btn[data-drill="all"]').click();
-  const d = await page.evaluate(() => window.__drill);
-  assert.equal(d.ids.length, kinTotal, '30 問で打ち切らず、金の文法の分を全部渡す');
-  assert.match(d.label, /金の文法/);
-});
-
-test('レーダーチャートモードの横棒: 正解・克服・苦手・未着手の色分けの内訳で描き、下に内訳の数と、上に凡例を出す', async t => {
-  const page = await open(t);
-  const info = await page.evaluate(() => {
-    const G = GRAMMAR_GRAPH;
-    const i = G.id.indexOf('con:SVOC（文の骨格）');
-    const qs = [];
-    for (let k = G.memberStart[i]; k < G.memberStart[i + 1]; k++) qs.push(G.qids[G.members[k]]);
-    const uniq = [...new Set(qs)];
-    window.__stats = {};
-    window.__weak = {};
-    uniq.slice(0, 10).forEach(q => { window.__stats[q] = { a: 2, c: 2 }; });  // 正解 10
-    uniq.slice(10, 16).forEach(q => { window.__stats[q] = { a: 2, c: 1 }; }); // 克服 6
-    uniq.slice(16, 20).forEach(q => { window.__weak[q] = { due: Date.now() + 86400000 }; }); // 苦手 4
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    GraphView.mount(document.getElementById('host'), deps);
-    return { node: i, total: uniq.length };
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-  const res = await page.evaluate(n => {
-    const row = document.querySelector(`#host .graph-bar-row[data-node="${n}"]`);
-    const track = row.querySelector('.graph-bar-track');
-    const tw = track.getBoundingClientRect().width;
-    const w = cls => { const el = track.querySelector('.graph-bar-seg.' + cls); return el ? el.getBoundingClientRect().width / tw : -1; };
-    return {
-      correct: w('is-correct'), overcome: w('is-overcome'), weak: w('is-weak'), unseen: w('is-unseen'),
-      target: row.querySelectorAll('.graph-bar-target').length,
-      sub: row.querySelector('.graph-bar-sub').textContent,
-      legend: document.querySelector('#host .graph-bars-legend')?.textContent || '',
-      colors: ['is-correct', 'is-overcome', 'is-weak', 'is-unseen'].map(c => getComputedStyle(track.querySelector('.graph-bar-seg.' + c)).backgroundColor),
-    };
-  }, info.node);
-  const near = (a, b) => Math.abs(a - b) < 0.02;
-  assert.ok(near(res.correct, 10 / info.total), `正解の幅 ${res.correct}`);
-  assert.ok(near(res.overcome, 6 / info.total), `克服の幅 ${res.overcome}`);
-  assert.ok(near(res.weak, 4 / info.total), `苦手の幅 ${res.weak}`);
-  assert.ok(near(res.unseen, (info.total - 20) / info.total), `未着手の幅 ${res.unseen}`);
-  assert.equal(res.target, 0, '内訳の棒には 80% の目標線を出さない');
-  assert.match(res.sub, new RegExp(`正解 10 ・ 克服 6 ・ 苦手 4 ・ 未着手 ${info.total - 20}`));
-  for (const word of ['正解', '克服', '苦手', '未着手']) assert.ok(res.legend.includes(word), `凡例に「${word}」がない: ${res.legend}`);
-  assert.equal(new Set(res.colors).size, 4, `4 色が区別できない: ${JSON.stringify(res.colors)}`);
-});
-
 test('詳細シートの問題一覧: 間違えたことがあり苦手でない問題は「克服」と出す', async t => {
   const page = await open(t);
   const info = await page.evaluate(() => {
@@ -1528,13 +1396,12 @@ test('詳細シートの問題一覧: 間違えたことがあり苦手でない
     const q = G.qids[G.members[G.memberStart[i]]];
     window.__stats = { [q]: { a: 3, c: 1 } };
     window.__weak = {};
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    GraphView.mount(document.getElementById('host'), deps);
+    window.__mount();
     return { node: i, q };
   });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-  await page.locator(`#host .graph-bar-row[data-node="${info.node}"]`).click();
+  await settled(page);
+  await tapNode(page, info.node);
+  assert.equal(await sheetOpen(page), true);
   const li = page.locator('#host .graph-q.graph-q-overcome').first();
   assert.equal(await li.locator('.graph-q-status').innerText(), '克服');
   assert.match(await li.locator('.graph-q-no').innerText(), new RegExp(`#${info.q}`));
@@ -1645,7 +1512,7 @@ test('文法軸モード: 切り替えると 13 概念が円周上に固定さ�
   });
   assert.equal(res.mode, 'grammar');
   assert.equal(res.ticks, res.expectedTicks);
-  assert.deepEqual(res.pressed, ['book:false', 'grammar:true', 'radar:false']);
+  assert.deepEqual(res.pressed, ['book:false', 'grammar:true']);
   assert.equal(res.cons.length, 13);
   for (const c of res.cons) assert.ok(Math.abs(c.r - res.R) < 1e-3, `${c.id} の半径が円周上にない: ${c.r}`);
   assert.equal(res.books.length, 4);
@@ -1699,7 +1566,7 @@ test('文法軸モード: d3 がなくても概念リングの初期配置で切
   assert.ok(Math.abs(r.dist - r.R) < 1e-3);
 });
 
-test('文法軸モード: initialMode で初期モードを指定でき、切替時に onModeChange が呼ばれる（不正値は book 扱い）', async t => {
+test('文法軸モード: initialMode で初期モードを指定でき、切替時に onModeChange が呼ばれる（不正値と古い radar は book 扱い）', async t => {
   const page = await open(t);
   await page.evaluate(() => {
     window.__changes = [];
@@ -1709,6 +1576,16 @@ test('文法軸モード: initialMode で初期モードを指定でき、切替
   });
   await settled(page);
   assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  // レーダーは専用ページ（js/radar-view.js）に移した。古い記憶の 'radar' は教材軸で開き、モードは 2 つだけ
+  await page.evaluate(() => {
+    const d = window.__deps();
+    d.initialMode = 'radar';
+    GraphView.mount(document.getElementById('host'), d);
+  });
+  await settled(page);
+  assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode)), ['book', 'grammar']);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#host .graph-radar-panel').length), 0);
   await page.evaluate(() => {
     const d2 = window.__deps();
     d2.initialMode = 'grammar';
@@ -1865,380 +1742,29 @@ test('文法軸モード: getLayoutCache / setLayoutCache によるキャッシ�
   assert.notEqual(await page.evaluate(() => window.__cacheWrites[3].sig), first.sig);
 });
 
-test('レーダーチャートモード: 切り替えで SVG レーダー(13軸)と横棒グラフが出て rAF は 0 回、教材・苦手・カテゴリ・ソートが連動する', async t => {
+test('initialJumpNode: 指定した問題へ、教材軸・絞り込みなしで開き、収まったらその問題へ移動してシートを開く。範囲外は無視する', async t => {
   const page = await open(t);
-  await page.evaluate(() => {
-    // 合成の記録: 複数教材・複数概念に正誤と苦手を混ぜる
-    window.__stats = {};
-    window.__weak = {};
-    for (let i = 0; i < 60; i++) {
-      const qid = GRAMMAR_GRAPH.qids[i];
-      window.__stats[qid] = { a: 4, c: i % 3 === 0 ? 1 : 4 };
-      if (i % 5 === 0) window.__weak[qid] = { due: i === 0 ? Date.now() - 1000 : Date.now() + 86400000 };
-    }
-    window.__mount();
-  });
-  await settled(page);
-  await page.click('#host .graph-mode-btn[data-mode="radar"]');
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-
-  const initial = await page.evaluate(() => ({
-    mode: GraphView._debug.mode,
-    canvasHidden: document.querySelector('#host canvas').hidden,
-    radarHidden: document.querySelector('#host .graph-radar-panel').hidden,
-    axes: document.querySelectorAll('#host .graph-radar-axis-btn').length,
-    bars: document.querySelectorAll('#host .graph-bar-row').length,
-    scoreNum: document.querySelector('#host .graph-radar-score-num')?.textContent,
-    pressed: [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode + ':' + b.getAttribute('aria-pressed')),
-  }));
-  assert.equal(initial.mode, 'radar');
-  assert.equal(initial.canvasHidden, true);
-  assert.equal(initial.radarHidden, false);
-  assert.equal(initial.axes, 13);
-  assert.equal(initial.bars, 13);
-  assert.match(initial.scoreNum, /^\d+%$/);
-  assert.deepEqual(initial.pressed, ['book:false', 'grammar:false', 'radar:true']);
-
-  // レーダーチャート中は rAF・タイマーが 0 回
-  await page.evaluate(() => { window.__cnt.raf = 0; window.__cnt.timeout = 0; window.__cnt.interval = 0; });
-  await new Promise(r => setTimeout(r, 500));
-  assert.deepEqual(await page.evaluate(() => window.__cnt), { raf: 0, timeout: 0, interval: 0 });
-
-  // 教材チップで絞るとサマリーの問題数が変わる
-  await page.click('#host .graph-chip[data-book="kin"]');
-  const kinScope = await page.locator('#host .graph-radar-scope').innerText();
-  assert.match(kinScope, /金の文法/);
-  assert.match(kinScope, /160問/);
-
-  // すべてに戻してカテゴリ切替（ひっかけ -> 教材別）とソート（弱い順）
-  await page.click('#host .graph-chip[data-book="all"]');
-  await page.click('#host .graph-bars-tab[data-radar-cat="trap"]');
-  assert.equal(await page.locator('#host .graph-bar-row').count(), 12);
-  await page.click('#host .graph-bars-tab[data-radar-cat="book"]');
-  assert.equal(await page.locator('#host .graph-bar-row').count(), 4);
-  await page.click('#host .graph-bars-tab[data-radar-cat="concept"]');
-  await page.click('#host .graph-bars-sort[data-radar-sort="weakness"]');
-  assert.equal(await page.locator('#host .graph-bars-sort[data-radar-sort="weakness"]').getAttribute('aria-pressed'), 'true');
-
-  // 苦手のみトグルで苦手 0 問の概念を絞れる
-  await page.click('#host .graph-weak-toggle');
-  const weakBarsCount = await page.locator('#host .graph-bar-row').count();
-  assert.ok(weakBarsCount > 0 && weakBarsCount <= 13);
-  await page.click('#host .graph-weak-toggle');
-
-  // 着手率オーバーレイトグル
-  assert.equal(await page.locator('#host .graph-radar-poly-cov').count(), 1);
-  await page.click('#host [data-radar-cov]');
-  assert.equal(await page.locator('#host .graph-radar-poly-cov').count(), 0);
-});
-
-test('レーダーチャートモード: 頂点・バータップで詳細シートが開き、問題タップでネットワーク図へ移動する', async t => {
-  const page = await open(t);
-  await page.evaluate(() => {
-    window.__stats = { [GRAMMAR_GRAPH.qids[0]]: { a: 3, c: 1 } };
-    window.__weak = { [GRAMMAR_GRAPH.qids[0]]: { due: Date.now() + 86400000 } };
+  const picked = await seedWeak(page, 3);
+  const target = picked[0];
+  await page.evaluate(i => {
     const deps = window.__deps();
-    deps.initialMode = 'radar';
-    window.__changes = [];
-    deps.onModeChange = m => window.__changes.push(m);
+    deps.initialMode = 'grammar';
+    deps.initialJumpNode = i;
     GraphView.mount(document.getElementById('host'), deps);
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-
-  // 1. 棒グラフ行タップで詳細シートが開く
-  await page.locator('#host .graph-bar-row').first().click();
+  }, target);
+  await settled(page);
+  await waitFor(page, () => GraphView._debug.animating === false && GraphView._debug.focusNode >= 0, undefined, 5000);
+  const r = await page.evaluate(() => ({ mode: GraphView._debug.mode, book: GraphView._debug.book, weakOnly: GraphView._debug.weakOnly, focus: GraphView._debug.focusNode, tap: GraphView._debug.lastTap }));
+  assert.deepEqual(r, { mode: 'book', book: 'all', weakOnly: false, focus: target, tap: target });
   assert.equal(await sheetOpen(page), true);
-  assert.equal(await page.locator('#host .graph-bar-row.is-active').count(), 1);
-  await page.keyboard.press('Escape');
-  assert.equal(await sheetOpen(page), false);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#host .graph-mode-btn')].map(b => b.dataset.mode + ':' + b.getAttribute('aria-pressed'))), ['book:true', 'grammar:false']);
+  // 移動した先が見えている（画面の中にある）
+  const pos = await page.evaluate(i => GraphView._debug.screenOf(i), target);
+  assert.ok(pos && pos[0] >= 0 && pos[0] <= 375 && pos[1] >= 0 && pos[1] <= 812, `画面の外: ${JSON.stringify(pos)}`);
 
-  // 2. レーダー軸タップで詳細シートが開き、中の問題行タップで book モードへ飛ぶ
-  await page.locator('#host .graph-radar-axis-btn').first().click();
-  assert.equal(await sheetOpen(page), true);
-  const firstQ = page.locator('#host .graph-q[data-node]').first();
-  if (await firstQ.count()) {
-    await firstQ.click();
+  for (const bad of [-1, 1e9, 1.5, 'x']) {
+    await page.evaluate(b => { const deps = window.__deps(); deps.initialJumpNode = b; GraphView.mount(document.getElementById('host'), deps); }, bad);
     await settled(page);
-    assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
-    assert.equal(await page.evaluate(() => document.querySelector('#host canvas').hidden), false);
-    assert.equal(await sheetOpen(page), true);
-    assert.deepEqual(await page.evaluate(() => window.__changes), ['book']);
+    assert.equal(await sheetOpen(page), false, `initialJumpNode=${bad} でシートが開いた`);
   }
-});
-
-test('レーダーチャートモード: スマホ(375px)とPC(1280px)で横はみ出しがない', async t => {
-  for (const vp of [{ width: 375, height: 812 }, { width: 1280, height: 800 }]) {
-    const page = await open(t, { viewport: vp });
-    await page.evaluate(() => {
-      const deps = window.__deps();
-      deps.initialMode = 'radar';
-      GraphView.mount(document.getElementById('host'), deps);
-    });
-    await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-    const overflow = await page.evaluate(() => {
-      const p = document.querySelector('#host .graph-radar-panel');
-      return p.scrollWidth - p.clientWidth;
-    });
-    assert.ok(overflow <= 1, `vp=${vp.width} で横スクロールが発生した: overflow=${overflow}`);
-  }
-});
-
-test('レーダーチャートモード: 教材フィルタと詳細シート・0問項目・問題ジャンプのフィルタ解除・refresh が整合する', async t => {
-  const page = await open(t);
-  await page.evaluate(() => {
-    window.__stats = {};
-    window.__weak = {};
-    // kin (1001〜) と sekai (1〜) の両方に SVOC の解答を入れる
-    const g = GRAMMAR_GRAPH;
-    const svocIdx = g.id.indexOf('con:SVOC（文の骨格）');
-    const qids = [];
-    for (let k = g.memberStart[svocIdx]; k < g.memberStart[svocIdx + 1]; k++) qids.push(g.qids[g.members[k]]);
-    const kinQ = qids.find(q => q >= 1001 && q < 2000);
-    const sekaiQ = qids.find(q => q >= 1 && q < 1000);
-    window.__stats[kinQ] = { a: 4, c: 3 }; // 75%
-    window.__stats[sekaiQ] = { a: 4, c: 0 }; // 0%
-    window.__weak[sekaiQ] = { due: Date.now() - 1000 };
-    window.__testQids = { kinQ, sekaiQ };
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    GraphView.mount(document.getElementById('host'), deps);
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-
-  // 1. 金の文法に絞り込み → SVOC の詳細シートは金の文法だけの成績（75%, 解答数 4, 苦手 0）になる
-  await page.click('#host .graph-chip[data-book="kin"]');
-  await page.locator('#host .graph-bar-row').first().click();
-  assert.equal(await sheetOpen(page), true);
-  const kinSheet = await page.evaluate(() => {
-    const dds = [...document.querySelectorAll('#host .graph-stats dd')].map(el => el.textContent);
-    const qNos = [...document.querySelectorAll('#host .graph-q-no')].map(el => Number(el.textContent.slice(1)));
-    return { kind: document.querySelector('#host .graph-sheet-kind').textContent, dds, qNos };
-  });
-  assert.match(kinSheet.kind, /金の文法/);
-  assert.equal(kinSheet.dds[1], '75%');
-  assert.equal(kinSheet.dds[2], '4');
-  assert.equal(kinSheet.dds[3], '0');
-  assert.ok(kinSheet.qNos.every(q => q >= 1001 && q < 2000), '他教材の問題が混ざっている');
-
-  // 2. シートを開いたまま教材を「すべて」に切り替えるとシートの成績も合算（38%, 解答数 8, 苦手 1）へ更新される
-  await page.click('#host .graph-chip[data-book="all"]');
-  const allSheet = await page.evaluate(() => [...document.querySelectorAll('#host .graph-stats dd')].map(el => el.textContent));
-  assert.equal(allSheet[1], '38%');
-  assert.equal(allSheet[2], '8');
-  assert.equal(allSheet[3], '1');
-
-  // 3. 空白クリックでシートが閉じる
-  await page.locator('#host .graph-radar-summary').click({ position: { x: 8, y: 8 } });
-  assert.equal(await sheetOpen(page), false);
-
-  // 4. トップレベルのひっかけタブでは収録 0 問項目が disabled かつ「収録なし」表示になる
-  await page.click('#host .graph-chip[data-book="toplevel"]');
-  await page.click('#host .graph-bars-tab[data-radar-cat="trap"]');
-  const unavail = await page.evaluate(() => ({
-    disabled: document.querySelectorAll('#host .graph-bar-row.is-unavailable:disabled').length,
-    text: document.querySelector('#host .graph-bar-row.is-unavailable')?.textContent || '',
-  }));
-  assert.ok(unavail.disabled >= 10, `トップレベルの収録なしひっかけが不足: ${unavail.disabled}`);
-  assert.match(unavail.text, /収録なし/);
-
-  // 5. refresh() で記録更新がレーダーのスコアに反映される
-  await page.click('#host .graph-chip[data-book="kin"]');
-  await page.click('#host .graph-bars-tab[data-radar-cat="concept"]');
-  await page.evaluate(() => {
-    window.__stats[window.__testQids.kinQ] = { a: 4, c: 4 };
-    GraphView.refresh();
-  });
-  assert.equal(await page.locator('#host .graph-radar-score-num').innerText(), '100%');
-
-  // 6. weakOnly ON で非苦手問題へジャンプしてもフィルタが解除され対象ノードが可視になる
-  await page.click('#host .graph-chip[data-book="all"]');
-  await page.click('#host .graph-weak-toggle');
-  await page.locator('#host .graph-bar-row').first().click();
-  const nonWeakQ = page.locator('#host .graph-q:not(.graph-q-weak)[data-node]').first();
-  const jumpTarget = Number(await nonWeakQ.getAttribute('data-node'));
-  await nonWeakQ.click();
-  await settled(page);
-  const afterJump = await page.evaluate(idx => ({
-    mode: GraphView._debug.mode,
-    weakOnly: GraphView._debug.weakOnly,
-    visible: GraphView._debug.isVisible(idx),
-  }), jumpTarget);
-  assert.equal(afterJump.mode, 'book');
-  assert.equal(afterJump.weakOnly, false);
-  assert.equal(afterJump.visible, true);
-});
-
-test('レーダーチャートモード: シート展開中の book→radar 切替で残留 rAF 描画が起きず、graph-force 欠落でも 13 軸順を保つ', async t => {
-  const page = await open(t);
-  await mountAndWait(page);
-  // book モードで概念シートを開く
-  const ci = await page.evaluate(() => GraphView._debug.indexOf('con:SVOC（文の骨格）'));
-  await tapNode(page, ci);
-  assert.equal(await sheetOpen(page), true);
-  // radar へ切り替え直後に保留中 rAF がなく、追加の Canvas draw() が走らない
-  const beforeFrames = await page.evaluate(() => GraphView._debug.frames);
-  await page.click('#host .graph-mode-btn[data-mode="radar"]');
-  const rightAfter = await page.evaluate(() => ({ mode: GraphView._debug.mode, pending: GraphView._debug.pending }));
-  await new Promise(r => setTimeout(r, 300));
-  const afterFrames = await page.evaluate(() => GraphView._debug.frames);
-  assert.equal(rightAfter.mode, 'radar');
-  assert.equal(rightAfter.pending, false);
-  assert.equal(afterFrames, beforeFrames, 'radar 切替後に非表示 Canvas が追加描画された');
-
-  // graph-force.js（GRAMMAR_CONCEPT_ORDER）が欠落しても 13 軸の順序は既定順を保つ
-  const orderRes = await page.evaluate(() => {
-    const expected = StudyCore.GRAMMAR_CONCEPT_ORDER.slice();
-    const orig = StudyCore.GRAMMAR_CONCEPT_ORDER;
-    StudyCore.GRAMMAR_CONCEPT_ORDER = undefined;
-    try {
-      const deps = window.__deps();
-      deps.initialMode = 'radar';
-      GraphView.mount(document.getElementById('host'), deps);
-      const labels = [...document.querySelectorAll('#host .graph-radar-axis-btn')].map(el => el.getAttribute('aria-label'));
-      return { first: labels[0], second: labels[1], count: labels.length, expectedLen: expected.length };
-    } finally {
-      StudyCore.GRAMMAR_CONCEPT_ORDER = orig;
-    }
-  });
-  assert.equal(orderRes.count, orderRes.expectedLen);
-  assert.match(orderRes.first, /^SVOC/);
-  assert.match(orderRes.second, /^能動態と受動態/);
-});
-
-test('レーダーチャートモード: 1280px・375px で全軸 100% でもラベルがカード枠内に収まり、全 8 テーマでバッジコントラスト 4.5 以上', async t => {
-  // 1. 1280px / 375px でのラベル枠内収まり（全問 100% 正解）
-  for (const vp of [{ width: 1280, height: 800 }, { width: 375, height: 812 }]) {
-    const page = await open(t, { viewport: vp });
-    await page.evaluate(() => {
-      window.__stats = {};
-      for (const qid of GRAMMAR_GRAPH.qids) window.__stats[qid] = { a: 4, c: 4 };
-      const deps = window.__deps();
-      deps.initialMode = 'radar';
-      GraphView.mount(document.getElementById('host'), deps);
-    });
-    await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-    const clipped = await page.evaluate(() => {
-      const card = document.querySelector('#host .graph-radar-chart-card').getBoundingClientRect();
-      const out = [];
-      for (const el of document.querySelectorAll('#host .graph-radar-axis-label')) {
-        const r = el.getBoundingClientRect();
-        if (r.left < card.left - 1 || r.right > card.right + 1) {
-          out.push({ text: el.textContent, left: Math.round(r.left - card.left), right: Math.round(card.right - r.right) });
-        }
-      }
-      return out;
-    });
-    assert.deepEqual(clipped, [], `vp=${vp.width} でレーダーラベルがカード枠外にはみ出した: ${JSON.stringify(clipped)}`);
-  }
-
-  // 2. 全 8 テーマ + ios dark でバッジコントラスト比 >= 4.5（WCAG AA）
-  const page = await open(t, { path: '/__graph_theme_test.html', viewport: { width: 1280, height: 800 } });
-  await page.evaluate(() => {
-    window.__stats = {};
-    window.__weak = {};
-    for (let i = 0; i < 40; i++) {
-      const qid = GRAMMAR_GRAPH.qids[i];
-      window.__stats[qid] = { a: 4, c: 4 };
-      if (i < 5) window.__weak[qid] = { due: Date.now() - 1000 };
-    }
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    GraphView.mount(document.getElementById('host'), deps);
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-bar-badge.is-due'));
-
-  const themes = ['ink', 'duolingo', 'navy', 'forest', 'nordic', 'quizlet', 'light', 'ios'];
-  const checkContrast = () => page.evaluate(() => {
-    const parse = s => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
-    const lum = ([r, g, b]) => {
-      const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-    };
-    const ratio = (c1, c2) => {
-      const l1 = lum(parse(c1)), l2 = lum(parse(c2));
-      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-    };
-    const selectors = ['.graph-radar-state.is-state-good', '.graph-radar-state.is-state-due', '.graph-bar-badge.is-due', '.graph-bar-badge.is-weak'];
-    const res = {};
-    for (const sel of selectors) {
-      const el = document.querySelector('#host ' + sel);
-      if (!el) continue;
-      const cs = getComputedStyle(el);
-      res[sel] = Math.round(ratio(cs.backgroundColor, cs.color) * 100) / 100;
-    }
-    return res;
-  });
-
-  for (const id of themes) {
-    await page.evaluate(tid => document.documentElement.setAttribute('data-theme', tid), id);
-    const ratios = await checkContrast();
-    for (const [sel, r] of Object.entries(ratios)) {
-      assert.ok(r >= 4.5, `theme=${id} ${sel} のコントラスト比が 4.5 未満: ${r}`);
-    }
-  }
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'ios'));
-  const iosDarkRatios = await checkContrast();
-  for (const [sel, r] of Object.entries(iosDarkRatios)) {
-    assert.ok(r >= 4.5, `theme=ios(dark) ${sel} のコントラスト比が 4.5 未満: ${r}`);
-  }
-});
-
-test('レーダーチャートモード: 軸ラベルの実効文字サイズが 375px・768px・900px・1280px で 11px 以上で、viewBox からはみ出さず、ラベルどうしが重ならない', async t => {
-  // 900px は 2 列になる最小の幅（レーダーが左の列に入る）。768px は 1 列でパネルは広い
-  for (const vp of [{ width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 900, height: 800 }, { width: 1280, height: 800 }]) {
-    const page = await open(t, { viewport: vp });
-    await page.evaluate(() => {
-      window.__stats = {};
-      for (const qid of GRAMMAR_GRAPH.qids) window.__stats[qid] = { a: 4, c: 4 };
-      const deps = window.__deps();
-      deps.initialMode = 'radar';
-      GraphView.mount(document.getElementById('host'), deps);
-    });
-    await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-    const res = await page.evaluate(() => {
-      const svg = document.querySelector('#host .graph-radar-svg');
-      const scale = svg.getBoundingClientRect().width / 420;
-      const out = { minPx: Infinity, outside: [], overlaps: [] };
-      const boxes = [];
-      for (const el of svg.querySelectorAll('.graph-radar-axis-label')) {
-        out.minPx = Math.min(out.minPx, parseFloat(getComputedStyle(el).fontSize) * scale);
-        const b = el.getBBox();
-        if (b.x < 0 || b.x + b.width > 420 || b.y < 0 || b.y + b.height > 330) out.outside.push(el.textContent);
-        boxes.push({ name: el.querySelector('tspan').textContent, b });
-      }
-      // ラベル（分野名＋%）どうしの重なり。行間ぶんの 2 単位以下の接触は許す
-      for (let i = 0; i < boxes.length; i++) {
-        for (let j = i + 1; j < boxes.length; j++) {
-          const a = boxes[i].b, c = boxes[j].b;
-          const ox = Math.min(a.x + a.width, c.x + c.width) - Math.max(a.x, c.x);
-          const oy = Math.min(a.y + a.height, c.y + c.height) - Math.max(a.y, c.y);
-          if (ox > 2 && oy > 2) out.overlaps.push(`${boxes[i].name}×${boxes[j].name}`);
-        }
-      }
-      out.minPx = Math.round(out.minPx * 10) / 10;
-      return out;
-    });
-    assert.ok(res.minPx >= 11, `vp=${vp.width} で軸ラベルの実効文字サイズが ${res.minPx}px（11px 未満）`);
-    assert.deepEqual(res.outside, [], `vp=${vp.width} で viewBox からはみ出したラベル: ${JSON.stringify(res.outside)}`);
-    assert.deepEqual(res.overlaps, [], `vp=${vp.width} で重なったラベル: ${JSON.stringify(res.overlaps)}`);
-  }
-});
-
-test('レーダーチャートモード: 表示中に画面幅が狭い⇔広いと変わると、詰めた配置へ描き直す', async t => {
-  const page = await open(t, { viewport: { width: 1280, height: 800 } });
-  await page.evaluate(() => {
-    const deps = window.__deps();
-    deps.initialMode = 'radar';
-    GraphView.mount(document.getElementById('host'), deps);
-  });
-  await waitFor(page, () => GraphView._debug.mode === 'radar' && !!document.querySelector('#host .graph-radar-svg'));
-  assert.equal(await page.evaluate(() => GraphView._debug.radarCompact), false);
-  assert.equal(await page.locator('#host .graph-radar-svg.is-compact').count(), 0);
-  await page.setViewportSize({ width: 375, height: 812 });
-  await waitFor(page, () => GraphView._debug.radarCompact === true && !!document.querySelector('#host .graph-radar-svg.is-compact'));
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await waitFor(page, () => GraphView._debug.radarCompact === false && !document.querySelector('#host .graph-radar-svg.is-compact'));
-  // 描き直しでも rAF は使わない
-  assert.equal(await page.evaluate(() => GraphView._debug.pending), false);
 });
