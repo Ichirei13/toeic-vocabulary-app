@@ -1722,12 +1722,15 @@ function switchAppPage(page, options = {}) {
   if (page !== 'graph') leaveGraphPage();
   else if (currentAppPage !== 'graph') graphReturnPage = appPageShown ? currentAppPage : 'review';
   if (page === 'graph') ensureGraphPage();
-  // レーダーも同じ。戻る先は開いたページ（グラフから戻ってきたときは前の値のまま。#radar で開いたときはホーム）
+  // レーダーも同じ。戻る先は開いたページ（#radar で開いたときはホーム）。グラフから来たときは:
+  // レーダーから開いたグラフ（graphReturnPage が 'radar'）から戻ってきたなら前の値のまま、
+  // そうでなければ（グラフの見出しの「レーダー」）グラフを開いたページにする。グラフとレーダーの間で戻るが行き来しないように
   const radarAlreadyShown = page === 'radar' && currentAppPage === 'radar' && !!document.querySelector('#radar-page .graph-radar-svg');
   if (page !== 'radar') leaveRadarPage();
   else if (currentAppPage !== 'radar') {
     if (!appPageShown) radarReturnPage = 'home';
     else if (currentAppPage !== 'graph') radarReturnPage = currentAppPage;
+    else if (graphReturnPage !== 'radar') radarReturnPage = graphReturnPage;
   }
   if (page === 'radar') ensureRadarPage();
   appPageShown = true;

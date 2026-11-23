@@ -482,6 +482,26 @@ test('グラフの見出しの「レーダー」でレーダーのページ、�
   await page.locator('#radar-page .graph-page-link').click();
   assert.equal(await activePage(page), 'graph-page');
   await drawn(page);
+  // 復習 → グラフ → レーダー → グラフ → 戻る（レーダー）→ 戻る は、最初に開いた復習へ（グラフとレーダーの間で行き来しない）
+  await page.locator('#graph-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'radar-page');
+  await page.locator('#radar-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'review-page');
+});
+
+test('グラフの見出しの「レーダー」から開いたレーダーの「← 戻る」は、グラフを開いたページ（前にレーダーを別のページから開いていても）', async t => {
+  const { page } = await open(t);
+  // 前に演習からレーダーを開いておく（戻る先の古い値が残っていても使わない）
+  await page.evaluate(() => switchAppPage('practice'));
+  await page.evaluate(() => switchAppPage('radar'));
+  await radarShown(page);
+  await page.evaluate(() => switchAppPage('home'));
+  await openReviewCard(page);
+  await drawn(page);
+  await page.locator('#graph-page .graph-page-link').click();
+  await radarShown(page);
+  await page.locator('#radar-page .graph-page-back').click();
+  assert.equal(await activePage(page), 'review-page');
 });
 
 test('#radar のハッシュで開くとレーダーのページが開き、戻る先はホーム。読み込みに失敗すると「再試行」で開き直せる', async t => {
