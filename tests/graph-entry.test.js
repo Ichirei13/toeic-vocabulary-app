@@ -16,7 +16,8 @@ const root = path.resolve(__dirname, '..');
 // グラフの追加で起動のリクエストが 1 件でも増えたら失敗する。
 // 注: Service Worker の install（初回と sw.js の更新時だけ）は ASSETS をまとめて取るので、そこにはグラフ用のファイルも
 // 入る（オフラインで開くため）。ここで数えるのはページ自身のリクエストだけ。
-const STARTUP_REQUESTS_BASELINE = 52; // 2026-11-21: シートの高さの計算（src/sheet-size.js）を足して 51 → 52
+const STARTUP_REQUESTS_BASELINE = 53; // 2026-11-21: シートの高さの計算（src/sheet-size.js）を足して 51 → 52
+// 2026-11-23: 発音ボタン（src/speech.js。3f3434b で追加）の分を反映して 52 → 53
 
 const GRAPH_FILES = [
   'css/graph.css',

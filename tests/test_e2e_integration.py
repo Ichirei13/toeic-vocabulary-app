@@ -1,13 +1,16 @@
-from _sources import read_app_source
+from _sources import ROOT, read_app_source
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
 
-TOEIC_DIR = Path("/Users/reiji/myapps/toeic_practice")
+import pytest
+
+TOEIC_DIR = ROOT
 GRAMMAR_JS = TOEIC_DIR / "data" / "grammar.js"
 INDEX_HTML = TOEIC_DIR / "index.html"
+# Obsidian の Vault（同期の互換テストだけが使う）。CI など Vault が無い環境ではそのテストを飛ばす
 ENGLISH_STUDY_DIR = Path("/Users/reiji/projects/English_study")
 
 
@@ -177,6 +180,7 @@ def test_ui_functions_execution_for_all_books():
         assert s["choicesFormatted"] in [3, 4, 5]
 
 
+@pytest.mark.skipif(not ENGLISH_STUDY_DIR.exists(), reason="English_study の Vault が無い環境（CI など）")
 def test_status_sync_id_mapping_compatibility():
     sys.path.insert(0, str(ENGLISH_STUDY_DIR))
     from scripts.sync_status import build_canonical_toeic_mapping

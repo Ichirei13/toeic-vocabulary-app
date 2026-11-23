@@ -1,4 +1,4 @@
-from _sources import read_app_source
+from _sources import ROOT, read_app_source
 import json
 from pathlib import Path
 import re
@@ -36,7 +36,7 @@ def test_index_html_has_all_book_badges_and_selectors():
 
 def test_grammar_ui_functions_execution():
     html = read_app_source()
-    grammar_js = Path("/Users/reiji/myapps/toeic_practice/data/grammar.js").read_text(encoding="utf-8")
+    grammar_js = (ROOT / "data" / "grammar.js").read_text(encoding="utf-8")
 
     func_match = re.search(r"const GRAMMAR_BOOKS = \{.*?\nconst getGrammarChapters = getGrammarChaptersList;", html, re.DOTALL)
     assert func_match is not None, "Could not find getBookBadge / getGrammarChapters in index.html"

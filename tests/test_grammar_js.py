@@ -2,9 +2,11 @@ import re
 import json
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
+
 
 def test_grammar_js_structure():
-    js_path = Path("/Users/reiji/myapps/toeic_practice/data/grammar.js")
+    js_path = ROOT / "data" / "grammar.js"
     content = js_path.read_text(encoding="utf-8")
 
     m = re.search(r"const RAW_GRAMMAR = (\[.*?\]);\s*\n\s*const KIN_PHASES", content, re.DOTALL)
