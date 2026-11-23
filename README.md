@@ -62,14 +62,18 @@ TOEIC の単語と英文法を解くための PWA ドリルです。ビルド処
 
 ### テスト
 
+テストは `tools/run_tests.mjs` でまとめて流せます。ファイルごとの成否と所要時間を表にして表示し、失敗したものはログの末尾も出します。
+
 ```bash
-pytest tests -q                 # ファイル一覧の整合、grammar.js の検証など（Python）
-node --test tests/unit/         # src/*.js の単体テスト
-NODE_PATH=$(npm root -g) node tests/<名前>.test.js   # ブラウザを動かすテスト（1 ファイルずつ）
+node tools/run_tests.mjs            # 全部（Python・src/*.js の単体テスト・ブラウザのテスト）
+node tools/run_tests.mjs --fast     # ブラウザを使わないテストだけ（数秒）
+node tools/run_tests.mjs graph      # 名前に graph を含むテストだけ
 ```
 
-- Python のテストは pytest コマンドで動かします（この開発機では `python3 -m pytest` が使えないため、Homebrew の `pytest` を使っています）。
-- ブラウザのテストには Playwright が要ります（初回のみ `npm install -g playwright` と `npx playwright install chromium`）。
+- テストは `tests/` から自動で探します（`*.test.js` などと `tests/unit/`、Python）。Playwright を使うファイルがブラウザのテストです。
+- ブラウザのテストは 4 本ずつ並列で流します（`-j` で変えられます）。並列で落ちたものは最後に 1 本ずつ流し直し、それで通ったら「不安定」と表示します。各テストの出力は `_test-logs/` に残ります。
+- Python のテストは `pytest` コマンドで動かします（無ければ `python3 -m pytest`）。ブラウザのテストには Playwright が要ります（初回のみ `npm install -g playwright` と `npx playwright install chromium`）。
+- `main` に push すると、GitHub Actions が配信の前に `--fast` のテストを流し、落ちたら配信しません。
 
 ### 公開
 

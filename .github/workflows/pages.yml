@@ -1,5 +1,6 @@
-# main に push されたら、公開するファイルだけを集めて GitHub Pages に配信する。
+# main に push されたら、速いテストを流し、通ったときだけ公開するファイルを集めて GitHub Pages に配信する。
 # 集めるファイルは tools/collect_site.py が決める（sw.js の ASSETS と EXTRA_FILES）。
+# テストは tools/run_tests.mjs --fast（Python・tests/unit/ など、ブラウザを使わないもの）。ブラウザのテストは手元で流す。
 name: Pages
 
 on:
@@ -18,7 +19,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: pytest を入れる
+        run: python -m pip install pytest
+      - name: 速いテストを流す
+        run: node tools/run_tests.mjs --fast
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: github-pages

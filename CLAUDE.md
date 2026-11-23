@@ -70,15 +70,24 @@ TOEIC・英文法・単語の PWA ドリル（TOEIC Drill）。ビルド処理�
 
 ## テストの実行
 
-`python3` が Python 3.15 で pytest を持っていないため、README の `python3 -m pytest` は動かない。Homebrew の `pytest` コマンドを使う。
+`tools/run_tests.mjs` で全部まとめて流す。ファイルごとの成否と所要時間を表示し、失敗したものはログの末尾を出す（全文は `_test-logs/`）。
 
 ```bash
-pytest tests -q                  # Python（ファイル一覧の整合、grammar.js の検証など）
-node --test tests/unit/          # src/*.js の単体テスト
-NODE_PATH=$(npm root -g) node tests/<名前>.test.js   # ブラウザを動かすテスト（Playwright はグローバルに導入済み）
+node tools/run_tests.mjs                 # 全部。ブラウザのテストは 4 本ずつ並列で約 2 分（shell.test.js だけで約 2 分）
+node tools/run_tests.mjs --fast          # ブラウザを使わないもの（pytest・tests/unit/・build_*）。数秒
+node tools/run_tests.mjs graph labels    # 名前に graph か labels を含むものだけ
+node tools/run_tests.mjs --list          # 流すテストの一覧
 ```
 
-- ブラウザのテストは `tests/*.test.js` の単位で実行する。`shell.test.js` は約 90 秒かかる。
+- テストは自動で探す（`tests/*.test.{js,mjs,cjs}`・`tests/unit/`・`tests/test_*.py`）。新しいテストは一覧に足さなくてよい。
+  Playwright か `tests/labels-harness.cjs` を読み込むファイルがブラウザのテスト。成否は終了コードで決める（`node:test` のファイルも、独自の小さなランナーで PASS/FAIL を出すファイルも、失敗すれば 0 以外で終わる）。
+- 1 本だけ直接流すときは `NODE_PATH=$(npm root -g) node tests/<名前>.test.js`（Playwright はグローバルに導入済み。スクリプトは `NODE_PATH` を自分で補う）。
+- `python3` が Python 3.15 で pytest を持っていないので、スクリプトは Homebrew の `pytest` コマンドを使う（無ければ `python3 -m pytest`）。
+- 並列で落ちたブラウザのテストは最後に 1 本ずつ流し直し、通れば「不安定」と表示する（全体は成功扱い。並列のときのログは `*.parallel.log`）。
+  待ち時間に頼るテストが、CPU が混むと落ちることがあるため。「不安定」が続くテストは直す。流し直さないときは `--no-retry`、並列にしないときは `-j 1`。
+- 既知の失敗は `tools/run_tests.mjs` の `KNOWN_FAILURES` に理由と一緒に書く（全体の成否に数えない）。今は無い。
+- **CI**: `main` に push すると、Actions（`.github/workflows/pages.yml`）が配信の前に `--fast` を流し、落ちたら配信しない。ブラウザのテストは CI では流さないので、push の前に手元で全部流す。
+  CI には Obsidian の Vault が無いので、`tests/test_e2e_integration.py` の同期の対応表のテストは飛ばされる。Python のテストに `/Users/reiji/...` の絶対パスを書かない。
 - Obsidian との同期の互換テストは `English_study` 側（`/Users/reiji/projects/English_study/tests`）にある。
 
 ## 公開（outward-facing）

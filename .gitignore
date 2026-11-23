@@ -18,3 +18,6 @@ tools/node_modules/
 
 # サブエージェント作業の中間記録（手元だけ）
 .superpowers/
+
+# tools/run_tests.mjs が残すテストごとのログ（手元だけ）
+_test-logs/
