@@ -31,6 +31,7 @@ ${extraHead}
 <script src="/vendor/d3-timer.min.js"></script>
 <script src="/vendor/d3-force.min.js"></script>
 <script src="/src/graph-force.js"></script>
+<script src="/js/graph-sheet.js"></script>
 <script src="/js/graph-view.js"></script>
 <script>
   window.__stats = {};

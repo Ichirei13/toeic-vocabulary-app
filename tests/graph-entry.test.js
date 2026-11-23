@@ -28,6 +28,7 @@ const GRAPH_FILES = [
   'src/graph-detail.js',
   'src/graph-near.js',
   'src/graph-report.js',
+  'js/graph-sheet.js',
   'js/graph-view.js',
   // 力学用（読めなくてもグラフは開く）。graph-view.js の後に差し込まれる
   'vendor/d3-dispatch.min.js',

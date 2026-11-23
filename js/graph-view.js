@@ -63,10 +63,6 @@
   const BUNDLE_WEAK_ALPHA = 0.5;              // 苦手のある束の不透明度（線の向こうのノードとラベルを読めるように）
   const SIZE_BOOST_STEP = 0.25, SIZE_BOOST_MAX = 1.2; // 大きさ = 1 + min(上限, 段 × √苦手の数)
   const RED_VARS = ['--graph-weak-1', '--graph-weak-2', '--graph-weak']; // 赤の濃さ（苦手の割合 1 割未満 / 3 割未満 / それ以上）
-  const SHEET_DEFAULT_RATIO = 0.42; // 「縮める」で戻す高さ（CSS の既定の max-height と同じ）
-  const SHEET_WIDE_RATIO = 0.72;    // 「広げる」の高さ
-  const SHEET_WIDE_FROM = 0.6;      // これ以上の高さなら、ボタンを「縮める」にする
-  const SHEET_MIN_BODY_PX = 64;     // つまみで下げても、見出しの下にこれだけは本文を残す
   const FOCUS_NEAR = 30;         // 問題を選んだときに一緒に浮かび上がらせる、近い問題の数
   const DIM_NODE = 0.16;         // 選択中、つながらないノードの濃さ
   const DIM_EDGE = 0.08;         // 選択中、つながらない線の濃さ
@@ -77,7 +73,6 @@
   const REVEAL_GAP = 40;         // タップで開いたシートの上端からこの距離以内にノードがあれば、見える範囲の中央へ動かす（CSS px）
   const JUMP_MS = 300;           // シートの問題をタップしたときの移動の長さ
   const JUMP_MIN_REL = 2.4;      // 移動先の倍率の下限（全体表示に対する比。ルールまで見える倍率）
-  const STATUS_LABEL = { weak: '苦手', overcome: '克服', unseen: '未解答', correct: '正解' };
   // レーダーの横棒の内訳（左から）。key は computeGraphReport の項目のフィールド名
   const BAR_SEGMENTS = [['neverMissed', 'is-correct', '正解'], ['overcome', 'is-overcome', '克服'], ['weak', 'is-weak', '苦手'], ['untouched', 'is-unseen', '未着手']];
 
@@ -93,10 +88,6 @@
   function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-  // エスケープ済みの文字列の **太字** だけを <strong> にする（エスケープの後なので安全）。残った ** は消す
-  function richText(s) {
-    return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*\*/g, '');
-  }
   function safeObj(fn) {
     try { const v = typeof fn === 'function' ? fn() : null; return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; }
   }
@@ -107,6 +98,7 @@
     if (!S || typeof S.computeMastery !== 'function' || typeof S.createCamera !== 'function' || typeof S.buildDetail !== 'function' || typeof S.buildIndex !== 'function' || typeof S.focusSet !== 'function') {
       throw new Error('GraphView: StudyCore (src/mastery.js, graph-filter.js, graph-geometry.js, graph-detail.js) が読み込まれていない');
     }
+    if (!root.GraphSheet || typeof root.GraphSheet.create !== 'function') throw new Error('GraphView: 詳細シート（js/graph-sheet.js）が読み込まれていない');
     if (!container || !deps || !deps.graph) throw new Error('GraphView.mount: container と deps.graph が必要');
     const graph = deps.graph;
     const n = graph.id.length;
@@ -195,10 +187,6 @@
     let focusEdges = 0;               // 浮かび上がらせる線の本数（両端が浮かび上がっているもの）
     let focus = null, focusNode = -1; // 選択中: 浮かび上がらせるノード（Uint8Array）と、選択したノード
     let anim = null;                  // 移動のアニメーション中だけ { from, to, t0 }
-    let sheetWide = false;            // シートを広げているか（高さが SHEET_WIDE_FROM 以上。ボタンの表示に使う）
-    let sheetRatio = null;            // シートの高さ（容器に対する割合）。null なら既定（中身の高さ、最大は CSS の 42%）
-    let sheetDrag = null;             // つまみ・見出しを動かしている間だけ { id, y0, start, box, lastY, lastT, v }
-    let sheetPicks = null;            // 開いているシートの出題の選び { near | all | rest: { ids, label, kind } }（押したときにそのまま渡す）
     const pointers = new Map(); // pointerId -> { x, y }
     let gesture = null;         // { moved, pinched, lastDist, lastMid }
     const subs = [];
@@ -237,16 +225,7 @@
           '<button type="button" data-zoom="relayout" aria-label="配置し直す">再配置</button>' +
         '</div>' +
         '<div class="graph-radar-panel" aria-label="レーダーチャートと項目別スコア" hidden></div>' +
-      '</div>' +
-      '<section class="graph-sheet" role="dialog" aria-modal="false" aria-labelledby="graph-sheet-title" tabindex="-1" hidden>' +
-        '<div class="graph-sheet-grab" title="上下に動かして高さを変える"><span></span></div>' +
-        '<header class="graph-sheet-head">' +
-          '<div class="graph-sheet-titles"><span class="graph-sheet-kind"></span><h2 class="graph-sheet-title" id="graph-sheet-title"></h2></div>' +
-          '<button type="button" class="graph-sheet-expand" aria-pressed="false">広げる</button>' +
-          '<button type="button" class="graph-sheet-close" aria-label="閉じる">×</button>' +
-        '</header>' +
-        '<div class="graph-sheet-body"></div>' +
-      '</section>';
+      '</div>';
     // ここから先で例外が出たら（getContext が null、グラフが壊れているなど）、登録済みのリスナー・オブザーバーを
     // すべて外し、DOM も消してから投げ直す（失敗した mount が何も残さない）
     try {
@@ -257,11 +236,16 @@
     const legendEl = rootEl.querySelector('.graph-legend');
     const zoomEl = rootEl.querySelector('.graph-zoom');
     const radarPanel = rootEl.querySelector('.graph-radar-panel');
-    const sheet = rootEl.querySelector('.graph-sheet');
-    const sheetKind = sheet.querySelector('.graph-sheet-kind');
-    const sheetTitle = sheet.querySelector('.graph-sheet-title');
-    const sheetBody = sheet.querySelector('.graph-sheet-body');
-    const sheetExpand = sheet.querySelector('.graph-sheet-expand');
+    // 詳細シート（js/graph-sheet.js）。リスナーはここの on で数え、destroy でまとめて外す
+    const sheetUI = root.GraphSheet.create(rootEl, {
+      on, S,
+      getSheetHeight: deps.getSheetHeight, setSheetHeight: deps.setSheetHeight,
+      questionNode: qid => (qidNode.has(qid) ? qidNode.get(qid) : -1),
+      onQuestion: node => (mode === 'radar' ? jumpFromRadar(node) : jumpTo(node)),
+      onDrill: p => { if (typeof deps.onStartDrill === 'function') deps.onStartDrill(p.ids, p.label, { kind: p.kind }); },
+      onClose: () => { sheetIndex = -1; clearFocus(); syncRadarSelection(); },
+    });
+    const sheet = sheetUI.el;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('GraphView: canvas 2D コンテキストを取得できない');
 
@@ -1022,7 +1006,7 @@
       if (!(i >= 0 && i < n) || !cam || settle) return;
       openSheet(i);
       const sc = Math.max(cam.scale, fitScale * JUMP_MIN_REL);
-      const covered = sheet.hidden ? 0 : Math.min(height * 0.6, sheet.getBoundingClientRect().height);
+      const covered = !sheetUI.isOpen() ? 0 : Math.min(height * 0.6, sheet.getBoundingClientRect().height);
       animateTo({ x: width / 2 - xs[i] * sc, y: Math.max(60, (height - covered) / 2) - ys[i] * sc, scale: sc });
     }
     // 移動のアニメーション（「視差効果を減らす」のときは即座に切り替える）。終わったら rAF を要求しない
@@ -1037,7 +1021,7 @@
     // タップでシートを開いたとき、選んだノードがシートに隠れる・シートの上端のすぐ上にあれば、倍率はそのまま、
     // シートの上の見える範囲の中央へ動かす。見えている位置なら動かさない
     function revealAboveSheet(i) {
-      if (!cam || sheet.hidden) return;
+      if (!cam || !sheetUI.isOpen()) return;
       const cr = canvas.getBoundingClientRect(), sr = sheet.getBoundingClientRect();
       const sx = xs[i] * cam.scale + cam.x, sy = ys[i] * cam.scale + cam.y;
       const top = sr.top - cr.top;
@@ -1092,7 +1076,8 @@
       requestDraw();
     }
 
-    // ---- 詳細シート ----
+    // ---- 詳細シート（DOM・高さ・閉じ方は js/graph-sheet.js） ----
+    // 中身を描く。ノードが無効か、教材で絞って 0 問になったら false
     function renderSheet(i) {
       const sheetBook = mode === 'radar' && book !== 'all' ? book : null;
       const d = S.buildDetail(graph, mastery, i, {
@@ -1102,112 +1087,31 @@
       const isBookFiltered = !!(sheetBook && graph.kind[i] !== kBook && graph.kind[i] !== kQuestion);
       const total = d.questions.length + (d.moreCount || 0);
       if (isBookFiltered && total === 0) return false;
-      sheetKind.textContent = isBookFiltered ? `${d.kindLabel}・${BOOK_NAMES[sheetBook] || sheetBook}` : d.kindLabel;
-      sheetTitle.textContent = d.title;
       const correct = typeof d.correct === 'number' ? d.correct : mastery.correct[i];
-      const pct = d.answered > 0 ? Math.round((100 * correct) / d.answered) + '%' : '—';
-      let html =
-        '<dl class="graph-stats">' +
-          `<div><dt>状態</dt><dd>${esc(d.stateLabel)}</dd></div>` +
-          `<div><dt>正答率</dt><dd>${esc(pct)}</dd></div>` +
-          `<div><dt>解答数</dt><dd>${esc(d.answered)}</dd></div>` +
-          `<div><dt>苦手</dt><dd>${esc(d.weakCount)}</dd></div>` +
-        '</dl>';
-      if (d.desc) html += `<p class="graph-desc">${richText(d.desc)}</p>`;
-      if (d.advice) html += `<p class="graph-advice"><span class="graph-advice-label">対策</span>${richText(d.advice)}</p>`;
-      sheetPicks = null;
+      const picks = [];
+      let group = false;
       if (typeof deps.onStartDrill === 'function') {
         if (mode === 'radar' && Array.isArray(d.allQids) && d.allQids.length > 0) {
           // レーダーから: そのテーマの問題だけを、打ち切らずにまとめて解く（苦手を潰すため）。
           // 全問（苦手 → 未着手 → 克服 → 正解）か、苦手と未着手だけかを選べる。教材で絞っていればその教材の分だけ
           const label = isBookFiltered ? `${d.title}（${BOOK_NAMES[sheetBook] || sheetBook}）` : d.title;
           const rest = Array.isArray(d.restQids) ? d.restQids : [];
-          sheetPicks = { all: { ids: d.allQids.slice(), label, kind: 'theme' } };
-          html += '<div class="graph-drill-btns">' +
-            `<button type="button" class="graph-drill-btn" data-drill="all">このテーマの全 ${esc(d.allQids.length)} 問を解く</button>`;
+          group = true;
+          picks.push({ key: 'all', text: `このテーマの全 ${d.allQids.length} 問を解く`, ids: d.allQids.slice(), label, kind: 'theme' });
           // 苦手も未着手もなければ出さない。克服・正解が 1 問もなければ「全問」と同じなので出さない
           if (rest.length > 0 && rest.length < d.allQids.length) {
-            sheetPicks.rest = { ids: rest.slice(), label, kind: 'theme' };
-            html += `<button type="button" class="graph-drill-btn is-sub" data-drill="rest">苦手と未着手の ${esc(rest.length)} 問を解く</button>`;
+            picks.push({ key: 'rest', text: `苦手と未着手の ${rest.length} 問を解く`, sub: true, ids: rest.slice(), label, kind: 'theme' });
           }
-          html += '</div>';
         } else if (typeof S.pickNear === 'function') {
           const pick = S.pickNear(graph, index, i, mastery, { random: Math.random });
-          if (pick.ids.length > 0) {
-            sheetPicks = { near: { ids: pick.ids, label: d.title, kind: 'near' } };
-            html += `<button type="button" class="graph-drill-btn" data-drill="near">近い問題を ${esc(pick.ids.length)} 問解く</button>`;
-          }
+          if (pick.ids.length > 0) picks.push({ key: 'near', text: `近い問題を ${pick.ids.length} 問解く`, ids: pick.ids, label: d.title, kind: 'near' });
         }
       }
-      html += `<h3 class="graph-qs-head">問題（${esc(total)}）</h3><ul class="graph-qs">`;
-      for (const q of d.questions) {
-        const node = qidNode.has(q.qid) ? qidNode.get(q.qid) : -1;
-        html += `<li class="graph-q graph-q-${esc(q.status)}"${node >= 0 ? ` data-node="${node}" role="button" tabindex="0"` : ''}><span class="graph-q-status">${esc(STATUS_LABEL[q.status] || q.status)}</span>` +
-          `<span class="graph-q-no">#${esc(q.qid)}</span><span class="graph-q-text">${q.text == null ? '' : esc(q.text)}</span></li>`;
-      }
-      html += '</ul>';
-      if (d.moreCount) html += `<p class="graph-more">ほか ${esc(d.moreCount)} 問</p>`;
-      sheetBody.innerHTML = html;
+      sheetUI.render({
+        kindText: isBookFiltered ? `${d.kindLabel}・${BOOK_NAMES[sheetBook] || sheetBook}` : d.kindLabel,
+        title: d.title, detail: d, correct, picks, group,
+      });
       return true;
-    }
-    // シートの高さ。ratio が null なら既定（中身の高さ、最大は CSS の max-height）、数なら容器に対するその割合
-    function applySheetRatio(ratio) {
-      sheetRatio = typeof ratio === 'number' && Number.isFinite(ratio) ? ratio : null;
-      sheet.style.height = sheetRatio == null ? '' : `${(sheetRatio * 100).toFixed(2)}%`;
-      sheet.style.maxHeight = sheetRatio == null ? '' : 'none';
-      sheetWide = sheetRatio != null && sheetRatio >= SHEET_WIDE_FROM;
-      sheetExpand.setAttribute('aria-pressed', String(sheetWide));
-      sheetExpand.textContent = sheetWide ? '縮める' : '広げる';
-    }
-    function rememberSheetRatio(ratio) {
-      if (typeof deps.setSheetHeight === 'function') {
-        try { deps.setSheetHeight(ratio); } catch (e) { /* 覚えられなくても操作は止めない */ }
-      }
-    }
-    function savedSheetRatio() {
-      if (typeof deps.getSheetHeight !== 'function') return null;
-      try { const r = deps.getSheetHeight(); return typeof r === 'number' && Number.isFinite(r) ? r : null; } catch (e) { return null; }
-    }
-    // 「広げる」「縮める」ボタン（キーボードでも使える）。押した高さも覚える
-    function setSheetWide(wide) {
-      const r = wide ? SHEET_WIDE_RATIO : SHEET_DEFAULT_RATIO;
-      applySheetRatio(r);
-      rememberSheetRatio(r);
-    }
-    // つまみ・見出しを上下させて高さを変える（計算は src/sheet-size.js）。離したところで止まり、その割合を覚える。
-    // 下限よりさらに引き下ろすか、素早く下へはじくと閉じる。見出しのボタンを押したときは動かさない
-    function onSheetPointerDown(e) {
-      if ((e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('button') || typeof S.resolveSheetDrag !== 'function') return;
-      if (!e.target.closest('.graph-sheet-grab, .graph-sheet-head')) return;
-      const box = sheet.parentElement ? sheet.parentElement.getBoundingClientRect().height : 0;
-      sheetDrag = { id: e.pointerId, y0: e.clientY, start: sheet.getBoundingClientRect().height, box, lastY: e.clientY, lastT: e.timeStamp, v: 0 };
-      try { sheet.setPointerCapture(e.pointerId); } catch (err) { /* 合成イベントなど */ }
-      e.preventDefault();
-    }
-    function sheetDragResult(e, velocity) {
-      const head = sheet.querySelector('.graph-sheet-head');
-      const minPx = (head ? head.getBoundingClientRect().height : 0) + SHEET_MIN_BODY_PX; // 見出しと本文の頭が隠れないように
-      return S.resolveSheetDrag({ startPx: sheetDrag.start, dyPx: e.clientY - sheetDrag.y0, containerPx: sheetDrag.box, velocity, minPx });
-    }
-    function onSheetPointerMove(e) {
-      if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
-      const dt = e.timeStamp - sheetDrag.lastT;
-      if (dt > 0) sheetDrag.v = (e.clientY - sheetDrag.lastY) / dt;
-      sheetDrag.lastY = e.clientY;
-      sheetDrag.lastT = e.timeStamp;
-      sheet.style.maxHeight = 'none';
-      sheet.style.height = `${sheetDragResult(e, 0).px}px`;
-    }
-    function onSheetPointerUp(e, cancelled) {
-      if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
-      const velocity = e.timeStamp - sheetDrag.lastT > 100 ? 0 : sheetDrag.v; // 止めてから離したら、はじいたことにしない
-      const moved = Math.abs(e.clientY - sheetDrag.y0);
-      const r = sheetDragResult(e, velocity);
-      sheetDrag = null;
-      if (cancelled || moved < 4) { applySheetRatio(sheetRatio); return; } // 動かしていなければ元のまま
-      if (r.close) { applySheetRatio(sheetRatio); closeSheet(); return; }
-      applySheetRatio(r.ratio);
-      rememberSheetRatio(r.ratio);
     }
     function syncRadarSelection() {
       if (mode !== 'radar') return;
@@ -1221,21 +1125,13 @@
       if (!renderSheet(i)) return;
       sheetIndex = i;
       debug.lastTap = i;
-      sheetBody.scrollTop = 0;
-      if (sheet.hidden) applySheetRatio(savedSheetRatio()); // 開くときは覚えた高さで（開いたまま別のノードに移るときは今の高さのまま）
-      sheet.hidden = false;
+      sheetUI.open();
       if (mode === 'radar') syncRadarSelection();
       else setFocus(i);
-      try { sheet.focus({ preventScroll: true }); } catch (e) { /* 古いブラウザ */ }
     }
+    // 閉じる。後始末（sheetIndex・選択の解除）は sheetUI の onClose で行う
     function closeSheet() {
-      if (sheetIndex < 0 && sheet.hidden) return;
-      sheetIndex = -1;
-      sheetPicks = null;
-      sheet.hidden = true;
-      sheetDrag = null;
-      clearFocus();
-      syncRadarSelection();
+      sheetUI.close();
     }
 
     // ---- 入力 ----
@@ -1389,7 +1285,7 @@
         if (Number.isInteger(idx) && idx >= 0 && idx < n) openSheet(idx);
         return;
       }
-      if (!sheet.hidden && !e.target.closest('button')) closeSheet();
+      if (sheetUI.isOpen() && !e.target.closest('button')) closeSheet();
     }
     function onZoomClick(e) {
       const b = e.target.closest('button[data-zoom]');
@@ -1399,35 +1295,10 @@
       if (b.dataset.zoom === 'fit') { cam = S.createCamera(width, height, bounds); interacted = false; requestDraw(); }
       else zoomBy(width / 2, height / 2, b.dataset.zoom === 'in' ? 1.6 : 1 / 1.6);
     }
-    function onSheetClick(e) {
-      if (e.target.closest('.graph-sheet-close')) { closeSheet(); return; }
-      if (e.target.closest('.graph-sheet-expand')) { setSheetWide(!sheetWide); return; }
-      const drillBtn = e.target.closest('.graph-drill-btn');
-      if (drillBtn) {
-        const p = sheetPicks && sheetPicks[drillBtn.dataset.drill];
-        if (p) deps.onStartDrill(p.ids.slice(), p.label, { kind: p.kind }); // 呼び出し側が画面を切り替える（この後 destroy されうる）
-        return;
-      }
-      const li = e.target.closest('.graph-q[data-node]');
-      if (li) {
-        const target = Number(li.dataset.node);
-        if (mode === 'radar') { jumpFromRadar(target); return; }
-        jumpTo(target);
-      }
-    }
     function onKeyDown(e) {
-      if (e.key === 'Escape' && !sheet.hidden) { e.preventDefault(); closeSheet(); return; }
+      // シートの中のキー（Esc・問題の Enter / Space）は js/graph-sheet.js が受け持つ
+      if (sheetUI.contains(e.target)) return;
       if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.closest) {
-        if (sheet.contains(e.target)) {
-          const li = e.target.closest('.graph-q[data-node]');
-          if (li) {
-            e.preventDefault();
-            const target = Number(li.dataset.node);
-            if (mode === 'radar') { jumpFromRadar(target); return; }
-            jumpTo(target);
-          }
-          return;
-        }
         if (mode === 'radar' && radarPanel.contains(e.target)) {
           const axisBtn = e.target.closest('.graph-radar-axis-btn[data-node]');
           if (axisBtn) {
@@ -1458,11 +1329,6 @@
     on(filterEl, 'click', onFilterClick);
     on(radarPanel, 'click', onRadarClick);
     on(zoomEl, 'click', onZoomClick);
-    on(sheet, 'click', onSheetClick);
-    on(sheet, 'pointerdown', onSheetPointerDown);
-    on(sheet, 'pointermove', onSheetPointerMove);
-    on(sheet, 'pointerup', e => onSheetPointerUp(e, false));
-    on(sheet, 'pointercancel', e => onSheetPointerUp(e, true));
     on(document, 'keydown', onKeyDown);
     on(document, 'visibilitychange', onVisibility);
     if (typeof MutationObserver === 'function') {

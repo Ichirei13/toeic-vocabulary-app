@@ -155,6 +155,7 @@ const ASSETS = [
   'src/graph-detail.js',
   'src/graph-near.js',
   'src/graph-report.js',
+  'js/graph-sheet.js',
   'js/graph-view.js',
   'css/graph.css',
   'vendor/d3-dispatch.min.js',
