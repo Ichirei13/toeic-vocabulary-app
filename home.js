@@ -1044,7 +1044,7 @@ function renderReviewPage() {
         </div>
         <p class="review-graph-desc">分野ごとの成績（レーダー）と、概念・ひっかけ・問題のつながり（グラフ）を見る</p>
         <div class="review-block-actions">
-          <button type="button" class="home-weak-btn solve" data-home-action="open-radar">レーダーを開く</button>
+          <button type="button" class="home-weak-btn" data-home-action="open-radar">レーダーを開く</button>
           <button type="button" class="home-weak-btn" data-home-action="open-graph">グラフを開く</button>
         </div>
       </section>
@@ -1510,7 +1510,7 @@ function homeGraphCardHtml(allProg) {
         <div class="home-weak-sub">正答率 <strong class="home-graph-acc">${acc}</strong> ・ 苦手 <strong>${allProg.weak}</strong> ${allProg.unit} ・ 分野ごとの成績</div>
       </div>
       <div class="home-weak-actions">
-        <button type="button" class="home-weak-btn solve" data-home-action="open-radar">レーダー</button>
+        <button type="button" class="home-weak-btn" data-home-action="open-radar">レーダー</button>
         <button type="button" class="home-weak-btn" data-home-action="open-graph">グラフ</button>
       </div>
     </section>`;
