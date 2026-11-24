@@ -16,12 +16,12 @@ export function encodeGraph(model, xs, ys) {
   const ordinal = new Map(); // ノード添字 → 問題の序数
   for (let i = 0; i < n; i++) if (model.kind[i] === qk) { ordinal.set(i, qids.length); qids.push(model.qid[i]); }
 
-  // 配下の問題 = 親エッジの子孫 + 概念/Trap エッジの逆向き（問題 → 概念）。重複なし・昇順
+  // 配下の問題 = 親エッジの子孫 + 主概念(1)/Trap(2) エッジの逆向き（副概念(3)は members に含めない）。重複なし・昇順
   const children = Array.from({ length: n }, () => []);
   const linked = Array.from({ length: n }, () => []);
   for (const [a, b, t] of model.edges) {
     if (t === 0) children[a].push(b);
-    else linked[b].push(a);
+    else if (t === 1 || t === 2) linked[b].push(a);
   }
   const memo = new Map();
   const questionsUnder = i => {
@@ -44,8 +44,25 @@ export function encodeGraph(model, xs, ys) {
     memberStart.push(members.length);
   }
 
+  const solveTypes = [];
+  const solveTypeIdx = new Map();
+  const qSolveType = [];
+  const qPoint = [];
+  const qMeta = model.qMeta instanceof Map ? model.qMeta : new Map();
+  for (const qid of qids) {
+    const meta = qMeta.get(qid);
+    const st = meta && typeof meta.solveType === 'string' ? meta.solveType : '';
+    if (st) {
+      if (!solveTypeIdx.has(st)) { solveTypeIdx.set(st, solveTypes.length); solveTypes.push(st); }
+      qSolveType.push(solveTypeIdx.get(st));
+    } else {
+      qSolveType.push(-1);
+    }
+    qPoint.push(meta && typeof meta.point === 'string' ? meta.point : '');
+  }
+
   const graph = {
-    version: 3,
+    version: 4,
     kinds: model.kinds,
     id: model.id,
     kind: model.kind,
@@ -57,6 +74,9 @@ export function encodeGraph(model, xs, ys) {
     qids,
     memberStart,
     members,
+    solveTypes,
+    qSolveType,
+    qPoint,
   };
   return 'const GRAMMAR_GRAPH = ' + JSON.stringify(graph) + ';\n';
 }

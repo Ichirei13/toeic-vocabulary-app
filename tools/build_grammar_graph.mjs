@@ -3,7 +3,7 @@
 //        （Vault は環境変数 VAULT_DIR でも指定可）
 // 既定では、問題が 1 つだけのルールはノードにせず問題を章に直接つなぐ。--keep-single-rules で全ルールをノードにする。
 // 未対応の問題が 1 問でもある、またはリンク先の概念・Trap が Vault にない場合は、ファイルを書かずに終了コード 1。
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,27 @@ import { loadRawGrammar } from './check_mapping.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_OUT = path.join(ROOT, 'data', 'grammar_graph.js');
+
+// question_analysis.json の 1 問分析結果を matched.byApp へ反映する（主概念・副概念・Trap・解法タイプ・着眼点）。
+export function applyQuestionAnalysis(byApp, data) {
+  const records = Array.isArray(data) ? data : (data && Array.isArray(data.questions) ? data.questions : []);
+  let applied = 0;
+  for (const rec of records) {
+    if (!rec || !Number.isInteger(rec.app_id)) continue;
+    let entry = byApp.get(rec.app_id);
+    if (!entry) { entry = { practiceId: rec.vault_practice_id ?? rec.app_id, conceptIds: [], trapIds: [] }; byApp.set(rec.app_id, entry); }
+    const primary = typeof rec.primary_concept === 'string' ? rec.primary_concept.trim() : '';
+    entry.primaryConceptId = primary;
+    entry.secondaryConceptIds = Array.isArray(rec.secondary_concepts)
+      ? rec.secondary_concepts.map(s => String(s).trim()).filter(s => s && s !== primary)
+      : [];
+    if (Array.isArray(rec.traps)) entry.trapIds = rec.traps.map(s => String(s).trim()).filter(Boolean);
+    entry.solveType = typeof rec.solve_type === 'string' ? rec.solve_type.trim() : '';
+    entry.point = typeof rec.point === 'string' ? rec.point.trim() : '';
+    applied++;
+  }
+  return applied;
+}
 
 // モデルを作り、書き出してはいけない問題を集める（座標・ファイル出力はしない）。
 export function assemble(app, vault, matched, options = {}) {
@@ -55,6 +76,14 @@ async function main() {
   const app = await loadRawGrammar();
   const vault = await loadVault(opts.vaultDir);
   const matched = matchQuestions(app, vault.questions);
+  const analysisPath = path.join(opts.vaultDir, 'question_analysis.json');
+  try {
+    const rawAnalysis = JSON.parse(await readFile(analysisPath, 'utf8'));
+    const nApplied = applyQuestionAnalysis(matched.byApp, rawAnalysis);
+    console.log(`question_analysis.json を反映: ${nApplied} 問`);
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+  }
   const { model, problems } = assemble(app, vault, matched, opts);
 
   if (problems.length) {

@@ -7,7 +7,7 @@ import { GRAMMAR_BOOK_LABELS } from './books.mjs';
 
 export const KINDS = ['book', 'chapter', 'rule', 'concept', 'trap', 'question'];
 const [BOOK, CHAPTER, RULE, CONCEPT, TRAP, QUESTION] = KINDS.map((_, i) => i);
-const PARENT = 0, CONCEPT_EDGE = 1, TRAP_EDGE = 2;
+const PARENT = 0, CONCEPT_EDGE = 1, TRAP_EDGE = 2, SECONDARY_CONCEPT_EDGE = 3;
 const LABEL_MAX = 14;
 
 const cut = s => {
@@ -98,23 +98,40 @@ export function buildModel({ app, byApp, concepts, traps }, { collapseSingleRule
   // 問題。概念・Trap のリンク先が無ければ dangling に報告する（黙って落とさない）
   const unmatchedQids = [];
   const dangling = new Set();
+  const qMeta = new Map();
   for (const q of app) {
     const qi = addNode('q:' + q.id, QUESTION, '#' + q.id, q.id);
     addEdge(parentOf.get(q.id), qi, PARENT);
     const v = byApp.get(q.id);
     let links = 0;
     if (v) {
-      for (const c of v.conceptIds) {
-        if (index.has('con:' + c)) { addEdge(qi, index.get('con:' + c), CONCEPT_EDGE); links++; }
-        else dangling.add('00_Concepts/' + c);
+      const hasV4 = typeof v.primaryConceptId === 'string' || Array.isArray(v.secondaryConceptIds);
+      if (hasV4) {
+        if (v.primaryConceptId) {
+          if (index.has('con:' + v.primaryConceptId)) { addEdge(qi, index.get('con:' + v.primaryConceptId), CONCEPT_EDGE); links++; }
+          else dangling.add('00_Concepts/' + v.primaryConceptId);
+        }
+        for (const sc of (v.secondaryConceptIds || [])) {
+          if (!sc || sc === v.primaryConceptId) continue;
+          if (index.has('con:' + sc)) addEdge(qi, index.get('con:' + sc), SECONDARY_CONCEPT_EDGE);
+          else dangling.add('00_Concepts/' + sc);
+        }
+      } else {
+        for (const c of (v.conceptIds || [])) {
+          if (index.has('con:' + c)) { addEdge(qi, index.get('con:' + c), CONCEPT_EDGE); links++; }
+          else dangling.add('00_Concepts/' + c);
+        }
       }
-      for (const t of v.trapIds) {
+      for (const t of (v.trapIds || [])) {
         if (index.has('trap:' + t)) addEdge(qi, index.get('trap:' + t), TRAP_EDGE);
         else dangling.add('04_Traps/' + t);
+      }
+      if (v.solveType || v.point) {
+        qMeta.set(q.id, { solveType: v.solveType || '', point: v.point || '' });
       }
     }
     if (links === 0) unmatchedQids.push(q.id); // Vault に対応がない、または概念リンクがない
   }
 
-  return { kinds: [...KINDS], id, kind, label, qid, edges, text, unmatchedQids, dangling: [...dangling] };
+  return { kinds: [...KINDS], id, kind, label, qid, edges, text, qMeta, unmatchedQids, dangling: [...dangling] };
 }

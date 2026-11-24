@@ -201,7 +201,7 @@ test('encodeGraph: vm で評価でき、列の長さが揃い、座標は整数'
   const src = encodeGraph(m, xs, ys);
   assert.ok(src.startsWith('const GRAMMAR_GRAPH = {') && src.trimEnd().endsWith('};'));
   const g = evalGraph(src);
-  assert.strictEqual(g.version, 3);
+  assert.strictEqual(g.version, 4);
   assert.deepStrictEqual(g.kinds, m.kinds);
   for (const col of ['id', 'kind', 'label', 'x', 'y', 'qid']) assert.strictEqual(g[col].length, n, col);
   assert.ok(g.x.every(Number.isInteger) && g.y.every(Number.isInteger));
@@ -547,4 +547,38 @@ test('生成物: 概念・Trap にだけ text があり、座標は有限の範�
   const { g } = loadArtifact();
   for (const key of Object.keys(g.text)) assert.ok([3, 4].includes(g.kind[Number(key)]), g.id[Number(key)]);
   assert.ok(Math.max(...g.x.map(Math.abs)) < 20000 && Math.max(...g.y.map(Math.abs)) < 20000);
+});
+
+test('v4: 主概念(type 1)・副概念(type 3)・solveTypes/qSolveType/qPoint を出力し、副概念は members 集計から除く', async () => {
+  const { buildModel } = await lib('model.mjs');
+  const { encodeGraph } = await lib('encode.mjs');
+  const { applyQuestionAnalysis } = await import(path.resolve(__dirname, '..', 'tools', 'build_grammar_graph.mjs'));
+  const input = buildInput();
+  applyQuestionAnalysis(input.byApp, [
+    { app_id: 1, primary_concept: 'A概念', secondary_concepts: ['B概念', 'A概念'], traps: ['Trap_01_罠'], solve_type: '文構造', point: '主語と動詞の対応を見る' },
+    { app_id: 2, primary_concept: 'B概念', secondary_concepts: [], traps: [], solve_type: '品詞・語形', point: '空欄の前後から品詞を絞る' },
+  ]);
+  const m = buildModel(input, KEEP);
+  const has = (a, b, t) => m.edges.some(e => e[0] === idx(m, a) && e[1] === idx(m, b) && e[2] === t);
+  assert.ok(has('q:1', 'con:A概念', 1), '主概念は type 1');
+  assert.ok(has('q:1', 'con:B概念', 3), '副概念は type 3');
+  assert.ok(!has('q:1', 'con:A概念', 3), '主概念と同じ副概念は作らない');
+  assert.ok(has('q:1', 'trap:Trap_01_罠', 2), 'Trap は type 2');
+
+  const n = m.id.length;
+  const g = evalGraph(encodeGraph(m, new Array(n).fill(0), new Array(n).fill(0)));
+  assert.strictEqual(g.version, 4);
+  const memberQids = id => {
+    const i = g.id.indexOf(id);
+    return g.members.slice(g.memberStart[i], g.memberStart[i + 1]).map(o => g.qids[o]).sort((a, b) => a - b);
+  };
+  assert.ok(!memberQids('con:B概念').includes(1), '副概念でつながる q:1 は con:B概念 の members に含めない');
+  assert.ok(memberQids('con:B概念').includes(2), '主概念でつながる q:2 は con:B概念 の members に含める');
+  assert.deepStrictEqual(g.solveTypes, ['文構造', '品詞・語形']);
+  assert.strictEqual(g.qSolveType[g.qids.indexOf(1)], 0);
+  assert.strictEqual(g.qSolveType[g.qids.indexOf(2)], 1);
+  assert.strictEqual(g.qSolveType[g.qids.indexOf(3)], -1);
+  assert.strictEqual(g.qPoint[g.qids.indexOf(1)], '主語と動詞の対応を見る');
+  assert.strictEqual(g.qPoint[g.qids.indexOf(2)], '空欄の前後から品詞を絞る');
+  assert.strictEqual(g.qPoint[g.qids.indexOf(3)], '');
 });
