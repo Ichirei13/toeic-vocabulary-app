@@ -1,4 +1,4 @@
-// 解答後の 🏷 ボタン（ワンタップで最後に使ったラベル・再タップと長押しで選ぶ画面・L キー）の検証。
+// 演習中の 🏷 ボタン（回答前・回答後・見直し中、ワンタップで最後に使ったラベル・再タップと長押しで選ぶ画面・L キー）の検証。
 // 実行: NODE_PATH=$(npm root -g) node tests/labels-ui.test.js
 const assert = require('assert');
 const { test, withPage, openPage, run } = require('./labels-harness.cjs');
@@ -17,13 +17,54 @@ async function createInPicker(page, name) {
   await page.click('[data-label-create]');
 }
 
-test('label_button_hidden_before_answer_and_shown_after', () => withPage({}, async page => {
+test('label_button_shown_before_and_after_answer_and_hidden_on_empty_or_complete', () => withPage({}, async page => {
   await startGrammar(page);
-  assert.strictEqual(await visible(page, '#label-btn'), false);
+  assert.strictEqual(await visible(page, '#label-btn'), true);
   await answerFirst(page);
   assert.strictEqual(await visible(page, '#label-btn'), true);
   await page.click('#next-btn');
+  assert.strictEqual(await visible(page, '#label-btn'), true);
+  // 完了画面では非表示
+  await page.evaluate(() => { state.currentGrammarIndex = state.grammarPool.length; renderCurrentGrammar(); });
   assert.strictEqual(await visible(page, '#label-btn'), false);
+  // 0 件画面でも非表示
+  await page.evaluate(() => { state.grammarPool = []; state.currentGrammarIndex = 0; renderCurrentGrammar(); });
+  assert.strictEqual(await visible(page, '#label-btn'), false);
+}));
+
+test('labeling_before_answer_preserves_unanswered_grammar_state', () => withPage({}, async page => {
+  await startGrammar(page);
+  const key = await currentKey(page);
+  await page.click('#label-btn');
+  assert.deepStrictEqual(await labelsOf(page, key), ['default']);
+  // ピッカーを開いて閉じた後も未回答状態のまま解答できる
+  await page.click('#label-btn');
+  assert.deepStrictEqual(await sheet(page), { open: true, title: 'ラベルを選ぶ' });
+  await page.evaluate(() => closeSheet());
+  assert.strictEqual(await page.evaluate(() => state.grammarAnswered), false);
+  assert.strictEqual(await visible(page, '#dont-know-btn'), true);
+  await answerFirst(page);
+  assert.strictEqual(await page.evaluate(() => state.grammarAnswered), true);
+  assert.strictEqual(await page.evaluate(() => document.getElementById('label-btn').classList.contains('on')), true);
+}));
+
+test('labeling_before_answer_in_type_mode_keeps_input_and_respects_l_key_in_input', () => withPage({}, async page => {
+  await page.evaluate(() => { setApp('vocab'); state.mode = 'type'; applyFilters(); });
+  const key = await page.evaluate(() => `w:${state.pool[state.currentIndex].w}`);
+  assert.strictEqual(await visible(page, '#label-btn'), true);
+  await page.fill('#type-input', 'hello');
+  // 入力欄フォーカス中の L キーは文字入力を優先し、ラベルは付けない
+  await page.keyboard.press('l');
+  assert.strictEqual(await page.inputValue('#type-input'), 'hellol');
+  assert.deepStrictEqual(await labelsOf(page, key), []);
+  // ボタン押下＆ピッカー開閉しても未回答のまま入力値を保持する
+  await page.click('#label-btn');
+  assert.deepStrictEqual(await labelsOf(page, key), ['default']);
+  await page.click('#label-btn');
+  await page.evaluate(() => closeSheet());
+  assert.strictEqual(await page.evaluate(() => state.answered), false);
+  assert.strictEqual(await page.inputValue('#type-input'), 'hellol');
+  assert.strictEqual(await page.evaluate(() => document.getElementById('label-btn').classList.contains('on')), true);
 }));
 
 test('tap_adds_last_used_label_and_shows_toast', () => withPage({}, async page => {
@@ -89,17 +130,20 @@ test('picker_close_keeps_answered_state', () => withPage({}, async page => {
 
 test('l_key_works_like_tap', () => withPage({}, async page => {
   await startGrammar(page);
-  await page.keyboard.press('l');
-  assert.strictEqual(await page.evaluate(() => Object.keys(state.labels.items).length), 0, '回答前に付いた');
-  await answerFirst(page);
   const key = await currentKey(page);
-  await page.keyboard.press('l');
+  await page.keyboard.press('l'); // 回答前でも L キーで付く
   assert.deepStrictEqual(await labelsOf(page, key), ['default']);
   await page.keyboard.press('l'); // 付いているので選ぶ画面が開く
   assert.strictEqual((await sheet(page)).open, true);
   const before = JSON.stringify(await page.evaluate(() => state.labels));
   await page.keyboard.press('l'); // シートが開いている間は何もしない
   assert.strictEqual(JSON.stringify(await page.evaluate(() => state.labels)), before);
+  await page.evaluate(() => closeSheet());
+  // 完了画面では L キーを押しても何も起きない
+  await page.evaluate(() => { state.currentGrammarIndex = state.grammarPool.length; renderCurrentGrammar(); });
+  await page.keyboard.press('l');
+  assert.strictEqual(JSON.stringify(await page.evaluate(() => state.labels)), before);
+  assert.strictEqual((await sheet(page)).open, false);
 }));
 
 test('long_press_opens_picker_without_adding', () => withPage({}, async page => {
@@ -145,12 +189,42 @@ test('vocab_choice_labels_the_word', () => withPage({}, async page => {
   assert.deepStrictEqual(await labelsOf(page, key), ['default']);
 }));
 
-test('flash_card_shows_button_after_flip', () => withPage({}, async page => {
+test('flash_card_shows_button_before_flip_and_keeps_label', () => withPage({}, async page => {
   await page.evaluate(() => { setApp('vocab'); state.mode = 'flash'; applyFilters(); });
-  assert.strictEqual(await visible(page, '#label-btn'), false);
+  const key = await page.evaluate(() => `w:${state.pool[state.currentIndex].w}`);
+  assert.strictEqual(await visible(page, '#label-btn'), true);
+  await page.click('#label-btn');
+  assert.deepStrictEqual(await labelsOf(page, key), ['default']);
+  assert.strictEqual(await page.evaluate(() => document.getElementById('flash-card').classList.contains('flipped')), false);
   await page.click('#flash-card');
   assert.strictEqual(await visible(page, '#label-btn'), true);
+  assert.strictEqual(await page.evaluate(() => document.getElementById('label-btn').classList.contains('on')), true);
 }));
+
+test('phone_action_bar_fits_back_label_and_dont_know_without_overlap', () => withPage({}, async page => {
+  const longName = 'あ'.repeat(20);
+  await page.evaluate(n => applyLabelChange(StudyCore.createLabel(state.labels, 'l_long20', n, Date.now())), longName);
+  await startGrammar(page);
+  await answerFirst(page);
+  await page.click('#next-btn');
+  const secondKey = await currentKey(page);
+  await page.evaluate(k => applyLabelChange(StudyCore.setLabel(state.labels, 'l_long20', k, true, Date.now())), secondKey);
+  await page.evaluate(() => refreshLabelButton());
+  const layout = await page.evaluate(() => {
+    const bar = document.querySelector('.action-bar').getBoundingClientRect();
+    const back = document.getElementById('back-btn').getBoundingClientRect();
+    const label = document.getElementById('label-btn').getBoundingClientRect();
+    const dk = document.getElementById('dont-know-btn').getBoundingClientRect();
+    return { bar, back, label, dk, docOverflow: document.documentElement.scrollWidth > window.innerWidth };
+  });
+  assert.strictEqual(layout.docOverflow, false, '横スクロールが出ている');
+  assert(layout.back.right <= layout.label.left + 1, `back(${layout.back.right}) > label(${layout.label.left})`);
+  assert(layout.label.right <= layout.dk.left + 1, `label(${layout.label.right}) > dk(${layout.dk.left})`);
+  for (const [name, r] of [['back', layout.back], ['label', layout.label], ['dk', layout.dk]]) {
+    assert(r.left >= layout.bar.left - 1 && r.right <= layout.bar.right + 1, `${name} が横にはみ出している`);
+    assert(r.height <= layout.bar.height + 1, `${name} の高さ(${r.height})が action-bar(${layout.bar.height})を超えている`);
+  }
+}, { viewport: { width: 375, height: 812 } }));
 
 test('no_labels_left_opens_picker', () => withPage({}, async page => {
   await page.evaluate(() => applyLabelChange(StudyCore.deleteLabel(state.labels, 'default', Date.now())));

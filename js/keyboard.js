@@ -40,7 +40,7 @@ document.addEventListener('keydown', e => {
   const fullToHalf = { '１': '1', '２': '2', '３': '3', '４': '4', '５': '5', '０': '0' };
   const rawKey = fullToHalf[e.key] || e.key;
 
-  // L: 🏷 ボタン（回答のあとだけ見えている）
+  // L: 🏷 ボタン（出題中なら回答前でも使える）
   if (/^[lLｌＬ]$/.test(e.key)) {
     const labelBtn = document.getElementById('label-btn');
     if (isShown(labelBtn)) press(labelBtn);

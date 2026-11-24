@@ -49,7 +49,7 @@ test('home_grammar_category_counts_grammar', () => withPage({}, async page => {
 
 test('label_section_shows_hint_when_nothing_labeled', () => withPage({}, async page => {
   await openHome(page, 'vocab');
-  assert((await page.textContent(homeLabels)).includes('解答後の 🏷 で付けられます'));
+  assert((await page.textContent(homeLabels)).includes('演習中の 🏷 で付けられます'));
 }, PC));
 
 test('review_page_shows_labels_per_kind', () => withPage({}, async page => {

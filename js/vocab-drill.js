@@ -217,6 +217,7 @@ function renderCurrent() {
     }
   }
 
+  if (typeof refreshLabelButton === 'function') refreshLabelButton();
   updateFooter();
 }
 
@@ -279,7 +280,7 @@ function flipCard() {
   const card = document.getElementById('flash-card');
   if (!card) return;
   card.classList.toggle('flipped');
-  refreshLabelButton(); // めくったら 🏷 を出す
+  refreshLabelButton(); // 状態維持のため 🏷 を更新
   if (state.answered || state.reviewIndex !== null) return;
   const dk = document.getElementById('dont-know-btn');
   dk.innerText = 'まだ';

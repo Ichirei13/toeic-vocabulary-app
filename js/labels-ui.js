@@ -1,5 +1,5 @@
 // ==================== ラベリング機能（画面） ====================
-// 解答後の 🏷 ボタン（タップで最後に使ったラベルを付ける・付いていればラベルを選ぶ画面・長押しでも選ぶ画面）。
+// 演習中の 🏷 ボタン（回答前・回答後・見直し中で表示。タップで最後に使ったラベルを付ける・付いていればラベルを選ぶ画面・長押しでも選ぶ画面）。
 // 記録の変更は js/labels.js の applyLabelChange を通す。苦手の記録には触れない。
 // 前提: js/labels.js と js/settings.js（openSheet）のあとに読み込む。最上位で実行するのはクリックの登録だけ
 
@@ -16,14 +16,10 @@ function currentLabelTarget() {
   return item ? { kind, key: labelItemKey(kind, item) } : null;
 }
 
-// 回答のあと（見直し中・単語カードをめくったあとも）だけ出す
+// 出題が表示されている間（回答前・回答後・見直し中・カード表裏を問わず）に出す。
+// 完了画面や 0 件画面では currentLabelTarget() が null になるため自動で非表示になる。
 function labelButtonShouldShow() {
-  if (!currentLabelTarget()) return false;
-  if (state.reviewIndex !== null) return true;
-  if (state.app === 'grammar') return !!state.grammarAnswered;
-  if (state.answered) return true;
-  const card = document.getElementById('flash-card');
-  return state.mode === 'flash' && !!card && card.classList.contains('flipped');
+  return !!currentLabelTarget();
 }
 
 function hideLabelButton() {
@@ -426,7 +422,7 @@ function labelSettingsSectionHtml() {
           <span class="settings-icon">🏷</span>
           <h3 class="settings-section-title">ラベル</h3>
         </div>
-        <p class="settings-desc">解答後の 🏷 で付けるラベルを管理します。苦手リストとは別に記録されます。</p>
+        <p class="settings-desc">演習中の 🏷 で付けるラベルを管理します。苦手リストとは別に記録されます。</p>
         ${rows || '<p class="settings-hint">ラベルがありません。</p>'}
         ${edit.mode === 'new'
           ? `<div class="label-settings-row">${labelNameEditorHtml()}</div>`
@@ -550,7 +546,7 @@ function labelSummaryHtml(kind) {
     <div class="label-summary" data-kind="${kind}">
       <div class="label-summary-title">🏷 ラベル</div>
       ${rows}
-      ${nothing ? '<p class="label-summary-hint">解答後の 🏷 で付けられます。</p>' : ''}
+      ${nothing ? '<p class="label-summary-hint">演習中の 🏷 で付けられます。</p>' : ''}
     </div>`;
 }
 

@@ -372,6 +372,7 @@ function renderCurrentGrammar() {
     document.getElementById('dont-know-btn').onclick = handleGrammarDontKnow;
   }
 
+  if (typeof refreshLabelButton === 'function') refreshLabelButton();
   updateFooter();
 }
 

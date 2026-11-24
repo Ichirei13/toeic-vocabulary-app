@@ -2249,7 +2249,7 @@ body {
 .completion-card .completion-actions .home-weak-btn { font-size: 14px; padding: 11px 14px; border-radius: 12px; }
 
 /* ==================== ラベリング（🏷 ボタン・選ぶ画面） ==================== */
-/* 回答のあとだけアクションバーに出す。ラベルが付いていれば塗りつぶしにして、ラベル名（2つ以上なら件数）を添える */
+/* 出題中（回答前・回答後）にアクションバーに出す。ラベルが付いていれば塗りつぶしにして、ラベル名（2つ以上なら件数）を添える */
 .label-btn {
   background: transparent;
   color: var(--text-muted);

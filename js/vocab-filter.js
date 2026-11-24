@@ -92,7 +92,7 @@ function showNextButton(onNext) {
   const nextBtn = document.getElementById('next-btn');
   nextBtn.style.display = 'block';
   nextBtn.onclick = onNext;
-  refreshLabelButton(); // 回答のあとだけ 🏷 を出す（カードのめくる前などは出さない）
+  refreshLabelButton(); // 出題中なら 🏷 の表示を更新する
 }
 
 function nextWord() {
