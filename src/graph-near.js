@@ -7,12 +7,13 @@
   else Object.assign(root.StudyCore = root.StudyCore || {}, api);
 })(typeof self !== 'undefined' ? self : this, function () {
   const NEAR = {
-    count: 30,          // 出題する問題数
-    poolFactor: 3,      // 候補にする上位の数 = count × これ（遠い苦手が、近い未解答を押しのけないように）
-    trapBase: 2,        // ひっかけの重み = これ × ln(1 + 全問題数 / つながる問題数)
-    conceptBase: 1,     // 概念の重み   = これ × 同じ式
-    ruleWeight: 1.5,    // 同じルール
-    chapterWeight: 0.3, // 同じ章
+    count: 30,                 // 出題する問題数
+    poolFactor: 3,             // 候補にする上位の数 = count × これ（遠い苦手が、近い未解答を押しのけないように）
+    trapBase: 2.0,             // ひっかけの重み = これ × ln(1 + 全問題数 / つながる問題数)
+    conceptBase: 1.2,          // 主概念の重み   = これ × 同じ式
+    secondaryConceptBase: 0.4, // 副概念の重み   = これ × 同じ式
+    ruleWeight: 1.5,           // 同じルール
+    chapterWeight: 0.3,        // 同じ章
   };
 
   const inRange = (index, i) => Number.isInteger(i) && i >= 0 && i < index.n;
@@ -29,17 +30,22 @@
     return out;
   }
 
-  // 概念・ひっかけのノードごとの重み（ほかは 0）
+  // 概念・ひっかけのノードごとの重み（ほかは 0）。w は主概念・ひっかけ用、wSec は副概念用
   function hubWeights(graph, index) {
     const w = new Float64Array(index.n);
+    const wSec = new Float64Array(index.n);
     const nq = Math.max(1, index.nq);
     for (let i = 0; i < index.n; i++) {
       const k = graph.kind[i];
       if (k !== index.kCon && k !== index.kTrap) continue;
       const df = graph.memberStart[i + 1] - graph.memberStart[i];
-      if (df > 0) w[i] = (k === index.kTrap ? NEAR.trapBase : NEAR.conceptBase) * Math.log(1 + nq / df);
+      if (df > 0) {
+        const idf = Math.log(1 + nq / df);
+        w[i] = (k === index.kTrap ? NEAR.trapBase : NEAR.conceptBase) * idf;
+        if (k === index.kCon) wSec[i] = NEAR.secondaryConceptBase * idf;
+      }
     }
-    return w;
+    return { w, wSec };
   }
 
   // 問題ノードごとの点数（ノード添字で引く。問題以外は 0）
@@ -47,12 +53,17 @@
     const scores = new Float64Array(index.n);
     const seeds = seedQuestions(graph, index, seed);
     if (seeds.length === 0) return scores;
-    const w = hubWeights(graph, index);
-    // 特徴（概念・ひっかけ・ルール・章のノード）ごとの、起点での割合
+    const { w, wSec } = hubWeights(graph, index);
+    const hasSec = !!(index.secStart && index.secHubs);
+    // 特徴（主概念・ひっかけ・副概念・ルール・章のノード）ごとの、起点での割合
     const p = new Float64Array(index.n);
+    const pSec = hasSec ? new Float64Array(index.n) : null;
     const inc = 1 / seeds.length;
     for (const q of seeds) {
       for (let k = index.hubStart[q]; k < index.hubStart[q + 1]; k++) p[index.hubs[k]] += inc;
+      if (hasSec) {
+        for (let k = index.secStart[q]; k < index.secStart[q + 1]; k++) pSec[index.secHubs[k]] += inc;
+      }
       if (index.ruleOf[q] !== -1) p[index.ruleOf[q]] += inc;
       if (index.chapterOf[q] !== -1) p[index.chapterOf[q]] += inc;
     }
@@ -60,7 +71,19 @@
       const q = index.qNode[o];
       if (q < 0) continue;
       let s = 0, cnt = 0;
-      for (let k = index.hubStart[q]; k < index.hubStart[q + 1]; k++) { cnt++; s += w[index.hubs[k]] * p[index.hubs[k]]; }
+      for (let k = index.hubStart[q]; k < index.hubStart[q + 1]; k++) {
+        const h = index.hubs[k];
+        cnt++;
+        s += w[h] * p[h];
+        if (hasSec && pSec[h] > 0) s += wSec[h] * pSec[h];
+      }
+      if (hasSec) {
+        for (let k = index.secStart[q]; k < index.secStart[q + 1]; k++) {
+          const h = index.secHubs[k];
+          cnt++;
+          s += wSec[h] * (p[h] + pSec[h]);
+        }
+      }
       s /= Math.sqrt(Math.max(1, cnt)); // 概念・ひっかけを多く持つ問題が有利になりすぎないように
       if (index.ruleOf[q] !== -1) s += NEAR.ruleWeight * p[index.ruleOf[q]];
       if (index.chapterOf[q] !== -1) s += NEAR.chapterWeight * p[index.chapterOf[q]];

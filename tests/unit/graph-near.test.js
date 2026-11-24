@@ -11,9 +11,9 @@ const LN4 = Math.log(4); // ln(1 + 6 / 2)。問題 2 問につながる概念の
 test('nearScores: 起点が問題。同じひっかけだけの問題が、同じ概念と同じ章を持つ問題より上', () => {
   const { g, ix } = setup();
   const s = N.nearScores(g, ix, 11); // q:6（con:c・trap:t、ch:sekai:1）
-  assert.ok(near(s[4], 2 * LN4), `q:2（ひっかけだけ）= ${s[4]}`);
-  assert.ok(near(s[10], LN4 / Math.SQRT2 + 0.3), `q:5（概念 + 章）= ${s[10]}`);
-  assert.ok(near(s[11], (LN4 + 2 * LN4) / Math.SQRT2 + 0.3), `q:6（自分）= ${s[11]}`);
+  assert.ok(near(s[4], 2.0 * LN4), `q:2（ひっかけだけ）= ${s[4]}`);
+  assert.ok(near(s[10], 1.2 * LN4 / Math.SQRT2 + 0.3), `q:5（概念 + 章）= ${s[10]}`);
+  assert.ok(near(s[11], (1.2 * LN4 + 2.0 * LN4) / Math.SQRT2 + 0.3), `q:6（自分）= ${s[11]}`);
   assert.ok(s[4] > s[10]);
   assert.strictEqual(s[3], 0);
   assert.strictEqual(s[6], 0);
@@ -30,11 +30,27 @@ test('nearScores: 同じルールと同じ章は、概念・ひっかけを共�
 test('nearScores: 起点が概念。配下の問題の特徴の割合で点が付く', () => {
   const { g, ix } = setup();
   const s = N.nearScores(g, ix, 14); // con:c（q:5・q:6）
-  assert.ok(near(s[11], (LN4 + 2 * LN4 * 0.5) / Math.SQRT2 + 0.3));
-  assert.ok(near(s[10], (LN4 * 0.5 + LN4) / Math.SQRT2 + 0.3));
-  assert.ok(near(s[4], 2 * LN4 * 0.5));
-  assert.ok(near(s[3], LN4 * 0.5));
+  assert.ok(near(s[11], (1.2 * LN4 + 2.0 * LN4 * 0.5) / Math.SQRT2 + 0.3));
+  assert.ok(near(s[10], (1.2 * LN4 * 0.5 + 1.2 * LN4) / Math.SQRT2 + 0.3));
+  assert.ok(near(s[4], 2.0 * LN4 * 0.5));
+  assert.ok(near(s[3], 1.2 * LN4 * 0.5));
   assert.strictEqual(s[6], 0);
+});
+
+test('nearScores: 重みは Trap (2.0) > 主概念 (1.2) > 副概念 (0.4)', () => {
+  assert.strictEqual(N.NEAR.trapBase, 2.0);
+  assert.strictEqual(N.NEAR.conceptBase, 1.2);
+  assert.strictEqual(N.NEAR.secondaryConceptBase, 0.4);
+  const g = makeFixture();
+  // q:4(7) は特徴なし → con:b(13) を副概念（type 3）として追加。q:3(6) は con:b(13) が主概念（type 1）
+  g.edges.push(7, 13, 3);
+  // q:1(3) にも con:b(13) を副概念（type 3）として追加
+  g.edges.push(3, 13, 3);
+  const ix = F.buildIndex(g);
+  const s = N.nearScores(g, ix, 6); // 起点 q:3（con:b が主概念、ch:kin:2）
+  assert.ok(s[3] > 0, '副概念を共有する問題にも正の点が付く');
+  // 同じ con:b でも主概念同士の方が副概念経由より高い（q:3 自身 > q:1）
+  assert.ok(s[6] > s[3]);
 });
 
 test('nearScores: 概念もひっかけもない問題が起点でも落ちない（同じ章の問題に点が付く）', () => {
