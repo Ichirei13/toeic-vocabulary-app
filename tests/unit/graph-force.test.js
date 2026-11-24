@@ -77,10 +77,12 @@ d3test('実行時: weakQ・hubWeak を渡さなくても落ちない（苦手な
   assert.strictEqual(p.length, 16);
 });
 
-test('文法軸: 定数（GRAMMAR_CONCEPT_ORDER は 13 概念、GRAPH_GRAMMAR は半径・tick 数を持つ）', () => {
-  assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER.length, 13);
-  assert.strictEqual(new Set(GF.GRAMMAR_CONCEPT_ORDER).size, 13);
+test('文法軸: 定数（GRAMMAR_CONCEPT_ORDER は 16 概念、GRAPH_GRAMMAR は半径・tick 数を持つ）', () => {
+  assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER.length, 16);
+  assert.strictEqual(new Set(GF.GRAMMAR_CONCEPT_ORDER).size, 16);
   assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER[0], 'con:SVOC（文の骨格）');
+  assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER[1], 'con:動詞・形容詞の語法');
+  assert.strictEqual(GF.GRAMMAR_CONCEPT_ORDER[14], 'con:前置詞のコアイメージと用法');
   assert.strictEqual(GF.GRAPH_GRAMMAR.ringRadius > 0, true);
   assert.strictEqual(GF.GRAPH_GRAMMAR.ticks, 120);
   assert.ok(GF.GRAPH_GRAMMAR.alpha > 0);

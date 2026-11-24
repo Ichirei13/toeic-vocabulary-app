@@ -233,8 +233,9 @@
           );
         }).join('');
 
+        const conceptCount = rep.concepts.length;
         const radarSvg =
-          `<svg class="graph-radar-svg${compact ? ' is-compact' : ''}" viewBox="0 0 420 330" role="img" aria-label="13文法概念のレーダーチャート">` +
+          `<svg class="graph-radar-svg${compact ? ' is-compact' : ''}" viewBox="0 0 420 330" role="img" aria-label="${esc(conceptCount)}文法概念のレーダーチャート">` +
             ringsSvg +
             axesSvg +
             covPolySvg +
@@ -247,7 +248,7 @@
         const radarCardHtml =
           `<section class="graph-radar-card graph-radar-chart-card" aria-label="文法概念レーダーチャート">` +
             `<div class="graph-radar-card-head">` +
-              `<h3>13 文法概念バランス</h3>` +
+              `<h3>${esc(conceptCount)} 文法概念バランス</h3>` +
               `<button type="button" class="graph-radar-mini-toggle" data-radar-cov="1" aria-pressed="${showCoverage}">着手率を重ねる</button>` +
             `</div>` +
             `<div class="graph-radar-svg-wrap">${radarSvg}</div>` +

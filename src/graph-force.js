@@ -47,14 +47,16 @@
   };
   const ORIGIN = [0, 0];
 
-  // 文法軸モード: 13 概念を 12 時から時計回りに並べる既定の順序（学習の流れ＋共起の多い概念同士が隣り合う順）。
+  // 文法軸モード: 16 概念を 12 時から時計回りに並べる既定の順序（左右対称の 16 軸）。
   // 一覧にない概念が将来増えても、末尾に添字順で追加して等分する。
   const GRAMMAR_CONCEPT_ORDER = [
     'con:SVOC（文の骨格）',
+    'con:動詞・形容詞の語法',
     'con:能動態と受動態',
     'con:分詞（現在分詞・過去分詞）',
     'con:動詞の時制と相',
-    'con:助動詞・仮定法',
+    'con:助動詞',
+    'con:仮定法',
     'con:動名詞 vs 不定詞',
     'con:名詞の役割（主語・目的語・補語）',
     'con:代名詞の格と用法',
@@ -62,6 +64,7 @@
     'con:関係代名詞・関係副詞',
     'con:比較級・最上級',
     'con:接続詞 vs 前置詞の識別',
+    'con:前置詞のコアイメージと用法',
     'con:倒置・強調・並列構造',
   ];
 
@@ -214,6 +217,8 @@
     const primaryConcept = new Int32Array(n).fill(-1);
     const order = new Map();
     for (let k = 0; k < GRAMMAR_CONCEPT_ORDER.length; k++) order.set(GRAMMAR_CONCEPT_ORDER[k], k);
+    // v3 データ互換: 分離前の「助動詞・仮定法」は「助動詞」の位置に並べる
+    if (order.has('con:助動詞') && !order.has('con:助動詞・仮定法')) order.set('con:助動詞・仮定法', order.get('con:助動詞'));
 
     const concepts = [];
     for (let i = 0; i < n; i++) if (kindName[i] === 'concept') concepts.push(i);

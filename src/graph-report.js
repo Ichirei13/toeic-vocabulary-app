@@ -15,21 +15,42 @@
 
   const CONCEPT_SHORT_LABELS = {
     'SVOC（文の骨格）': 'SVOC',
+    '動詞・形容詞の語法': '語法',
     '能動態と受動態': '受動態',
     '分詞（現在分詞・過去分詞）': '分詞',
     '動詞の時制と相': '時制・相',
-    '助動詞・仮定法': '助動詞・仮定法',
+    '助動詞': '助動詞',
+    '仮定法': '仮定法',
+    '助動詞・仮定法': '助動詞・仮定法', // v3 互換用
     '動名詞 vs 不定詞': '動名詞/不定詞',
-    '名詞の役割（主語・目的語・補語）': '名詞',
+    '名詞の役割（主語・目的語・補語）': '名詞・冠詞',
     '代名詞の格と用法': '代名詞',
     '形容詞と副詞の修飾関係': '形容詞・副詞',
     '関係代名詞・関係副詞': '関係詞',
     '比較級・最上級': '比較',
-    '接続詞 vs 前置詞の識別': '接続詞/前置詞',
+    '接続詞 vs 前置詞の識別': '接続詞',
+    '前置詞のコアイメージと用法': '前置詞',
     '倒置・強調・並列構造': '倒置・強調',
   };
-  // src/graph-force.js が未読み込み（オフライン・力学アセット失敗）でも 13 軸の順序を保つための既定順
-  const DEFAULT_CONCEPT_ORDER = Object.keys(CONCEPT_SHORT_LABELS).map(k => 'con:' + k);
+  // src/graph-force.js が未読み込み（オフライン・力学アセット失敗）でも 16 軸の順序を保つための既定順
+  const DEFAULT_CONCEPT_ORDER = [
+    'con:SVOC（文の骨格）',
+    'con:動詞・形容詞の語法',
+    'con:能動態と受動態',
+    'con:分詞（現在分詞・過去分詞）',
+    'con:動詞の時制と相',
+    'con:助動詞',
+    'con:仮定法',
+    'con:動名詞 vs 不定詞',
+    'con:名詞の役割（主語・目的語・補語）',
+    'con:代名詞の格と用法',
+    'con:形容詞と副詞の修飾関係',
+    'con:関係代名詞・関係副詞',
+    'con:比較級・最上級',
+    'con:接続詞 vs 前置詞の識別',
+    'con:前置詞のコアイメージと用法',
+    'con:倒置・強調・並列構造',
+  ];
 
   const hasOwn = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -164,9 +185,13 @@
       }, agg);
     };
 
-    // 13 概念を既定順（なければグラフ順）に並べる
+    // 概念を既定順（なければグラフ順）に並べる
     const conceptRank = new Map();
     conceptOrder.forEach((id, idx) => conceptRank.set(id, idx));
+    // v3 データ互換: 分離前の「助動詞・仮定法」は「助動詞」の位置に並べる
+    if (conceptRank.has('con:助動詞') && !conceptRank.has('con:助動詞・仮定法')) {
+      conceptRank.set('con:助動詞・仮定法', conceptRank.get('con:助動詞'));
+    }
     const conceptNodes = [];
     const trapNodes = [];
     const bookNodes = [];

@@ -48,9 +48,16 @@ const SAMPLE_GRAPH = makeGraph([
   { id: 'q:5', kind: 'question', label: '#5', members: [5], qid: 5 },
 ]);
 
-test('shortConceptLabel: 既知の 13 概念と未知ラベルをすっきりした短縮名にする', () => {
+test('shortConceptLabel & DEFAULT_CONCEPT_ORDER: 既知の 16 概念と未知ラベルをすっきりした短縮名にする', () => {
+  assert.equal(R.DEFAULT_CONCEPT_ORDER.length, 16);
+  assert.equal(new Set(R.DEFAULT_CONCEPT_ORDER).size, 16);
   assert.equal(R.shortConceptLabel('SVOC（文の骨格）'), 'SVOC');
-  assert.equal(R.shortConceptLabel('接続詞 vs 前置詞の識別'), '接続詞/前置詞');
+  assert.equal(R.shortConceptLabel('動詞・形容詞の語法'), '語法');
+  assert.equal(R.shortConceptLabel('助動詞'), '助動詞');
+  assert.equal(R.shortConceptLabel('仮定法'), '仮定法');
+  assert.equal(R.shortConceptLabel('名詞の役割（主語・目的語・補語）'), '名詞・冠詞');
+  assert.equal(R.shortConceptLabel('接続詞 vs 前置詞の識別'), '接続詞');
+  assert.equal(R.shortConceptLabel('前置詞のコアイメージと用法'), '前置詞');
   assert.equal(R.shortConceptLabel('未知のとても長い概念名（補足説明つき）'), '未知のとても長い概…');
 });
 
@@ -227,13 +234,14 @@ test('実グラフ (GRAMMAR_GRAPH): 13 概念・12 Trap・4 教材の集計と�
   assert.equal(rep.concepts[0].id, 'con:SVOC（文の骨格）');
 });
 
-test('computeGraphReport: conceptOrder 省略時（graph-force.js 未読込時）も既定の 13 概念順を維持する', () => {
+test('computeGraphReport: conceptOrder 省略時（graph-force.js 未読込時）も GRAMMAR_CONCEPT_ORDER と同じ並びを維持する', () => {
   const code = fs.readFileSync(path.join(__dirname, '../../data/grammar_graph.js'), 'utf8');
   const ctx = {};
   vm.runInNewContext(code + '; this.GRAMMAR_GRAPH = GRAMMAR_GRAPH;', ctx);
   const g = ctx.GRAMMAR_GRAPH;
   const repNoOrder = R.computeGraphReport(g, {}, {}, NEVER_DUE);
-  assert.deepEqual(repNoOrder.concepts.map(c => c.id), F.GRAMMAR_CONCEPT_ORDER);
+  const repWithOrder = R.computeGraphReport(g, {}, {}, NEVER_DUE, { conceptOrder: F.GRAMMAR_CONCEPT_ORDER });
+  assert.deepEqual(repNoOrder.concepts.map(c => c.id), repWithOrder.concepts.map(c => c.id));
 });
 
 test('sortReportItems & summary: total=0（収録なし）は最下位、苦手あり67%の単一概念は得意ではなく要強化になる', () => {
