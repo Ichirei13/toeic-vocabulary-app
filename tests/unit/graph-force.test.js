@@ -287,3 +287,22 @@ test('文法軸: grammarLayoutSignature は決定論的で、データ・設定�
   assert.notStrictEqual(sRenamed, s1, '件数が同じでも、ノードの id が変われば署名が変わる');
   assert.ok(s1.startsWith('g2:'), '中身を含める形式に変えたので版は g2');
 });
+
+d3test('文法軸: 副概念エッジ（type 3）は弱い引力を持ち、主概念の島に留まりつつ副概念側へ少し寄る', async () => {
+  assert.ok(GF.GRAPH_GRAMMAR.secondaryConceptStrength > 0 && GF.GRAPH_GRAMMAR.secondaryConceptStrength < GF.GRAPH_GRAMMAR.conceptStrength);
+  const d3 = await loadD3();
+  const gBase = makeFixture();
+  const gSec = makeFixture();
+  gSec.edges.push(3, 13, 3); // q:1(3) の主概念は con:a(12)、副概念に con:b(13) を追加
+  const runG = g => {
+    const kindName = g.kind.map(k => g.kinds[k]);
+    const made = GF.createGrammarSimulation(d3, { ids: g.id, kindName, edges: g.edges }, GF.GRAPH_GRAMMAR);
+    for (let t = 0; t < made.ticks; t++) made.sim.tick();
+    return made.nodes.map(nd => [nd.x, nd.y]);
+  };
+  const pBase = runG(gBase);
+  const pSec = runG(gSec);
+  // 副概念を付けると con:b(13) に近づくが、依然として主概念 con:a(12) の方が近い
+  assert.ok(dist(pSec, 3, 13) < dist(pBase, 3, 13), '副概念側へ少し寄る');
+  assert.ok(dist(pSec, 3, 12) < dist(pSec, 3, 13), '主概念の島に留まる');
+});

@@ -469,3 +469,17 @@ test('focusSet: 範囲外の添字・範囲外の近い問題でも落ちず、�
   assert.deepStrictEqual(on(F.focusSet(g, ix, 99)), []);
   assert.deepStrictEqual(on(F.focusSet(g, ix, 3, [99, -1, 4])), [1, 2, 3, 4, 12]);
 });
+
+test('buildIndex & focusSet: 副概念エッジ（type 3）は secStart/secHubs に分離され、問題選択時に浮かび上がる', () => {
+  const g = makeFixture();
+  // q:1(3) に con:b(13) を副概念（type 3）として追加
+  g.edges.push(3, 13, 3);
+  const ix = F.buildIndex(g);
+  const hubsOf = q => [...ix.hubs.slice(ix.hubStart[q], ix.hubStart[q + 1])];
+  const secsOf = q => [...ix.secHubs.slice(ix.secStart[q], ix.secStart[q + 1])];
+  assert.deepStrictEqual(hubsOf(3), [12], '主概念は hubs に入る');
+  assert.deepStrictEqual(secsOf(3), [13], '副概念は secHubs に分離される');
+  assert.deepStrictEqual(secsOf(10), [], '副概念のない問題は空');
+  // 問題 q:1(3) を選択すると副概念 con:b(13) も浮かび上がる
+  assert.deepStrictEqual(on(F.focusSet(g, ix, 3)), [1, 2, 3, 12, 13]);
+});

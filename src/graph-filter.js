@@ -122,18 +122,27 @@
 
     const parent = new Int32Array(n).fill(-1);
     const hubStart = new Int32Array(n + 1);
+    const secStart = new Int32Array(n + 1);
     for (let k = 0; k + 2 < E.length; k += 3) {
       const a = E[k], b = E[k + 1], t = E[k + 2];
       if (!ok(a, b)) continue;
       if (t === 0) parent[b] = a;
       else if (t === 1 || t === 2) hubStart[a + 1]++;
+      else if (t === 3) secStart[a + 1]++;
     }
-    for (let i = 0; i < n; i++) hubStart[i + 1] += hubStart[i];
+    for (let i = 0; i < n; i++) {
+      hubStart[i + 1] += hubStart[i];
+      secStart[i + 1] += secStart[i];
+    }
     const hubs = new Int32Array(hubStart[n]);
+    const secHubs = new Int32Array(secStart[n]);
     const fill = hubStart.slice(0, n);
+    const secFill = secStart.slice(0, n);
     for (let k = 0; k + 2 < E.length; k += 3) {
       const a = E[k], b = E[k + 1], t = E[k + 2];
-      if (ok(a, b) && (t === 1 || t === 2)) hubs[fill[a]++] = b;
+      if (!ok(a, b)) continue;
+      if (t === 1 || t === 2) hubs[fill[a]++] = b;
+      else if (t === 3) secHubs[secFill[a]++] = b;
     }
 
     // 序数 → 問題ノード（問題ノードの members は自分の序数だけ）と、問題ノードの章・ルール
@@ -150,7 +159,7 @@
         j = parent[j];
       }
     }
-    return { n, nq, parent, hubStart, hubs, qNode, chapterOf, ruleOf, kQ, kCh, kRule, kCon, kTrap, kBook };
+    return { n, nq, parent, hubStart, hubs, secStart, secHubs, qNode, chapterOf, ruleOf, kQ, kCh, kRule, kCon, kTrap, kBook };
   }
 
   // 概念・ひっかけへの線を、章（level = 'chapter'）またはルール（'rule'）の単位で束ねる。
@@ -206,8 +215,13 @@
     f[i] = 1;
     const k = graph.kind[i];
     const addHubs = q => { for (let h = index.hubStart[q]; h < index.hubStart[q + 1]; h++) f[index.hubs[h]] = 1; };
+    const addSecHubs = q => {
+      if (!index.secStart || !index.secHubs) return;
+      for (let h = index.secStart[q]; h < index.secStart[q + 1]; h++) f[index.secHubs[h]] = 1;
+    };
     if (k === index.kQ) {
       addHubs(i);
+      addSecHubs(i);
       if (index.ruleOf[i] !== -1) f[index.ruleOf[i]] = 1;
       if (index.chapterOf[i] !== -1) f[index.chapterOf[i]] = 1;
       if (extraQuestionNodes) for (const q of extraQuestionNodes) if (Number.isInteger(q) && q >= 0 && q < index.n) f[q] = 1;

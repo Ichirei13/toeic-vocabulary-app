@@ -11,9 +11,10 @@
   const GRAPH_LAYOUT = {
     seed: 20261108,
     ticks: 400,            // 固定の tick 数（収束を待たない。同じ入力から同じ出力にするため）
-    // リンクの強さ（forceLink）。親子は強く、概念・Trap は弱く
+    // リンクの強さ（forceLink）。親子は強く、概念・Trap は弱く、副概念はさらに弱く
     parentStrength: 0.9,
     conceptStrength: 0.02,
+    secondaryConceptStrength: 0.008,
     trapStrength: 0.02,
     // 反発（forceManyBody）の強さ（負の値）。種類ごと
     charge: { book: -600, chapter: -260, rule: -34, concept: -700, trap: -700, question: -7 },
@@ -86,6 +87,9 @@
     conceptStrength: 0.45,
     conceptDistance: 65,
     weakConceptStrength: 0.7,
+    secondaryConceptStrength: 0.12,
+    secondaryConceptDistance: 100,
+    weakSecondaryConceptStrength: 0.25,
     parentStrength: 0.25,
     parentDistance: 32,
     weakParentFactor: 0.4,
@@ -161,6 +165,7 @@
         const w = isWeak(l.q);
         if (l.type === 0) return w ? config.parentStrength * runtime.weakParentFactor : config.parentStrength;
         if (l.type === 1) return w ? runtime.weakConceptStrength : config.conceptStrength;
+        if (l.type === 3) return w ? runtime.weakConceptStrength * 0.4 : (config.secondaryConceptStrength ?? config.conceptStrength * 0.4);
         return w ? runtime.weakTrapStrength : config.trapStrength;
       })
       .distance(l => (l.type === 0 ? PARENT_DISTANCE : isWeak(l.q) ? runtime.weakLinkDistance : HUB_DISTANCE));
@@ -237,12 +242,14 @@
     }
 
     const parent = new Int32Array(n).fill(-1);
-    const qSumX = new Float64Array(n), qSumY = new Float64Array(n), qCnt = new Int32Array(n);
+    const qSumX = new Float64Array(n), qSumY = new Float64Array(n), qWeight = new Float64Array(n);
+    const qPrimaryCnt = new Int32Array(n), qSecCnt = new Int32Array(n);
     const conTotal = new Int32Array(n);
     for (let k = 0; k + 2 < edges.length; k += 3) {
       const a = edges[k], b = edges[k + 1], t = edges[k + 2];
       if (t === 0) parent[b] = a;
-      else if (t === 1 && pinned[b]) { qSumX[a] += x[b]; qSumY[a] += y[b]; qCnt[a]++; conTotal[b]++; }
+      else if (t === 1 && pinned[b]) { qSumX[a] += x[b]; qSumY[a] += y[b]; qWeight[a] += 1; qPrimaryCnt[a]++; conTotal[b]++; }
+      else if (t === 3 && pinned[b]) { qSumX[a] += x[b] * 0.25; qSumY[a] += y[b] * 0.25; qWeight[a] += 0.25; qSecCnt[a]++; }
     }
 
     // 章・ルールごとに配下の問題が最も多く紐づく概念を 1 つ選ぶ（同数なら総問題数が少ない限定的な概念を優先）
@@ -282,10 +289,10 @@
     for (let i = 0; i < n; i++) {
       if (kindName[i] !== 'question') continue;
       let px = 0, py = 0;
-      if (qCnt[i] > 0) {
-        px = qSumX[i] / qCnt[i];
-        py = qSumY[i] / qCnt[i];
-        if (qCnt[i] === 1) {
+      if (qWeight[i] > 0) {
+        px = qSumX[i] / qWeight[i];
+        py = qSumY[i] / qWeight[i];
+        if (qPrimaryCnt[i] === 1 && qSecCnt[i] === 0) {
           const len = Math.hypot(px, py);
           if (len > 0) { px += (px / len) * config.singleOutward; py += (py / len) * config.singleOutward; }
         }
@@ -380,6 +387,7 @@
         const w = isWeak(l.q);
         if (l.type === 1) return w ? config.weakConceptStrength : config.conceptStrength;
         if (l.type === 2) return w ? config.weakTrapStrength : config.trapStrength;
+        if (l.type === 3) return w ? (config.weakSecondaryConceptStrength ?? config.weakConceptStrength * 0.35) : (config.secondaryConceptStrength ?? config.conceptStrength * 0.25);
         if (l.isBookCh) return config.bookChapterStrength;
         return w ? config.parentStrength * config.weakParentFactor : config.parentStrength;
       })
@@ -387,6 +395,7 @@
         const w = isWeak(l.q);
         if (l.type === 1) return w ? config.weakLinkDistance : config.conceptDistance;
         if (l.type === 2) return w ? config.weakLinkDistance : config.trapDistance;
+        if (l.type === 3) return w ? config.weakLinkDistance : (config.secondaryConceptDistance ?? config.conceptDistance * 1.5);
         if (l.isBookCh) return config.bookChapterDistance;
         return config.parentDistance;
       });
@@ -448,7 +457,9 @@
     for (const k of [
       'seed', 'ringRadius', 'ticks', 'alpha', 'singleOutward', 'jitter', 'centerPull',
       'bookCorner', 'bookPull', 'chapterPull', 'rulePull', 'chapterRadiusFactor',
-      'conceptStrength', 'conceptDistance', 'weakConceptStrength', 'parentStrength', 'parentDistance',
+      'conceptStrength', 'conceptDistance', 'weakConceptStrength',
+      'secondaryConceptStrength', 'secondaryConceptDistance', 'weakSecondaryConceptStrength',
+      'parentStrength', 'parentDistance',
       'weakParentFactor', 'bookChapterStrength', 'bookChapterDistance', 'trapStrength', 'trapDistance',
       'weakTrapStrength', 'weakLinkDistance', 'chargeDistanceMax', 'collideStrength', 'hubCollidePerWeak',
     ]) mixVal(config[k]);
