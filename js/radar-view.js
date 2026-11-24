@@ -93,6 +93,7 @@
         questionNode: qid => (qidNode.has(qid) ? qidNode.get(qid) : -1),
         // 呼び出し側が画面を切り替える（この後 destroy されうる）
         onQuestion: node => { if (typeof deps.onOpenQuestion === 'function') deps.onOpenQuestion(node); },
+        onJumpNode: node => openSheet(node),
         onDrill: p => { if (typeof deps.onStartDrill === 'function') deps.onStartDrill(p.ids, p.label, { kind: p.kind }); },
         onClose: () => { sheetIndex = -1; syncSelection(); },
       });

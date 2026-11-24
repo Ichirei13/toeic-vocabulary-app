@@ -348,3 +348,24 @@ test('book フィルタ: 詳細シートの状態は、同じ教材で絞った�
     }
   }
 });
+
+test('question ノード (v4): 解法タイプ・1行着眼点・主概念/副概念/Trap の参照を返す', () => {
+  const g4 = makeGraph([
+    { id: 'con:SVOC（文の骨格）', kind: 'concept', label: 'SVOC（文の骨格）', members: [7] },
+    { id: 'con:動詞の時制と相', kind: 'concept', label: '動詞の時制と相', members: [] },
+    { id: 'trap:Trap_01', kind: 'trap', label: '時制の罠', members: [7] },
+    { id: 'q:7', kind: 'question', label: '#7', members: [7], qid: 7 },
+  ]);
+  // q:7(3) -> con:SVOC(0) [type 1], con:時制(1) [type 3], trap:Trap_01(2) [type 2]
+  g4.edges = [3, 0, 1, 3, 1, 3, 3, 2, 2];
+  g4.solveTypes = ['品詞・語形', '文構造'];
+  g4.qSolveType = [1];
+  g4.qPoint = ['空欄の前後から主語と動詞の対応を見抜く'];
+  const m4 = M.computeMastery(g4, {}, {}, NEVER_DUE);
+  const d = D.buildDetail(g4, m4, 3, { stats: {}, weak: {}, getQuestion: () => ({ q: 'Seven' }) });
+  assert.strictEqual(d.solveType, '文構造');
+  assert.strictEqual(d.point, '空欄の前後から主語と動詞の対応を見抜く');
+  assert.deepStrictEqual(d.primaryConcept, { nodeIndex: 0, id: 'con:SVOC（文の骨格）', label: 'SVOC（文の骨格）' });
+  assert.deepStrictEqual(d.secondaryConcepts, [{ nodeIndex: 1, id: 'con:動詞の時制と相', label: '動詞の時制と相' }]);
+  assert.deepStrictEqual(d.traps, [{ nodeIndex: 2, id: 'trap:Trap_01', label: '時制の罠' }]);
+});

@@ -132,12 +132,12 @@
     // 当たり判定の優先度（ほぼ同距離のときだけ使う）: 大きい種類を優先
     const hitOrder = new Int32Array(n);
     for (let i = 0; i < n; i++) hitOrder[i] = 10 - (LABEL_PRIORITY[kindName(i)] || 0);
-    // エッジを種類ごとに分けておく（親子 0・概念 1・Trap 2）
-    const edgeLists = [[], [], []];
+    // エッジを種類ごとに分けておく（親子 0・主概念 1・Trap 2・副概念 3）
+    const edgeLists = [[], [], [], []];
     const E = graph.edges || [];
     for (let k = 0; k + 2 < E.length; k += 3) {
       const t = E[k + 2];
-      if (t >= 0 && t <= 2 && E[k] >= 0 && E[k] < n && E[k + 1] >= 0 && E[k + 1] < n) edgeLists[t].push(E[k], E[k + 1]);
+      if (t >= 0 && t <= 3 && E[k] >= 0 && E[k] < n && E[k + 1] >= 0 && E[k + 1] < n) edgeLists[t].push(E[k], E[k + 1]);
     }
     const edgesByType = edgeLists.map(a => Int32Array.from(a));
 
@@ -236,6 +236,7 @@
       getSheetHeight: deps.getSheetHeight, setSheetHeight: deps.setSheetHeight,
       questionNode: qid => (qidNode.has(qid) ? qidNode.get(qid) : -1),
       onQuestion: node => jumpTo(node),
+      onJumpNode: node => jumpTo(node),
       onDrill: p => { if (typeof deps.onStartDrill === 'function') deps.onStartDrill(p.ids, p.label, { kind: p.kind }); },
       onClose: () => { sheetIndex = -1; clearFocus(); },
     });
@@ -556,10 +557,11 @@
         [colors.edge, 1, null],
         [colors.conceptEdge, 1, [1.5, 3]],
         [colors.trapLine, 1.2, [5, 4]],
+        [colors.conceptEdge, 0.7, [1, 4]],
       ];
       for (let pass = 0; pass < (lit ? 2 : 1); pass++) {
         // pass 0 = 全部（選択中は薄く）、pass 1 = 両端が浮かび上がっている線だけ
-        for (let t = 0; t < 3; t++) {
+        for (let t = 0; t < 4; t++) {
           const list = edgesByType[t];
           ctx.beginPath();
           let any = false;
@@ -822,7 +824,7 @@
       let c = 0;
       for (let k = 0; k < n; k++) c += focus[k];
       focusEdges = 0;
-      for (let t = 0; t < 3; t++) {
+      for (let t = 0; t < 4; t++) {
         const list = edgesByType[t];
         for (let k = 0; k < list.length; k += 2) if (focus[list[k]] && focus[list[k + 1]]) focusEdges++;
       }

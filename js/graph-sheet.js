@@ -70,6 +70,21 @@
           `<div><dt>解答数</dt><dd>${esc(d.answered)}</dd></div>` +
           `<div><dt>苦手</dt><dd>${esc(d.weakCount)}</dd></div>` +
         '</dl>';
+      if (d.solveType || d.point || d.primaryConcept || (d.secondaryConcepts && d.secondaryConcepts.length) || (d.traps && d.traps.length)) {
+        html += '<div class="graph-q-meta">';
+        if (d.solveType) html += `<span class="graph-solve-badge">${esc(d.solveType)}</span>`;
+        if (d.point) html += `<p class="graph-point">${esc(d.point)}</p>`;
+        const chips = [];
+        if (d.primaryConcept) chips.push(`<button type="button" class="graph-tag-chip is-primary" data-jump-node="${d.primaryConcept.nodeIndex}">${esc(d.primaryConcept.label)}</button>`);
+        if (Array.isArray(d.secondaryConcepts)) {
+          for (const sc of d.secondaryConcepts) chips.push(`<button type="button" class="graph-tag-chip is-secondary" data-jump-node="${sc.nodeIndex}">${esc(sc.label)}</button>`);
+        }
+        if (Array.isArray(d.traps)) {
+          for (const tr of d.traps) chips.push(`<button type="button" class="graph-tag-chip is-trap" data-jump-node="${tr.nodeIndex}">${esc(tr.label)}</button>`);
+        }
+        if (chips.length > 0) html += `<div class="graph-tag-chips">${chips.join('')}</div>`;
+        html += '</div>';
+      }
       if (d.desc) html += `<p class="graph-desc">${richText(d.desc)}</p>`;
       if (d.advice) html += `<p class="graph-advice"><span class="graph-advice-label">対策</span>${richText(d.advice)}</p>`;
       picks = null;
@@ -178,6 +193,8 @@
         if (p && typeof opts.onDrill === 'function') opts.onDrill({ ids: p.ids.slice(), label: p.label, kind: p.kind });
         return;
       }
+      const chip = e.target.closest('.graph-tag-chip[data-jump-node]');
+      if (chip && typeof opts.onJumpNode === 'function') { opts.onJumpNode(Number(chip.dataset.jumpNode)); return; }
       const li = e.target.closest('.graph-q[data-node]');
       if (li && typeof opts.onQuestion === 'function') opts.onQuestion(Number(li.dataset.node));
     }

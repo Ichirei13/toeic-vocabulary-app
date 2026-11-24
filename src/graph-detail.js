@@ -175,6 +175,50 @@
       if (t && typeof t.advice === 'string') detail.advice = t.advice;
     }
 
+    if (kindName === 'question') {
+      const ord = graph.memberStart && graph.members && graph.memberStart[nodeIndex + 1] > graph.memberStart[nodeIndex]
+        ? graph.members[graph.memberStart[nodeIndex]]
+        : (Array.isArray(graph.qids) ? graph.qids.indexOf(graph.qid[nodeIndex]) : -1);
+      if (ord >= 0) {
+        if (Array.isArray(graph.solveTypes) && Array.isArray(graph.qSolveType)) {
+          const stIdx = graph.qSolveType[ord];
+          if (Number.isInteger(stIdx) && stIdx >= 0 && stIdx < graph.solveTypes.length && typeof graph.solveTypes[stIdx] === 'string' && graph.solveTypes[stIdx]) {
+            detail.solveType = graph.solveTypes[stIdx];
+          }
+        }
+        if (Array.isArray(graph.qPoint) && typeof graph.qPoint[ord] === 'string' && graph.qPoint[ord]) {
+          detail.point = graph.qPoint[ord];
+        }
+      }
+      if (Array.isArray(graph.edges)) {
+        let primaryConcept = null;
+        const secondaryConcepts = [];
+        const traps = [];
+        const makeRef = to => ({
+          nodeIndex: to,
+          id: String(graph.id[to]),
+          label: graph.label && graph.label[to] != null ? String(graph.label[to]) : String(graph.id[to]),
+        });
+        for (let k = 0; k + 2 < graph.edges.length; k += 3) {
+          if (graph.edges[k] !== nodeIndex) continue;
+          const to = graph.edges[k + 1];
+          const t = graph.edges[k + 2];
+          if (!(to >= 0 && to < n)) continue;
+          if (t === 1) {
+            if (!primaryConcept) primaryConcept = makeRef(to);
+            else secondaryConcepts.push(makeRef(to));
+          } else if (t === 3) {
+            secondaryConcepts.push(makeRef(to));
+          } else if (t === 2) {
+            traps.push(makeRef(to));
+          }
+        }
+        if (primaryConcept) detail.primaryConcept = primaryConcept;
+        if (secondaryConcepts.length > 0) detail.secondaryConcepts = secondaryConcepts;
+        if (traps.length > 0) detail.traps = traps;
+      }
+    }
+
     detail.questions = shown;
     if (items.length > MAX_QUESTIONS) detail.moreCount = items.length - MAX_QUESTIONS;
     return detail;
