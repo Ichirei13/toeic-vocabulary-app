@@ -301,7 +301,7 @@ function bruteForce(xs, ys, wx, wy, r, order) {
 
 test('実データ: hitTest は総当たりと完全に一致する（乱数点 2000 個 × 複数の半径）', () => {
   const xs = REAL.x, ys = REAL.y;
-  assert.strictEqual(xs.length, 1201);
+  assert.strictEqual(xs.length, 1210);
   const rnd = rng(20261108);
   const radii = [0, 0.5, 3, 8, 14, 30, 100, 400];
   const grids = [8, 14, 40].map(cs => G.buildGrid(xs, ys, cs));

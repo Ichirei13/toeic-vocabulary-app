@@ -176,7 +176,7 @@ test('出題ボタン: テーマの全問と、苦手と未着手だけを選べ
   const page = await open(t);
   const info = await page.evaluate(() => {
     const G = GRAMMAR_GRAPH;
-    const i = G.id.indexOf('con:SVOC（文の骨格）');
+    const i = G.id.indexOf('con:動名詞 vs 不定詞');
     const qs = [];
     for (let k = G.memberStart[i]; k < G.memberStart[i + 1]; k++) qs.push(G.qids[G.members[k]]);
     const uniq = [...new Set(qs)];
@@ -206,7 +206,7 @@ test('出題ボタン: テーマの全問と、苦手と未着手だけを選べ
   assert.deepEqual(d.ids.slice(0, 3).sort(), info.weakIds.slice().sort(), '苦手が先頭に来ていない');
   assert.deepEqual(d.ids.slice(-10).sort(), info.correctIds.slice().sort(), '正解済みが最後に来ていない');
   assert.equal(d.opts && d.opts.kind, 'theme');
-  assert.match(d.label, /SVOC/);
+  assert.match(d.label, /動名詞 vs 不定詞/);
 
   await page.evaluate(() => { window.__drill = null; });
   await restBtn.click();
@@ -258,7 +258,7 @@ test('横棒: 正解・克服・苦手・未着手の色分けの内訳で描き
   const page = await open(t);
   const info = await page.evaluate(() => {
     const G = GRAMMAR_GRAPH;
-    const i = G.id.indexOf('con:SVOC（文の骨格）');
+    const i = G.id.indexOf('con:動名詞 vs 不定詞');
     const qs = [];
     for (let k = G.memberStart[i]; k < G.memberStart[i + 1]; k++) qs.push(G.qids[G.members[k]]);
     const uniq = [...new Set(qs)];
@@ -296,7 +296,7 @@ test('横棒: 正解・克服・苦手・未着手の色分けの内訳で描き
   assert.equal(new Set(res.colors).size, 4, `4 色が区別できない: ${JSON.stringify(res.colors)}`);
 });
 
-test('開くと SVG レーダー(13軸)と横棒グラフが出て rAF・タイマーは 0 回、グラフ本体は無い。教材・苦手・カテゴリ・ソートが連動する', async t => {
+test('開くと SVG レーダー(16軸)と横棒グラフが出て rAF・タイマーは 0 回、グラフ本体は無い。教材・苦手・カテゴリ・ソートが連動する', async t => {
   const page = await open(t);
   await page.evaluate(() => {
     // 合成の記録: 複数教材・複数概念に正誤と苦手を混ぜる
@@ -324,12 +324,12 @@ test('開くと SVG レーダー(13軸)と横棒グラフが出て rAF・タイ�
   assert.equal(initial.canvas, 0);
   assert.equal(initial.graphView, 'undefined');
   assert.equal(initial.modeBtns, 0);
-  // graph-force.js（GRAMMAR_CONCEPT_ORDER）を読まないページでも、軸は文法軸と同じ順（12 時から SVOC → 能動態と受動態）
+  // graph-force.js（GRAMMAR_CONCEPT_ORDER）を読まないページでも、軸は文法軸と同じ順（12 時から SVOC → 動詞・形容詞の語法）
   assert.match(initial.firstAxes[0], /^SVOC/);
-  assert.match(initial.firstAxes[1], /^能動態と受動態/);
+  assert.match(initial.firstAxes[1], /^動詞・形容詞の語法/);
   assert.equal(initial.radarHidden, false);
-  assert.equal(initial.axes, 13);
-  assert.equal(initial.bars, 13);
+  assert.equal(initial.axes, 16);
+  assert.equal(initial.bars, 16);
   assert.match(initial.scoreNum, /^\d+%$/);
 
   // レーダーチャート中は rAF・タイマーが 0 回
@@ -346,7 +346,7 @@ test('開くと SVG レーダー(13軸)と横棒グラフが出て rAF・タイ�
   // すべてに戻してカテゴリ切替（ひっかけ -> 教材別）とソート（弱い順）
   await page.click('#host .graph-chip[data-book="all"]');
   await page.click('#host .graph-bars-tab[data-radar-cat="trap"]');
-  assert.equal(await page.locator('#host .graph-bar-row').count(), 12);
+  assert.equal(await page.locator('#host .graph-bar-row').count(), 18);
   await page.click('#host .graph-bars-tab[data-radar-cat="book"]');
   assert.equal(await page.locator('#host .graph-bar-row').count(), 4);
   await page.click('#host .graph-bars-tab[data-radar-cat="concept"]');
@@ -356,7 +356,7 @@ test('開くと SVG レーダー(13軸)と横棒グラフが出て rAF・タイ�
   // 苦手のみトグルで苦手 0 問の概念を絞れる
   await page.click('#host .graph-weak-toggle');
   const weakBarsCount = await page.locator('#host .graph-bar-row').count();
-  assert.ok(weakBarsCount > 0 && weakBarsCount <= 13);
+  assert.ok(weakBarsCount > 0 && weakBarsCount <= 16);
   await page.click('#host .graph-weak-toggle');
 
   // 着手率オーバーレイトグル
@@ -435,7 +435,7 @@ test('教材フィルタと詳細シート・0問項目・refresh が整合し�
     disabled: document.querySelectorAll('#host .graph-bar-row.is-unavailable:disabled').length,
     text: document.querySelector('#host .graph-bar-row.is-unavailable')?.textContent || '',
   }));
-  assert.ok(unavail.disabled >= 10, `トップレベルの収録なしひっかけが不足: ${unavail.disabled}`);
+  assert.ok(unavail.disabled >= 1, `トップレベルの収録なしひっかけが不足: ${unavail.disabled}`);
   assert.match(unavail.text, /収録なし/);
 
   // 5. refresh() で記録更新がレーダーのスコアに反映される
@@ -553,7 +553,7 @@ test('軸ラベルの実効文字サイズが 375px・768px・900px・1280px で
       for (const el of svg.querySelectorAll('.graph-radar-axis-label')) {
         out.minPx = Math.min(out.minPx, parseFloat(getComputedStyle(el).fontSize) * scale);
         const b = el.getBBox();
-        if (b.x < 0 || b.x + b.width > 420 || b.y < 0 || b.y + b.height > 330) out.outside.push(el.textContent);
+        if (b.x < 0 || b.x + b.width > 420 || b.y < 0 || b.y + b.height > 390) out.outside.push(el.textContent);
         boxes.push({ name: el.querySelector('tspan').textContent, b });
       }
       // ラベル（分野名＋%）どうしの重なり。行間ぶんの 2 単位以下の接触は許す

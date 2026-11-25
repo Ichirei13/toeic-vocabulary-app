@@ -431,9 +431,9 @@ function loadArtifact() {
   return { g: JSON.parse(JSON.stringify(ctx.__G)), raw: ctx2.__R };
 }
 
-test('生成物: version 3、列の長さが揃い、座標は整数、kinds の範囲', () => {
+test('生成物: version 4、列の長さが揃い、座標は整数、kinds の範囲', () => {
   const { g } = loadArtifact();
-  assert.strictEqual(g.version, 3);
+  assert.strictEqual(g.version, 4);
   assert.deepStrictEqual(g.kinds, ['book', 'chapter', 'rule', 'concept', 'trap', 'question']);
   const n = g.id.length;
   for (const col of ['kind', 'label', 'x', 'y', 'qid']) assert.strictEqual(g[col].length, n, col);
@@ -455,17 +455,17 @@ test('生成物: qids が RAW_GRAMMAR の全問と過不足なく一致', () => 
   });
 });
 
-test('生成物: ノード数（book 4・chapter 51・rule 138・concept 13・trap 12・question 983）と総数', () => {
+test('生成物: ノード数（book 4・chapter 51・rule 138・concept 16・trap 18・question 983）と総数', () => {
   const { g } = loadArtifact();
   const count = k => g.kind.filter(v => v === g.kinds.indexOf(k)).length;
   assert.strictEqual(count('book'), 4);
   // 1 問だけのルールは作らない既定（2026-11-08 決定）。全ルールを作ると 521 になる
   assert.strictEqual(count('rule'), 138);
-  assert.strictEqual(g.id.length, 1201, 'ノード総数');
-  assert.strictEqual(g.edges.length / 3, 3180, 'エッジ総数');
+  assert.strictEqual(g.id.length, 1210, 'ノード総数');
+  assert.strictEqual(g.edges.length / 3, 3762, 'エッジ総数');
   assert.strictEqual(count('chapter'), 51);
-  assert.strictEqual(count('concept'), 13);
-  assert.strictEqual(count('trap'), 12);
+  assert.strictEqual(count('concept'), 16);
+  assert.strictEqual(count('trap'), 18);
   assert.strictEqual(count('question'), 983);
 });
 
@@ -486,7 +486,7 @@ test('生成物: 全エッジの端点が存在し、種類と向きが正しい
   for (let e = 0; e < g.edges.length; e += 3) {
     const a = g.edges[e], b = g.edges[e + 1], t = g.edges[e + 2];
     assert.ok(Number.isInteger(a) && a >= 0 && a < n && Number.isInteger(b) && b >= 0 && b < n, 'endpoint ' + e);
-    assert.ok([0, 1, 2].includes(t));
+    assert.ok([0, 1, 2, 3].includes(t));
     if (t === 0) {
       parents[b]++;
       const ka = K[g.kind[a]], kb = K[g.kind[b]];
@@ -495,7 +495,7 @@ test('生成物: 全エッジの端点が存在し、種類と向きが正しい
         `親子の種類 ${g.id[a]} -> ${g.id[b]}`);
     } else {
       assert.strictEqual(K[g.kind[a]], 'question');
-      assert.strictEqual(K[g.kind[b]], t === 1 ? 'concept' : 'trap');
+      assert.strictEqual(K[g.kind[b]], t === 2 ? 'trap' : 'concept');
     }
   }
   for (let i = 0; i < n; i++) {
@@ -532,9 +532,9 @@ test('生成物: members / memberStart の整合', () => {
     if (g.kind[i] === bk) total += slice(i).length;
   }
   assert.strictEqual(total, 983, '4 冊で全問を過不足なく分け合う');
-  // 概念・Trap の members = その概念へリンクした問題
+  // 概念・Trap の members = 主概念(1)・Trap(2) でリンクした問題（副概念(3)は含めない）
   const linked = new Map();
-  for (let e = 0; e < g.edges.length; e += 3) if (g.edges[e + 2] !== 0) {
+  for (let e = 0; e < g.edges.length; e += 3) if (g.edges[e + 2] === 1 || g.edges[e + 2] === 2) {
     if (!linked.has(g.edges[e + 1])) linked.set(g.edges[e + 1], new Set());
     linked.get(g.edges[e + 1]).add(g.qids.indexOf(g.qid[g.edges[e]]));
   }

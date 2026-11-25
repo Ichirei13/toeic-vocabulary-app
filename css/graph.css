@@ -865,7 +865,7 @@
   font-weight: 600;
 }
 .graph-radar-svg.is-compact .graph-radar-axis-label {
-  font-size: 16px;
+  font-size: 15px;
 }
 .graph-radar-axis-pct {
   fill: var(--graph-label-muted);

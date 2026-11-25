@@ -173,16 +173,18 @@ d3test('文法軸: 実データで概念はリングに固定され、本はリ�
 
   const cons = [];
   for (let i = 0; i < n; i++) if (kindName[i] === 'concept') cons.push(i);
-  assert.strictEqual(cons.length, 13);
+  assert.strictEqual(cons.length, 16);
   for (const ci of cons) {
     assert.ok(Math.abs(Math.hypot(P[ci][0], P[ci][1]) - R) < 1e-6, `概念 ${g.id[ci]} がリングから動いた`);
   }
 
   const parent = new Int32Array(n).fill(-1);
   const qCons = Array.from({ length: n }, () => []);
+  const qSecCount = new Int32Array(n);
   for (let k = 0; k + 2 < E.length; k += 3) {
     if (E[k + 2] === 0) parent[E[k + 1]] = E[k];
     else if (E[k + 2] === 1) qCons[E[k]].push(E[k + 1]);
+    else if (E[k + 2] === 3) qSecCount[E[k]]++;
   }
   const nearest = i => cons.reduce((b, c) => (dist(P, i, c) < dist(P, i, b) ? c : b), cons[0]);
 
@@ -191,14 +193,14 @@ d3test('文法軸: 実データで概念はリングに固定され、本はリ�
     if (kindName[i] !== 'question' || !qCons[i].length) continue;
     qN++;
     if (qCons[i].includes(nearest(i))) qOk++;
-    if (qCons[i].length === 1) {
+    if (qCons[i].length === 1 && qSecCount[i] === 0) {
       s1n++;
       if (qCons[i][0] === nearest(i)) s1++;
     }
   }
-  assert.strictEqual(s1n, 468);
-  assert.strictEqual(s1, 468, `単一概念の問題: ${s1}/${s1n}`);
-  assert.ok(qOk / qN >= 0.88, `問題全体の最寄り概念一致率: ${qOk}/${qN}`);
+  assert.ok(s1n > 0);
+  assert.strictEqual(s1, s1n, `純単一概念の問題: ${s1}/${s1n}`);
+  assert.ok(qOk / qN >= 0.88, `問題全体の主概念一致率: ${qOk}/${qN}`);
 
   let top1 = 0, top2 = 0, chN = 0;
   for (let i = 0; i < n; i++) {

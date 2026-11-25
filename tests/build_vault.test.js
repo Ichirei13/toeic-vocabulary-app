@@ -273,3 +273,43 @@ test('order: 本文で結べた組が 5 組に満たなければ使わない', a
   const r2 = await matchQuestions(enough.app, enough.vault);
   assert.strictEqual(r2.via.get(2010), 'order');
 });
+
+test('loadVault: v4 形式の問題ノートから主概念・副概念・solve_type・point を読む', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const { loadVault } = await lib('vault.mjs');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'vault-v4-'));
+  try {
+    const qDir = path.join(tmp, '03_Questions', '金の文法');
+    fs.mkdirSync(qDir, { recursive: true });
+    fs.writeFileSync(path.join(qDir, 'kin_001_Q001.md'), `---
+practice_id: 1001
+book: 金の文法
+chapter: 1
+solve_type: 文構造
+point: "主語と動詞の対応を確認する"
+---
+## 問題文
+> The manager ------- the report yesterday.
+
+### 主な文法概念（コアハブ）
+- [[00_Concepts/SVOC（文の骨格）|SVOC（文の骨格）]]
+
+### 関連する文法概念（補助ハブ）
+- [[00_Concepts/動詞の時制と相|動詞の時制と相]]
+
+### ⚠️ 注意すべきひっかけ・トラップ
+- [[04_Traps/Trap_05_自動詞・他動詞の混同と前置詞の有無|自動詞・他動詞]]
+`);
+    const v = await loadVault(tmp);
+    assert.strictEqual(v.questions.length, 1);
+    const q = v.questions[0];
+    assert.strictEqual(q.primaryConceptId, 'SVOC（文の骨格）');
+    assert.deepStrictEqual(q.secondaryConceptIds, ['動詞の時制と相']);
+    assert.strictEqual(q.solveType, '文構造');
+    assert.strictEqual(q.point, '主語と動詞の対応を確認する');
+    assert.deepStrictEqual(q.trapIds, ['Trap_05_自動詞・他動詞の混同と前置詞の有無']);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

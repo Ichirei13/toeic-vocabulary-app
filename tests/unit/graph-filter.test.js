@@ -261,14 +261,14 @@ test('実データ: polaris2 だけにすると sekai の章がない', () => {
   assert.ok(count(mask, 'chapter') > 0);
 });
 
-test('実データ: 本の絞り込みで残る概念は 13 以下で、どれもその本の問題を 1 問以上もつ', () => {
+test('実データ: 本の絞り込みで残る概念は 16 以下で、どれもその本の問題を 1 問以上もつ', () => {
   const m = realMastery();
   for (const b of BOOKS) {
     const bi = REAL.id.indexOf('book:' + b);
     const inBook = new Set();
     for (let k = REAL.memberStart[bi]; k < REAL.memberStart[bi + 1]; k++) inBook.add(REAL.members[k]);
     const mask = realMask(m, { book: b });
-    assert.ok(count(mask, 'concept') <= 13, `${b}: concept=${count(mask, 'concept')}`);
+    assert.ok(count(mask, 'concept') <= 16, `${b}: concept=${count(mask, 'concept')}`);
     for (let i = 0; i < mask.length; i++) {
       if (!mask[i]) continue;
       let hit = false;

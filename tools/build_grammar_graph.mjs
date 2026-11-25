@@ -18,7 +18,12 @@ const DEFAULT_OUT = path.join(ROOT, 'data', 'grammar_graph.js');
 
 // question_analysis.json の 1 問分析結果を matched.byApp へ反映する（主概念・副概念・Trap・解法タイプ・着眼点）。
 export function applyQuestionAnalysis(byApp, data) {
-  const records = Array.isArray(data) ? data : (data && Array.isArray(data.questions) ? data.questions : []);
+  const qRaw = data && data.questions;
+  const records = Array.isArray(data)
+    ? data
+    : Array.isArray(qRaw)
+      ? qRaw
+      : (qRaw && typeof qRaw === 'object' ? Object.values(qRaw) : []);
   let applied = 0;
   for (const rec of records) {
     if (!rec || !Number.isInteger(rec.app_id)) continue;

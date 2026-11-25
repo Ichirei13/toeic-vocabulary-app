@@ -288,11 +288,12 @@ test('苦手を入れた記録（本物の保存キー）で、その問題の�
   const pick = await first.page.evaluate(() => {
     const G = GRAMMAR_GRAPH, e = G.edges, links = new Map();
     for (let k = 0; k < e.length; k += 3) {
-      if (e[k + 2] === 0) continue;
+      const t = e[k + 2];
+      if (t !== 1 && t !== 2) continue;
       const [a, b] = [e[k], e[k + 1]];
       const q = G.kind[a] === 5 ? a : b, other = q === a ? b : a;
       if (!links.has(q)) links.set(q, {});
-      links.get(q)[e[k + 2] === 1 ? 'concept' : 'trap'] = other;
+      links.get(q)[t === 1 ? 'concept' : 'trap'] = other;
     }
     for (const [q, l] of links) if (l.concept != null && l.trap != null && GRAMMAR_BY_ID.has(G.qid[q])) return { qid: G.qid[q], concept: l.concept, trap: l.trap };
     return null;
@@ -588,7 +589,7 @@ test('文法軸の座標キャッシュ（toeic_graph_grammar_cache_v1）が再�
   const expectedTicks = await page.evaluate(() => StudyCore.GRAPH_GRAMMAR.ticks);
   assert.equal(firstTicks, expectedTicks);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('toeic_graph_grammar_cache_v1')));
-  assert.ok(saved && typeof saved.sig === 'string' && Array.isArray(saved.x) && saved.x.length === 1201, 'キャッシュが保存されていない');
+  assert.ok(saved && typeof saved.sig === 'string' && Array.isArray(saved.x) && saved.x.length === 1210, 'キャッシュが保存されていない');
 
   // 1. ページ移動後の再訪は 0 tick で開く
   await page.locator('#graph-page .graph-page-back').click();

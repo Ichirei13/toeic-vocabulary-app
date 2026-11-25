@@ -72,7 +72,7 @@
   // 文法軸モードの配置の調整値（実行時のみ。data/grammar_graph.js には影響しない）。
   const GRAPH_GRAMMAR = {
     seed: 20261119,
-    ringRadius: 600,
+    ringRadius: 740,
     ticks: 120,
     alpha: 0.7,
     singleOutward: 70,         // 概念が 1 つだけの問題の初期位置を、円の外側へずらす距離
@@ -84,21 +84,21 @@
     chapterPull: 0.55,         // 章ノードを最多概念へ引く強さ
     rulePull: 0.15,            // ルールノードを最多概念へ引く強さ
     chapterRadiusFactor: 0.86, // 章・ルールの目標位置（最多概念の座標に対する比＝少し内側）
-    conceptStrength: 0.45,
+    conceptStrength: 0.65,
     conceptDistance: 65,
-    weakConceptStrength: 0.7,
-    secondaryConceptStrength: 0.12,
+    weakConceptStrength: 0.9,
+    secondaryConceptStrength: 0.08,
     secondaryConceptDistance: 100,
     weakSecondaryConceptStrength: 0.25,
-    parentStrength: 0.25,
+    parentStrength: 0.14,
     parentDistance: 32,
     weakParentFactor: 0.4,
     bookChapterStrength: 0.01,
     bookChapterDistance: 180,
-    trapStrength: 0.15,
+    trapStrength: 0.07,
     trapDistance: 70,
     weakTrapStrength: 0.8,
-    weakLinkDistance: 44,
+    weakLinkDistance: 36,
     charge: { book: -320, chapter: -140, rule: -28, concept: -420, trap: -260, question: -6 },
     chargeDistanceMax: 420,
     collideRadius: GRAPH_LAYOUT.collideRadius,

@@ -58,6 +58,19 @@ export function linkTargets(body, dir) {
   return [...seen];
 }
 
+// `### <prefix>...` 見出し配下の [[<dir>/<名前>...]] を抽出する
+function sectionLinkTargets(body, headingPrefix, dir) {
+  const lines = body.split(/\r?\n/);
+  const start = lines.findIndex(l => l.trim().startsWith(headingPrefix));
+  if (start < 0) return [];
+  const block = [];
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^(#{1,6}\s|---+\s*$)/.test(lines[i])) break;
+    block.push(lines[i]);
+  }
+  return linkTargets(block.join('\n'), dir);
+}
+
 // `# 📚 名前` の見出しから先頭の絵文字を除いた名前
 function headingName(body, fallback) {
   const m = body.match(/^#\s+(.+?)\s*$/m);
@@ -84,14 +97,23 @@ export async function loadVault(vaultDir) {
       const practiceId = Number(data.practice_id);
       if (!Number.isInteger(practiceId)) continue;
       const chapter = Number.isInteger(Number(data.chapter)) && data.chapter !== '' ? Number(data.chapter) : null;
-      questions.push({
+      const primaryList = sectionLinkTargets(body, '### 主な文法概念', '00_Concepts');
+      const secondaryList = sectionLinkTargets(body, '### 関連する文法概念（補助ハブ）', '00_Concepts');
+      const q = {
         practiceId,
         book: data.book || bookDir,
         chapter,
         text: questionText(body),
         conceptIds: linkTargets(body, '00_Concepts'),
         trapIds: linkTargets(body, '04_Traps'),
-      });
+      };
+      if (primaryList.length > 0) {
+        q.primaryConceptId = primaryList[0];
+        q.secondaryConceptIds = secondaryList.filter(c => c !== q.primaryConceptId);
+      }
+      if (typeof data.solve_type === 'string' && data.solve_type) q.solveType = data.solve_type;
+      if (typeof data.point === 'string' && data.point) q.point = data.point.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      questions.push(q);
     }
   }
 

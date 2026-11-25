@@ -289,9 +289,11 @@
       const textAnchor = Math.abs(cos) < 0.3 ? 'middle' : cos > 0 ? 'start' : 'end';
       const dy = sin > 0.65 ? 10 : sin < -0.65 ? -4 : 4;
       // 中央揃えのうち真上・真下ちょうどでない軸（13 軸の真下の 2 軸など）は、左右へ少し外側にずらす。
-      // 中央揃えのままだと隣どうし（「代名詞」と「名詞」）の中心が近く、「100%」の行どうしが重なるため
+      // 中央揃えのままだと隣どうし（「代名詞」と「名詞」）の中心が近く、「100%」の行どうしが重なるため。
+      // また 16 軸のように真上・真下（middle）の左右に |cos|≈0.38 の軸が並ぶときも少し外側へ寄せて重なりを防ぐ
       const labelPos = pointAt(angle, radius + labelOffset);
       if (textAnchor === 'middle' && Math.abs(cos) > 0.05) labelPos.x += Math.sign(cos) * MIDDLE_LABEL_NUDGE;
+      else if (textAnchor !== 'middle' && Math.abs(cos) < 0.55 && Math.abs(sin) > 0.75) labelPos.x += Math.sign(cos) * 10;
       return {
         index: i,
         item,

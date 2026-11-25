@@ -216,7 +216,7 @@ test('computeRadarGeometry: 13 軸のとき、真下に近い 2 軸（代名詞�
   assert.equal(geo.axes[12].textAnchor, 'end');
 });
 
-test('実グラフ (GRAMMAR_GRAPH): 13 概念・12 Trap・4 教材の集計と合計 983 問が一致する', () => {
+test('実グラフ (GRAMMAR_GRAPH): 16 概念・18 Trap・4 教材の集計と合計 983 問が一致する', () => {
   const code = fs.readFileSync(path.join(__dirname, '../../data/grammar_graph.js'), 'utf8');
   const ctx = {};
   vm.runInNewContext(code + '; this.GRAMMAR_GRAPH = GRAMMAR_GRAPH;', ctx);
@@ -225,8 +225,8 @@ test('実グラフ (GRAMMAR_GRAPH): 13 概念・12 Trap・4 教材の集計と�
     conceptOrder: F.GRAMMAR_CONCEPT_ORDER,
   });
   assert.equal(rep.summary.total, 983);
-  assert.equal(rep.concepts.length, 13);
-  assert.equal(rep.traps.length, 12);
+  assert.equal(rep.concepts.length, 16);
+  assert.equal(rep.traps.length, 18);
   assert.equal(rep.books.length, 4);
   const bookTotal = rep.books.reduce((s, b) => s + b.total, 0);
   assert.equal(bookTotal, 983);

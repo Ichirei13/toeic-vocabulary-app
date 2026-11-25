@@ -176,12 +176,12 @@
             highlightsHtml +
           `</section>`;
 
-        // 2. 13 概念レーダーチャート（SVG）。狭い枠では半径を小さくして文字を大きくする（viewBox は共通）
+        // 2. 文法概念レーダーチャート（SVG）。16 軸でもラベルが重ならないよう縦に余裕を持たせる（viewBox は共通）
         compact = wantCompact();
         debug.compact = compact;
         const geo = S.computeRadarGeometry(rep.concepts, compact
-          ? { width: 420, height: 330, radius: 76, labelOffset: 16 }
-          : { width: 420, height: 330, radius: 96, labelOffset: 20 });
+          ? { width: 420, height: 390, radius: 92, labelOffset: 22 }
+          : { width: 420, height: 390, radius: 104, labelOffset: 24 });
         const ringsSvg = geo.rings.map(r =>
           `<polygon class="graph-radar-ring${r.isTarget ? ' is-target' : ''}" points="${fmtPts(r.points)}"></polygon>`
         ).join('');
@@ -217,7 +217,7 @@
           const dimCls = unavailable ? ' is-unavailable' : (weakOnly && it.weak === 0 ? ' is-dim' : '');
           const actCls = !unavailable && sheetIndex === it.nodeIndex ? ' is-active' : '';
           const sin = Math.sin(ax.angle);
-          const labelDy = sin < -0.65 ? -10 : sin > 0.65 ? 5 : -2;
+          const labelDy = sin < -0.8 ? -14 : sin < -0.5 ? -2 : sin > 0.8 ? 13 : sin > 0.5 ? 2 : -2;
           const lx = ax.labelPos.x.toFixed(1);
           const ly = (ax.labelPos.y + labelDy).toFixed(1);
           const interactiveAttrs = unavailable
@@ -236,7 +236,7 @@
 
         const conceptCount = rep.concepts.length;
         const radarSvg =
-          `<svg class="graph-radar-svg${compact ? ' is-compact' : ''}" viewBox="0 0 420 330" role="img" aria-label="${esc(conceptCount)}文法概念のレーダーチャート">` +
+          `<svg class="graph-radar-svg${compact ? ' is-compact' : ''}" viewBox="0 0 420 390" role="img" aria-label="${esc(conceptCount)}文法概念のレーダーチャート">` +
             ringsSvg +
             axesSvg +
             covPolySvg +

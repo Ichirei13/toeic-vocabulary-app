@@ -147,11 +147,12 @@ async function pickLinkedQuestion(page) {
   return page.evaluate(() => {
     const G = GRAMMAR_GRAPH, e = G.edges, links = new Map();
     for (let k = 0; k < e.length; k += 3) {
-      if (e[k + 2] === 0) continue;
+      const t = e[k + 2];
+      if (t !== 1 && t !== 2) continue;
       const [a, b] = [e[k], e[k + 1]];
       const q = G.kind[a] === 5 ? a : b, other = q === a ? b : a;
       if (!links.has(q)) links.set(q, {});
-      links.get(q)[e[k + 2] === 1 ? 'concept' : 'trap'] = other;
+      links.get(q)[t === 1 ? 'concept' : 'trap'] = other;
     }
     for (const [q, l] of links) if (l.concept != null && l.trap != null) return { q, qid: G.qid[q], concept: l.concept, trap: l.trap };
     return null;
@@ -184,9 +185,14 @@ test('苦手（概念と Trap につながる問題 1 問）を渡すと、概�
   await mountAndWait(page);
   await settled(page); // 苦手があるので力学が回る。色は収まってから読む
   for (const i of [pick.concept, pick.trap]) {
-    const [x, y] = await page.evaluate(i => GraphView._debug.screenOf(i), i);
-    const px = await page.evaluate(([x, y]) => window.__px(x, y), [x, y]);
-    assert.ok(isRed(px), `ノード ${i} が赤くない: ${px}`);
+    const samples = await page.evaluate(i => {
+      const [cx, cy] = GraphView._debug.screenOf(i);
+      const r = GraphView._debug.screenRadiusOf(i);
+      const d = r * 0.55;
+      const pts = [[cx, cy], [cx, cy - d], [cx - d, cy], [cx + d, cy], [cx, cy + d]];
+      return pts.map(([x, y]) => window.__px(x, y));
+    }, i);
+    assert.ok(samples.some(isRed), `ノード ${i} が赤くない: ${JSON.stringify(samples)}`);
   }
   // 近景で問題そのものも赤い
   const f = await frames(page);
@@ -1291,7 +1297,7 @@ test('選択: 浮かび上がらせる線が多い（60 本超）ときは太さ
   await mountAndWait(page);
   const pick = id => page.evaluate(id => GRAMMAR_GRAPH.id.indexOf(id), id);
   const res = {};
-  for (const id of ['con:SVOC（文の骨格）', 'ch:sekai:1']) {
+  for (const id of ['con:動名詞 vs 不定詞', 'ch:sekai:1']) {
     const i = await pick(id);
     await page.evaluate(i => GraphView._debug.focus(i, 3), i);
     await waitFor(page, i => GraphView._debug.camera().scale > 0 && GraphView._debug.screenOf(i)[0] > 100, i);
@@ -1302,8 +1308,8 @@ test('選択: 浮かび上がらせる線が多い（60 本超）ときは太さ
     assert.equal(res[id].node, i, id + ' を選べていない');
     await page.mouse.click(2, 100); // 何もない場所のタップで閉じる
   }
-  assert.ok(res['con:SVOC（文の骨格）'].edges > 60);
-  assert.equal(res['con:SVOC（文の骨格）'].width, 1);
+  assert.ok(res['con:動名詞 vs 不定詞'].edges > 60);
+  assert.equal(res['con:動名詞 vs 不定詞'].width, 1);
   assert.ok(res['ch:sekai:1'].edges <= 60);
   assert.equal(res['ch:sekai:1'].width, 1.8);
 });
@@ -1483,7 +1489,7 @@ test('当たり判定: 苦手で大きくなった概念は、見た目の円の
   assert.equal(r.hit, r.tried, `外周で当たらない方向がある: ${JSON.stringify(r)}`);
 });
 
-test('文法軸モード: 切り替えると 13 概念が円周上に固定され、収束後は 1 秒間 rAF もタイマーも呼ばれない', async t => {
+test('文法軸モード: 切り替えると 16 概念が円周上に固定され、収束後は 1 秒間 rAF もタイマーも呼ばれない', async t => {
   const page = await open(t);
   await mountAndWait(page);
   assert.equal(await page.evaluate(() => GraphView._debug.mode), 'book');
@@ -1513,7 +1519,7 @@ test('文法軸モード: 切り替えると 13 概念が円周上に固定さ�
   assert.equal(res.mode, 'grammar');
   assert.equal(res.ticks, res.expectedTicks);
   assert.deepEqual(res.pressed, ['book:false', 'grammar:true']);
-  assert.equal(res.cons.length, 13);
+  assert.equal(res.cons.length, 16);
   for (const c of res.cons) assert.ok(Math.abs(c.r - res.R) < 1e-3, `${c.id} の半径が円周上にない: ${c.r}`);
   assert.equal(res.books.length, 4);
   for (const b of res.books) assert.ok(b.r > res.R, `${b.id} がリング外にない: r=${b.r}`);
@@ -1703,7 +1709,7 @@ test('文法軸モード: getLayoutCache / setLayoutCache によるキャッシ�
   assert.equal(first.ticks, first.expected);
   assert.equal(first.writes, 1);
   assert.equal(typeof first.sig, 'string');
-  assert.equal(first.len, 1201);
+  assert.equal(first.len, 1210);
   // 3. 同じ条件で再マウント → キャッシュ命中により 0 tick で即表示し、再保存しない
   await page.evaluate(() => { window.__mountCached('grammar'); });
   await settled(page);
@@ -1767,4 +1773,51 @@ test('initialJumpNode: 指定した問題へ、教材軸・絞り込みなしで
     await settled(page);
     assert.equal(await sheetOpen(page), false, `initialJumpNode=${bad} でシートが開いた`);
   }
+});
+
+test('問題詳細シート: 解法タイプ・1行着眼点・主概念/副概念/Trapチップを表示し、チップ押下でそのノードへ移る', async t => {
+  const page = await open(t);
+  const sample = await page.evaluate(() => {
+    const G = GRAMMAR_GRAPH, e = G.edges, byQ = new Map();
+    for (let k = 0; k < e.length; k += 3) {
+      const q = e[k], to = e[k + 1], tp = e[k + 2];
+      if (tp === 0) continue;
+      if (!byQ.has(q)) byQ.set(q, { p: null, s: [], tr: [] });
+      if (tp === 1) byQ.get(q).p = to;
+      else if (tp === 3) byQ.get(q).s.push(to);
+      else if (tp === 2) byQ.get(q).tr.push(to);
+    }
+    for (const [q, info] of byQ) {
+      if (info.p != null && info.s.length > 0 && info.tr.length > 0) {
+        return { q, primary: info.p, secondary: info.s[0], trap: info.tr[0] };
+      }
+    }
+    return null;
+  });
+  assert.ok(sample, '主概念・副概念・Trapのすべてを持つ問題がある前提');
+  await page.evaluate(i => {
+    const deps = window.__deps();
+    deps.initialJumpNode = i;
+    GraphView.mount(document.getElementById('host'), deps);
+  }, sample.q);
+  await settled(page);
+  await waitFor(page, () => GraphView._debug.animating === false && GraphView._debug.focusNode >= 0, undefined, 5000);
+
+  const meta = await page.evaluate(() => ({
+    solve: document.querySelector('#host .graph-solve-badge')?.textContent || '',
+    point: document.querySelector('#host .graph-point')?.textContent || '',
+    primary: document.querySelector('#host .graph-tag-chip.is-primary')?.getAttribute('data-jump-node'),
+    secondary: [...document.querySelectorAll('#host .graph-tag-chip.is-secondary')].map(el => el.getAttribute('data-jump-node')),
+    trap: [...document.querySelectorAll('#host .graph-tag-chip.is-trap')].map(el => el.getAttribute('data-jump-node')),
+  }));
+  assert.ok(meta.solve.length > 0, '解法タイプが空');
+  assert.ok(meta.point.length >= 10, `着眼点が短すぎる: ${meta.point}`);
+  assert.equal(Number(meta.primary), sample.primary);
+  assert.ok(meta.secondary.map(Number).includes(sample.secondary));
+  assert.ok(meta.trap.map(Number).includes(sample.trap));
+
+  // 主概念チップをクリックすると、その概念ノードに選択とシートが移る
+  await page.click('#host .graph-tag-chip.is-primary');
+  await waitFor(page, p => GraphView._debug.focusNode === p, sample.primary, 5000);
+  assert.equal(await page.evaluate(() => GraphView._debug.focusNode), sample.primary);
 });
